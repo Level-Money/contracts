@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.19;
+pragma solidity 0.8.19;
 
-interface ILevelMintingEvents {
+interface IEthenaMintingEvents {
     /// @notice Event emitted when contract receives ETH
     event Received(address, uint256);
 
-    /// @notice Event emitted when lvUSD is minted
+    /// @notice Event emitted when USDe is minted
     event Mint(
         address minter,
         address benefactor,
         address beneficiary,
         address indexed collateral_asset,
         uint256 indexed collateral_amount,
-        uint256 indexed lvusd_amount
+        uint256 indexed usde_amount
     );
 
     /// @notice Event emitted when funds are redeemed
@@ -22,7 +22,7 @@ interface ILevelMintingEvents {
         address beneficiary,
         address indexed collateral_asset,
         uint256 indexed collateral_amount,
-        uint256 indexed lvusd_amount
+        uint256 indexed usde_amount
     );
 
     /// @notice Event emitted when custody wallet is added
@@ -50,8 +50,8 @@ interface ILevelMintingEvents {
         uint256 amount
     );
 
-    /// @notice Event emitted when lvUSD is set
-    event lvUSDSet(address indexed lvUSD);
+    /// @notice Event emitted when USDe is set
+    event USDeSet(address indexed USDe);
 
     /// @notice Event emitted when the max mint per block is changed
     event MaxMintPerBlockChanged(

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.19;
+pragma solidity 0.8.19;
 
-import "./ILevelMintingEvents.sol";
+import "./IEthenaMintingEvents.sol";
 
-interface ILevelMinting is ILevelMintingEvents {
+interface IEthenaMinting is IEthenaMintingEvents {
     enum Role {
         Minter,
         Redeemer
@@ -36,12 +36,12 @@ interface ILevelMinting is ILevelMintingEvents {
         address beneficiary;
         address collateral_asset;
         uint256 collateral_amount;
-        uint256 lvusd_amount;
+        uint256 usde_amount;
     }
 
     error Duplicate();
     error InvalidAddress();
-    error InvalidlvUSDAddress();
+    error InvalidUSDeAddress();
     error InvalidZeroAddress();
     error InvalidAssetAddress();
     error InvalidCustodianAddress();

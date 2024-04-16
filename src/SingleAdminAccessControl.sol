@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity >=0.8.19;
+pragma solidity 0.8.19;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/interfaces/IERC5313.sol";
@@ -9,7 +9,6 @@ import "./interfaces/ISingleAdminAccessControl.sol";
  * @title SingleAdminAccessControl
  * @notice SingleAdminAccessControl is a contract that provides a single admin role
  * @notice This contract is a simplified alternative to OpenZeppelin's AccessControlDefaultAdminRules
- * @dev Changelog: update solidity versions
  */
 abstract contract SingleAdminAccessControl is
     IERC5313,
