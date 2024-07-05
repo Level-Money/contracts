@@ -44,10 +44,7 @@ contract StakedlvlUSDTest is Test, IERC20Events {
         uint256 assets,
         uint256 shares
     );
-    event RewardsReceived(
-        uint256 indexed amount,
-        uint256 newVestinglvlUSDAmount
-    );
+    event RewardsReceived(uint256 indexed amount);
 
     function setUp() public virtual {
         lvlUSDToken = new lvlUSD(address(this));
@@ -119,7 +116,7 @@ contract StakedlvlUSDTest is Test, IERC20Events {
         vm.expectEmit(true, false, false, true);
         emit Transfer(rewarder, address(stakedlvlUSD), amount);
         vm.expectEmit(true, false, false, false);
-        emit RewardsReceived(amount, expectedNewVestingAmount);
+        emit RewardsReceived(amount);
 
         stakedlvlUSD.transferInRewards(amount);
 
@@ -888,7 +885,7 @@ contract StakedlvlUSDTest is Test, IERC20Events {
         vm.stopPrank();
     }
 
-    function testUnstakeWhileFrozenFundsAreThawing() public {
+    function testUnstakeBeforeFrozenFundsStartThawing() public {
         vm.startPrank(owner);
         // set cooldown duration to be 7 days
         stakedlvlUSD.setCooldownDuration(7 days);
@@ -936,10 +933,63 @@ contract StakedlvlUSDTest is Test, IERC20Events {
         vm.warp(7 days + 1 seconds);
         vm.startPrank(alice);
         stakedlvlUSD.unstake(alice);
-        // balance should be very close to 9.3 ether (exact value is 9300020833333333333)
+        // balance should be very close to 9 ether, since thawed funds will not be
+        // available to the staker (as they started cooldown before thawing event)
         assertApproxEqRel(
             lvlUSDToken.balanceOf(alice),
-            9300000000000000000,
+            9000000000000000000,
+            10000000000000
+        );
+        vm.stopPrank();
+    }
+
+    function testUnstakeAfterFrozenFundsStartThawing() public {
+        vm.startPrank(owner);
+        // set cooldown duration to be 7 days
+        stakedlvlUSD.setCooldownDuration(7 days);
+        // set freezer role
+        stakedlvlUSD.grantRole(FREEZER_ROLE, freezer);
+        vm.stopPrank();
+
+        uint256 amount = 100 ether;
+        _mintApproveDeposit(alice, amount);
+        assertEq(stakedlvlUSD.balanceOf(alice), amount);
+
+        // freeze 10 ether worth of funds
+        vm.startPrank(freezer);
+        stakedlvlUSD.freeze(10 ether);
+        assertEq(
+            lvlUSDToken.balanceOf(address(stakedlvlUSD.freezer())),
+            10 ether
+        );
+        assertEq(lvlUSDToken.balanceOf(address(stakedlvlUSD)), 90 ether);
+        vm.stopPrank();
+
+        // transfer in frozen funds
+        vm.startPrank(freezer);
+        stakedlvlUSD.transferInFrozenFunds(6 ether);
+
+        // start cooldown shares after funds have fully thawed
+        vm.warp(8 hours);
+        // initialize unstaking process
+        vm.startPrank(alice);
+        // initiate share cooldown process in anticipation of unstaking
+        stakedlvlUSD.cooldownShares(10 ether, alice);
+        // check that shares have been transferred from Alice
+        assertEq(stakedlvlUSD.balanceOf(alice), 90 ether);
+        // check that shares have indeed been escrowed to the silo
+        assertEq(
+            stakedlvlUSD.balanceOf(address(stakedlvlUSD.silo())),
+            10 ether
+        );
+        vm.warp(7 days + 8 hours);
+        vm.startPrank(alice);
+        stakedlvlUSD.unstake(alice);
+        // balance should be very close to 9.6 ether, since thawed funds will be
+        // available to the staker
+        assertApproxEqRel(
+            lvlUSDToken.balanceOf(alice),
+            9600000000000000000,
             10000000000000
         );
         vm.stopPrank();

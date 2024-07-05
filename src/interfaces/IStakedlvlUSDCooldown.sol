@@ -5,8 +5,9 @@ pragma solidity >=0.8.19;
 import "./IStakedlvlUSD.sol";
 
 struct UserCooldown {
-    uint104 cooldownEnd;
+    uint104 cooldownStart;
     uint256 underlyingShares;
+    uint256 expectedAssets;
 }
 
 interface IStakedlvlUSDCooldown is IStakedlvlUSD {

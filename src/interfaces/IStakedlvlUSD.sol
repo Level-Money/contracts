@@ -5,9 +5,9 @@ pragma solidity >=0.8.19;
 interface IStakedlvlUSD {
     // Events //
     /// @notice Event emitted when the rewards are received
-    event RewardsReceived(uint256 indexed amount, uint256 newVestingAmount);
+    event RewardsReceived(uint256 indexed amount);
     /// @notice Event emitted when frozen funds are received
-    event FrozenFundsReceived(uint256 indexed amount, uint256 newVestingAmount);
+    event FrozenFundsReceived(uint256 indexed amount);
     /// @notice Event emitted when the balance from an FULL_RESTRICTED_STAKER_ROLE user are redistributed
     event LockedAmountRedistributed(
         address indexed from,
@@ -32,7 +32,7 @@ interface IStakedlvlUSD {
     // Errors //
     /// @notice Error emitted shares or assets equal zero.
     error InvalidAmount();
-    /// @notice Error emitted when owner attempts to rescue USDe tokens.
+    /// @notice Error emitted when owner attempts to rescue lvlUSD tokens.
     error InvalidToken();
     /// @notice Error emitted when slippage is exceeded on a deposit or withdrawal
     error SlippageExceeded();

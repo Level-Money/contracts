@@ -56,10 +56,15 @@ contract StakedlvlUSD is
 
     uint24 public constant MAX_COOLDOWN_DURATION = 90 days;
 
+    uint16 constant MAX_FREEZABLE_PERCENTAGE = 5_000; // 50%
+
+    /* ------------- Errors ------------- */
+    error MaxFreezablePercentage();
+
     /* ------------- STATE VARIABLES ------------- */
     uint24 public cooldownDuration;
-    slvlUSDSilo public silo;
-    Freezer public freezer;
+    slvlUSDSilo public immutable silo;
+    Freezer public immutable freezer;
 
     /// @notice The amount of the last asset distribution from the controller contract into this
     /// contract + any unvested remainder at that time
@@ -120,8 +125,6 @@ contract StakedlvlUSD is
 
         silo = new slvlUSDSilo(address(this));
         freezer = new Freezer(address(this), address(_asset));
-        cooldownDuration = 0;
-        freezablePercentage = 0;
     }
 
     /* ------------- EXTERNAL ------------- */
@@ -134,14 +137,14 @@ contract StakedlvlUSD is
         uint256 amount
     ) external nonReentrant onlyRole(REWARDER_ROLE) notZero(amount) {
         if (getUnvestedAmount() > 0) revert StillVesting();
-        uint256 newVestingAmount = amount + getUnvestedAmount();
+        uint256 newVestingAmount = amount;
 
         vestingAmount = newVestingAmount;
         lastDistributionTimestamp = block.timestamp;
         // transfer assets from rewarder to this contract
         IERC20(asset()).safeTransferFrom(msg.sender, address(this), amount);
 
-        emit RewardsReceived(amount, newVestingAmount);
+        emit RewardsReceived(amount);
     }
 
     /**
@@ -152,7 +155,7 @@ contract StakedlvlUSD is
         uint256 amount
     ) external nonReentrant onlyRole(FREEZER_ROLE) notZero(amount) {
         if (getUnvestedUnfrozenAmount() > 0) revert StillVesting();
-        uint256 newUnfreezingAmount = amount + getUnvestedUnfrozenAmount();
+        uint256 newUnfreezingAmount = amount;
 
         unfreezingAmount = newUnfreezingAmount;
         lastUnfreezingTimestamp = block.timestamp;
@@ -160,7 +163,7 @@ contract StakedlvlUSD is
         // transfer assets from freezer to this contract
         freezer.withdraw(amount);
 
-        emit FrozenFundsReceived(amount, newUnfreezingAmount);
+        emit FrozenFundsReceived(amount);
     }
 
     /**
@@ -184,7 +187,8 @@ contract StakedlvlUSD is
      * @return The freezable amount of assets.
      */
     function getFreezableAmount() public view returns (uint256) {
-        return (totalAssets() * freezablePercentage) / 10_000;
+        uint256 frozenAssets = IERC20(asset()).balanceOf(address(freezer));
+        return ((totalAssets() + frozenAssets) * freezablePercentage) / 10_000;
     }
 
     /**
@@ -231,7 +235,8 @@ contract StakedlvlUSD is
         uint256 amount,
         address to
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (address(token) == asset()) revert InvalidToken();
+        if (address(token) == asset() && totalSupply() != 0)
+            revert InvalidToken();
         IERC20(token).safeTransfer(to, amount);
     }
 
@@ -248,8 +253,16 @@ contract StakedlvlUSD is
             hasRole(FULL_RESTRICTED_STAKER_ROLE, from) &&
             !hasRole(FULL_RESTRICTED_STAKER_ROLE, to)
         ) {
-            uint256 amountToDistribute = balanceOf(from);
-            _burn(from, amountToDistribute);
+            uint256 amountInEOA = balanceOf(from);
+            _burn(from, amountInEOA);
+
+            uint256 amountInSilo = cooldowns[from].underlyingShares;
+            if (amountInSilo != 0) {
+                _burn(address(silo), amountInSilo);
+                delete cooldowns[from];
+            }
+
+            uint256 amountToDistribute = amountInEOA + amountInSilo;
             // to address of address(0) enables burning
             if (to != address(0)) _mint(to, amountToDistribute);
 
@@ -318,7 +331,7 @@ contract StakedlvlUSD is
 
     /// @notice ensures a small non-zero amount of shares does not remain, exposing to donation attack
     function _checkMinShares() internal view {
-        uint256 _totalSupply = totalSupply();
+        uint256 _totalSupply = totalSupply() - balanceOf(address(silo));
         if (_totalSupply > 0 && _totalSupply < MIN_SHARES)
             revert MinSharesViolation();
     }
@@ -392,6 +405,7 @@ contract StakedlvlUSD is
     ) internal override nonReentrant notZero(assets) notZero(shares) {
         if (
             hasRole(FULL_RESTRICTED_STAKER_ROLE, caller) ||
+            hasRole(FULL_RESTRICTED_STAKER_ROLE, _owner) ||
             hasRole(FULL_RESTRICTED_STAKER_ROLE, receiver)
         ) {
             revert OperationNotAllowed();
@@ -449,6 +463,7 @@ contract StakedlvlUSD is
     ) public virtual override ensureCooldownOff returns (uint256) {
         return super.withdraw(assets, receiver, owner);
     }
+
     /**
      * @dev See {IERC4626-redeem}.
      */
@@ -467,15 +482,19 @@ contract StakedlvlUSD is
     function unstake(address receiver) external {
         UserCooldown storage userCooldown = cooldowns[msg.sender];
         uint256 shares = userCooldown.underlyingShares;
-        if (block.timestamp >= userCooldown.cooldownEnd) {
-            userCooldown.cooldownEnd = 0;
-            userCooldown.underlyingShares = 0;
-
-            // withdraw slvlUSD to this contract
+        uint256 cooldownEnd = userCooldown.cooldownStart + cooldownDuration;
+        if (block.timestamp >= cooldownEnd) {
+            // withdraw slvlUSD to the user
             silo.withdraw(msg.sender, shares);
 
-            // burn slvlUSD from this contract, and send corresponding amount of assets to receiver
-            super.redeem(shares, receiver, msg.sender);
+            // burn slvlUSD from the user, and send corresponding amount of assets to receiver
+            uint256 assets = previewRedeem(shares);
+            if (userCooldown.expectedAssets < assets)
+                assets = userCooldown.expectedAssets;
+            _withdraw(msg.sender, receiver, msg.sender, assets, shares);
+            userCooldown.cooldownStart = 0;
+            userCooldown.underlyingShares = 0;
+            userCooldown.expectedAssets = 0;
         } else {
             revert InvalidCooldown();
         }
@@ -492,10 +511,9 @@ contract StakedlvlUSD is
 
         uint256 shares = previewWithdraw(assets);
 
-        cooldowns[owner].cooldownEnd =
-            uint104(block.timestamp) +
-            cooldownDuration;
+        cooldowns[owner].cooldownStart = uint104(block.timestamp);
         cooldowns[owner].underlyingShares += shares;
+        cooldowns[owner].expectedAssets += assets;
 
         _escrow(_msgSender(), address(silo), owner, shares);
 
@@ -516,10 +534,9 @@ contract StakedlvlUSD is
         //       due to freezing / unfreezing events.
         uint256 assets = previewRedeem(shares);
 
-        cooldowns[owner].cooldownEnd =
-            uint104(block.timestamp) +
-            cooldownDuration;
+        cooldowns[owner].cooldownStart = uint104(block.timestamp);
         cooldowns[owner].underlyingShares += shares;
+        cooldowns[owner].expectedAssets += assets;
 
         // withdraw should send _transfer instead of _burn shares from the msg sender's account
         // what other functionalities does _withdraw implement?
@@ -547,6 +564,8 @@ contract StakedlvlUSD is
     function setFreezablePercentage(
         uint16 percentage
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (percentage > MAX_FREEZABLE_PERCENTAGE)
+            revert MaxFreezablePercentage();
         uint16 previousFreezable = freezablePercentage;
         freezablePercentage = percentage;
 

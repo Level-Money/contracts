@@ -7,8 +7,6 @@ import "./interfaces/IStakedlvlUSD.sol";
 import "./interfaces/IlvlUSD.sol";
 
 contract Freezer {
-    using SafeERC20 for IERC20;
-
     address immutable SLVLUSD;
     IlvlUSD immutable LVLUSD;
 

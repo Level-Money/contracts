@@ -43,10 +43,7 @@ contract StakedlvlUSDACL is Test, IERC20Events {
         uint256 assets,
         uint256 shares
     );
-    event RewardsReceived(
-        uint256 indexed amount,
-        uint256 newVestinglvlUSDAmount
-    );
+    event RewardsReceived(uint256 indexed amount);
 
     function setUp() public virtual {
         lvlUSDToken = new lvlUSD(address(this));

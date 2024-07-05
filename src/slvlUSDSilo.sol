@@ -6,12 +6,10 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./interfaces/IslvlUSDSiloDefinitions.sol";
 
 /**
- * @title USDeSilo
+ * @title slvlUSDSilo
  * @notice The Silo allows to store slvlUSD during the stake cooldown process.
  */
 contract slvlUSDSilo is IslvlUSDSiloDefinitions {
-    using SafeERC20 for IERC20;
-
     address immutable STAKING_VAULT;
 
     constructor(address stakingVault) {

@@ -8,8 +8,6 @@ import "./SingleAdminAccessControl.sol";
 import "./Freezer.sol";
 
 contract Slasher is SingleAdminAccessControl {
-    using SafeERC20 for IERC20;
-
     IlvlUSD immutable LVLUSD;
 
     /// @notice list of addresses that have transferred funds to this contract, and to which funds can be withdrawn
