@@ -5,8 +5,8 @@ pragma solidity >=0.8.19;
  * solhint-disable private-vars-leading-underscore
  */
 
-import "./SingleAdminAccessControl.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {SingleAdminAccessControl} from "./SingleAdminAccessControl.sol";
+import "@openzeppelin-4.9.0/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -285,7 +285,7 @@ contract LevelMinting is
     // These ensure that the protocol remains fully collateralized.
     function computeCollateralOrlvlUSDAmount(
         Order memory order
-    ) private returns (Order memory) {
+    ) private view returns (Order memory) {
         (int price, uint decimals) = getPriceAndDecimals(
             order.collateral_asset
         );
@@ -508,7 +508,7 @@ contract LevelMinting is
 
     function getPriceAndDecimals(
         address collateralToken
-    ) public returns (int256, uint) {
+    ) public view returns (int256, uint) {
         address oracle = oracles[collateralToken];
         if (oracle == address(0)) {
             revert OracleUndefined();
@@ -571,14 +571,14 @@ contract LevelMinting is
     /// @notice assert validity of order
     function verifyOrder(
         Order memory order
-    ) public view override returns (bool) {
+    ) public pure override returns (bool) {
         if (order.beneficiary == address(0)) revert InvalidAmount();
         if (order.collateral_amount == 0) revert InvalidAmount();
         if (order.lvlusd_amount == 0) revert InvalidAmount();
         return true;
     }
 
-    function verifyRatios(uint256[] memory ratios) public view returns (bool) {
+    function verifyRatios(uint256[] memory ratios) public pure returns (bool) {
         uint total = 0;
         for (uint i = 0; i < ratios.length; i++) {
             total += ratios[i];

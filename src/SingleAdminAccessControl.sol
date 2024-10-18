@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.8.19;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/interfaces/IERC5313.sol";
+import "@openzeppelin-4.9.0/contracts/access/AccessControl.sol";
+import "@openzeppelin-4.9.0/contracts/interfaces/IERC5313.sol";
 import "./interfaces/ISingleAdminAccessControl.sol";
 
 /**

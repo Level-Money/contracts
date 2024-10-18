@@ -79,6 +79,8 @@ interface ILevelMinting is ILevelMintingEvents {
 
     function mint(Order calldata order, Route calldata route) external;
 
+    function mintDefault(Order calldata order) external;
+
     function initiateRedeem(Order memory order) external;
 
     function completeRedeem(address token) external;
