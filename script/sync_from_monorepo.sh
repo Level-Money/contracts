@@ -9,13 +9,13 @@ IGNORED_DIRS=(
     ".git"
     "integration_tests"
     "docs"
-    "script"
     ".gitmodules"
 )
 
 IGNORED_FILES=(
     ".gitignore"
     ".gitmodules"
+    "script/sync_from_monorepo.sh"
 )
 
 # Function to show usage

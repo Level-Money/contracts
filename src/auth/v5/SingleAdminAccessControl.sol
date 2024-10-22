@@ -3,7 +3,7 @@ pragma solidity >=0.8.19;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/interfaces/IERC5313.sol";
-import "./interfaces/ISingleAdminAccessControl.sol";
+import "../../interfaces/ISingleAdminAccessControl.sol";
 
 /**
  * @title SingleAdminAccessControl
@@ -85,13 +85,16 @@ abstract contract SingleAdminAccessControl is
     /**
      * @notice no way to change admin without removing old admin first
      */
-    function _grantRole(bytes32 role, address account) internal override {
+    function _grantRole(
+        bytes32 role,
+        address account
+    ) internal override returns (bool) {
         if (role == DEFAULT_ADMIN_ROLE) {
             emit AdminTransferred(_currentDefaultAdmin, account);
             _revokeRole(DEFAULT_ADMIN_ROLE, _currentDefaultAdmin);
             _currentDefaultAdmin = account;
             delete _pendingDefaultAdmin;
         }
-        super._grantRole(role, account);
+        return super._grantRole(role, account);
     }
 }

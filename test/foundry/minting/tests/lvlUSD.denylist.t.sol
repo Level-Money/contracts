@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.19;
 
-/* 
+/*
     solhint-disable private-vars-leading-underscore
     solhint-disable contract-name-camelcase
 */
@@ -11,8 +11,9 @@ import {SigUtils} from "../../../utils/SigUtils.sol";
 import {Vm} from "forge-std/Vm.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-import "../../../../src/lvlUSD.sol";
-import "../LevelMinting.utils.sol";
+import {lvlUSD} from "../../../../src/lvlUSD.sol";
+import {LevelMintingUtils} from "../LevelMinting.utils.sol";
+import {IlvlUSDDefinitions} from "../../../../src/interfaces/IlvlUSDDefinitions.sol";
 
 contract lvlUSDDenylistTest is Test, IlvlUSDDefinitions, LevelMintingUtils {
     lvlUSD internal _lvlusdToken;
@@ -72,7 +73,9 @@ contract lvlUSDDenylistTest is Test, IlvlUSDDefinitions, LevelMintingUtils {
         assertEq(_lvlusdToken.denylisted(_denylisted), true);
 
         vm.prank(_denylisted);
-        vm.expectRevert(_getInvalidRoleError(denylisterRole, _denylisted));
+        vm.expectRevert(
+            "AccessControl: account 0xf5a5e415061470a8b9137959180901aea72450a4 is missing role 0xd15a633a037a8cb1e45b365d4ebd232aae2a8d891c9de0523b8e2fe68362d066"
+        );
         _lvlusdToken.addToDenylist(_minter);
     }
 
@@ -84,7 +87,9 @@ contract lvlUSDDenylistTest is Test, IlvlUSDDefinitions, LevelMintingUtils {
         assertEq(_lvlusdToken.denylisted(_denylisted), true);
 
         vm.prank(_denylisted);
-        vm.expectRevert(_getInvalidRoleError(denylisterRole, _denylisted));
+        vm.expectRevert(
+            "AccessControl: account 0xf5a5e415061470a8b9137959180901aea72450a4 is missing role 0xd15a633a037a8cb1e45b365d4ebd232aae2a8d891c9de0523b8e2fe68362d066"
+        );
         _lvlusdToken.removeFromDenylist(_minter);
 
         vm.prank(_denylister);

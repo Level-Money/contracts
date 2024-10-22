@@ -9,12 +9,9 @@ import {console2} from "forge-std/console2.sol";
 contract LevelMintingCoreTest is LevelMintingUtils {
     function setUp() public override {
         super.setUp();
-        // Add oracle for stETH
+        // Add oracle for DAI
         vm.prank(owner);
-        LevelMintingContract.addOracle(
-            address(stETHToken),
-            address(mockOracle)
-        );
+        LevelMintingContract.addOracle(address(DAIToken), address(mockOracle));
     }
 
     function test__mint() public {
@@ -24,14 +21,14 @@ contract LevelMintingCoreTest is LevelMintingUtils {
     function test_redeem() public {
         executeRedeem();
         assertEq(
-            stETHToken.balanceOf(address(LevelMintingContract)),
+            DAIToken.balanceOf(address(LevelMintingContract)),
             0,
-            "Mismatch in stETH balance"
+            "Mismatch in DAI balance"
         );
         assertEq(
-            stETHToken.balanceOf(beneficiary),
-            _stETHToDeposit,
-            "Mismatch in stETH balance"
+            DAIToken.balanceOf(beneficiary),
+            _DAIToDeposit,
+            "Mismatch in DAI balance"
         );
         assertEq(
             lvlusdToken.balanceOf(beneficiary),
@@ -61,19 +58,19 @@ contract LevelMintingCoreTest is LevelMintingUtils {
             order_type: ILevelMinting.OrderType.MINT,
             benefactor: beneficiary,
             beneficiary: beneficiary,
-            collateral_asset: address(stETHToken),
+            collateral_asset: address(DAIToken),
             lvlusd_amount: 5000 wei,
             collateral_amount: 50 wei
         });
-        stETHToken.mint(50000 wei, beneficiary);
+        DAIToken.mint(50000 wei, beneficiary);
         LevelMintingContract.mint(order, route);
 
         vm.startPrank(beneficiary);
         LevelMintingContract.initiateRedeem(redeemOrder);
-        vm.warp(8 days);
-        uint bal = stETHToken.balanceOf(beneficiary);
+        vm.warp(10 days);
+        uint bal = DAIToken.balanceOf(beneficiary);
         LevelMintingContract.completeRedeem(redeemOrder.collateral_asset);
-        uint new_val = stETHToken.balanceOf(beneficiary);
+        uint new_val = DAIToken.balanceOf(beneficiary);
         assertEq(new_val - bal, 50 wei);
         vm.stopPrank();
     }
@@ -87,11 +84,11 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         collateralAmount = bound(collateralAmount, 1, 1e10);
         mintAmount = bound(mintAmount, collateralAmount, 1e15);
         uint256 lvlusdAmount = collateralAmount;
-        daysToWait = uint16(bound(daysToWait, 8, 30)); // Between 1 and 30 days
+        daysToWait = uint16(bound(daysToWait, 10, 30)); // Between 1 and 30 days
         mintNonce = uint64(bound(mintNonce, 1, 1000));
 
         vm.startPrank(benefactor);
-        stETHToken.approve(address(LevelMintingContract), collateralAmount);
+        DAIToken.approve(address(LevelMintingContract), collateralAmount);
         vm.stopPrank();
 
         vm.startPrank(benefactor);
@@ -99,7 +96,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         vm.stopPrank();
 
         vm.startPrank(beneficiary);
-        stETHToken.approve(address(LevelMintingContract), collateralAmount);
+        DAIToken.approve(address(LevelMintingContract), collateralAmount);
         vm.stopPrank();
 
         vm.startPrank(beneficiary);
@@ -107,7 +104,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         vm.stopPrank();
 
         vm.startPrank(redeemer);
-        stETHToken.approve(address(LevelMintingContract), collateralAmount);
+        DAIToken.approve(address(LevelMintingContract), collateralAmount);
         vm.stopPrank();
 
         vm.startPrank(owner);
@@ -133,12 +130,12 @@ contract LevelMintingCoreTest is LevelMintingUtils {
             order_type: ILevelMinting.OrderType.MINT,
             benefactor: beneficiary,
             beneficiary: beneficiary,
-            collateral_asset: address(stETHToken),
+            collateral_asset: address(DAIToken),
             lvlusd_amount: lvlusdAmount,
             collateral_amount: collateralAmount
         });
 
-        stETHToken.mint(mintAmount * 1000, beneficiary); // Mint enough for the test
+        DAIToken.mint(mintAmount * 1000, beneficiary); // Mint enough for the test
         LevelMintingContract.mint(order, route);
 
         vm.startPrank(beneficiary);
@@ -146,9 +143,9 @@ contract LevelMintingCoreTest is LevelMintingUtils {
 
         vm.warp(daysToWait * 1 days);
 
-        uint256 balBefore = stETHToken.balanceOf(beneficiary);
+        uint256 balBefore = DAIToken.balanceOf(beneficiary);
         LevelMintingContract.completeRedeem(redeemOrder.collateral_asset);
-        uint256 balAfter = stETHToken.balanceOf(beneficiary);
+        uint256 balAfter = DAIToken.balanceOf(beneficiary);
 
         assertEq(
             balAfter - balBefore,
@@ -186,19 +183,19 @@ contract LevelMintingCoreTest is LevelMintingUtils {
             order_type: ILevelMinting.OrderType.MINT,
             benefactor: beneficiary,
             beneficiary: beneficiary,
-            collateral_asset: address(stETHToken),
+            collateral_asset: address(DAIToken),
             lvlusd_amount: 5000 wei,
             collateral_amount: 50 wei
         });
-        stETHToken.mint(50000 wei, beneficiary);
+        DAIToken.mint(50000 wei, beneficiary);
         LevelMintingContract.mint(order, route);
 
         vm.startPrank(beneficiary);
         LevelMintingContract.initiateRedeem(redeemOrder);
-        vm.warp(8 days);
-        uint bal = stETHToken.balanceOf(beneficiary);
+        vm.warp(10 days);
+        uint bal = DAIToken.balanceOf(beneficiary);
         LevelMintingContract.completeRedeem(redeemOrder.collateral_asset);
-        uint new_val = stETHToken.balanceOf(beneficiary);
+        uint new_val = DAIToken.balanceOf(beneficiary);
         assertLt(new_val - bal, 50 wei);
         vm.stopPrank();
     }
@@ -231,19 +228,19 @@ contract LevelMintingCoreTest is LevelMintingUtils {
             order_type: ILevelMinting.OrderType.MINT,
             benefactor: beneficiary,
             beneficiary: beneficiary,
-            collateral_asset: address(stETHToken),
+            collateral_asset: address(DAIToken),
             lvlusd_amount: 5000 wei,
             collateral_amount: 50 wei
         });
-        stETHToken.mint(50000 wei, beneficiary);
+        DAIToken.mint(50000 wei, beneficiary);
         LevelMintingContract.mint(order, route);
 
         vm.startPrank(beneficiary);
         LevelMintingContract.initiateRedeem(redeemOrder);
-        vm.warp(8 days);
-        uint bal = stETHToken.balanceOf(beneficiary);
+        vm.warp(10 days);
+        uint bal = DAIToken.balanceOf(beneficiary);
         LevelMintingContract.completeRedeem(redeemOrder.collateral_asset);
-        uint new_val = stETHToken.balanceOf(beneficiary);
+        uint new_val = DAIToken.balanceOf(beneficiary);
         assertEq(new_val - bal, 50 wei);
         vm.stopPrank();
     }
@@ -270,17 +267,17 @@ contract LevelMintingCoreTest is LevelMintingUtils {
             order_type: ILevelMinting.OrderType.MINT,
             benefactor: beneficiary,
             beneficiary: beneficiary,
-            collateral_asset: address(stETHToken),
+            collateral_asset: address(DAIToken),
             lvlusd_amount: 5000 wei,
             collateral_amount: 50 wei
         });
-        stETHToken.mint(50000 wei, beneficiary);
+        DAIToken.mint(50000 wei, beneficiary);
         LevelMintingContract.mint(order, route);
 
         vm.startPrank(beneficiary);
         LevelMintingContract.initiateRedeem(redeemOrder);
-        vm.warp(8 days);
-        uint bal = stETHToken.balanceOf(beneficiary);
+        vm.warp(10 days);
+        uint bal = DAIToken.balanceOf(beneficiary);
         vm.expectRevert(MinimumCollateralAmountNotMet);
         LevelMintingContract.completeRedeem(redeemOrder.collateral_asset);
         vm.stopPrank();
@@ -305,11 +302,11 @@ contract LevelMintingCoreTest is LevelMintingUtils {
             order_type: ILevelMinting.OrderType.MINT,
             benefactor: beneficiary,
             beneficiary: beneficiary,
-            collateral_asset: address(stETHToken),
+            collateral_asset: address(DAIToken),
             lvlusd_amount: 50 wei,
             collateral_amount: 50 wei
         });
-        stETHToken.mint(50 wei, beneficiary);
+        DAIToken.mint(50 wei, beneficiary);
         LevelMintingContract.mint(order, route);
 
         vm.prank(owner);
@@ -324,14 +321,14 @@ contract LevelMintingCoreTest is LevelMintingUtils {
     }
 
     function test_nativeEth_withdraw() public {
-        vm.deal(address(LevelMintingContract), _stETHToDeposit);
+        vm.deal(address(LevelMintingContract), _DAIToDeposit);
 
         ILevelMinting.Order memory order = ILevelMinting.Order({
             order_type: ILevelMinting.OrderType.MINT,
             benefactor: benefactor,
             beneficiary: benefactor,
-            collateral_asset: address(stETHToken),
-            collateral_amount: _stETHToDeposit,
+            collateral_asset: address(DAIToken),
+            collateral_amount: _DAIToDeposit,
             lvlusd_amount: _lvlusdToMint
         });
 
@@ -348,7 +345,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
 
         // taker
         vm.startPrank(benefactor);
-        stETHToken.approve(address(LevelMintingContract), _stETHToDeposit);
+        DAIToken.approve(address(LevelMintingContract), _DAIToDeposit);
 
         vm.stopPrank();
 
@@ -366,9 +363,9 @@ contract LevelMintingCoreTest is LevelMintingUtils {
             order_type: ILevelMinting.OrderType.REDEEM,
             benefactor: benefactor,
             beneficiary: benefactor,
-            collateral_asset: address(stETHToken),
+            collateral_asset: address(DAIToken),
             lvlusd_amount: _lvlusdToMint,
-            collateral_amount: _stETHToDeposit
+            collateral_amount: _DAIToDeposit
         });
 
         // taker
@@ -380,7 +377,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         vm.startPrank(redeemer);
         LevelMintingContract.redeem(redeemOrder);
 
-        assertEq(stETHToken.balanceOf(benefactor), _stETHToDeposit);
+        assertEq(DAIToken.balanceOf(benefactor), _DAIToDeposit);
         assertEq(lvlusdToken.balanceOf(benefactor), 0);
 
         vm.stopPrank();
@@ -391,29 +388,29 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         (
             ILevelMinting.Order memory order,
             ILevelMinting.Route memory route
-        ) = mint_setup(expectedAmount, _stETHToDeposit, false);
+        ) = mint_setup(expectedAmount, _DAIToDeposit, false);
 
         vm.recordLogs();
         vm.prank(minter);
         LevelMintingContract.mint(order, route);
         vm.getRecordedLogs();
-        assertEq(stETHToken.balanceOf(benefactor), 0);
+        assertEq(DAIToken.balanceOf(benefactor), 0);
         assertEq(
-            stETHToken.balanceOf(address(LevelMintingContract)),
-            _stETHToDeposit
+            DAIToken.balanceOf(address(LevelMintingContract)),
+            _DAIToDeposit
         );
         assertEq(lvlusdToken.balanceOf(beneficiary), expectedAmount);
     }
 
     function test_multipleValid_reserveRatios_addresses() public {
-        uint256 _smallUsdeToMint = 1.75 * 10 ** 23;
+        uint256 _smallLvlUsdToMint = 1.75 * 10 ** 23;
         ILevelMinting.Order memory order = ILevelMinting.Order({
             order_type: ILevelMinting.OrderType.MINT,
             benefactor: benefactor,
             beneficiary: beneficiary,
-            collateral_asset: address(stETHToken),
-            collateral_amount: _stETHToDeposit,
-            lvlusd_amount: _smallUsdeToMint
+            collateral_asset: address(DAIToken),
+            collateral_amount: _DAIToDeposit,
+            lvlusd_amount: _smallLvlUsdToMint
         });
 
         address[] memory targets = new address[](3);
@@ -433,11 +430,11 @@ contract LevelMintingCoreTest is LevelMintingUtils {
 
         // taker
         vm.startPrank(benefactor);
-        stETHToken.approve(address(LevelMintingContract), _stETHToDeposit);
+        DAIToken.approve(address(LevelMintingContract), _DAIToDeposit);
 
         vm.stopPrank();
 
-        assertEq(stETHToken.balanceOf(benefactor), _stETHToDeposit);
+        assertEq(DAIToken.balanceOf(benefactor), _DAIToDeposit);
 
         vm.prank(minter);
         vm.expectRevert(InvalidRoute);
@@ -449,20 +446,20 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         vm.prank(minter);
         LevelMintingContract.mint(order, route);
 
-        assertEq(stETHToken.balanceOf(benefactor), 0);
-        assertEq(lvlusdToken.balanceOf(beneficiary), _smallUsdeToMint);
+        assertEq(DAIToken.balanceOf(benefactor), 0);
+        assertEq(lvlusdToken.balanceOf(beneficiary), _smallLvlUsdToMint);
 
         assertEq(
-            stETHToken.balanceOf(address(reserve1)),
-            (_stETHToDeposit * 4) / 10
+            DAIToken.balanceOf(address(reserve1)),
+            (_DAIToDeposit * 4) / 10
         );
         assertEq(
-            stETHToken.balanceOf(address(reserve2)),
-            (_stETHToDeposit * 3) / 10
+            DAIToken.balanceOf(address(reserve2)),
+            (_DAIToDeposit * 3) / 10
         );
         assertEq(
-            stETHToken.balanceOf(address(LevelMintingContract)),
-            (_stETHToDeposit * 3) / 10
+            DAIToken.balanceOf(address(LevelMintingContract)),
+            (_DAIToDeposit * 3) / 10
         );
 
         // remove reserve and expect reversion
@@ -484,8 +481,8 @@ contract LevelMintingCoreTest is LevelMintingUtils {
             order_type: ILevelMinting.OrderType.MINT,
             benefactor: benefactor,
             beneficiary: beneficiary,
-            collateral_asset: address(stETHToken),
-            collateral_amount: _stETHToDeposit,
+            collateral_asset: address(DAIToken),
+            collateral_amount: _DAIToDeposit,
             lvlusd_amount: _lvlusdToMint
         });
 
@@ -503,21 +500,21 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         });
 
         vm.startPrank(benefactor);
-        stETHToken.approve(address(LevelMintingContract), _stETHToDeposit);
+        DAIToken.approve(address(LevelMintingContract), _DAIToDeposit);
 
         vm.stopPrank();
 
-        assertEq(stETHToken.balanceOf(benefactor), _stETHToDeposit);
+        assertEq(DAIToken.balanceOf(benefactor), _DAIToDeposit);
 
         vm.expectRevert(InvalidRoute);
         vm.prank(minter);
         LevelMintingContract.mint(mintOrder, route);
 
-        assertEq(stETHToken.balanceOf(benefactor), _stETHToDeposit);
+        assertEq(DAIToken.balanceOf(benefactor), _DAIToDeposit);
         assertEq(lvlusdToken.balanceOf(beneficiary), 0);
 
-        assertEq(stETHToken.balanceOf(address(LevelMintingContract)), 0);
-        assertEq(stETHToken.balanceOf(owner), 0);
+        assertEq(DAIToken.balanceOf(address(LevelMintingContract)), 0);
+        assertEq(DAIToken.balanceOf(owner), 0);
     }
 
     function test_fuzz_singleInvalid_reserveRatio_revert(
@@ -529,8 +526,8 @@ contract LevelMintingCoreTest is LevelMintingUtils {
             order_type: ILevelMinting.OrderType.MINT,
             benefactor: benefactor,
             beneficiary: beneficiary,
-            collateral_asset: address(stETHToken),
-            collateral_amount: _stETHToDeposit,
+            collateral_asset: address(DAIToken),
+            collateral_amount: _DAIToDeposit,
             lvlusd_amount: _lvlusdToMint
         });
 
@@ -547,34 +544,34 @@ contract LevelMintingCoreTest is LevelMintingUtils {
 
         // taker
         vm.startPrank(benefactor);
-        stETHToken.approve(address(LevelMintingContract), _stETHToDeposit);
+        DAIToken.approve(address(LevelMintingContract), _DAIToDeposit);
 
         vm.stopPrank();
 
-        assertEq(stETHToken.balanceOf(benefactor), _stETHToDeposit);
+        assertEq(DAIToken.balanceOf(benefactor), _DAIToDeposit);
 
         vm.expectRevert(InvalidRoute);
         vm.prank(minter);
         LevelMintingContract.mint(order, route);
 
-        assertEq(stETHToken.balanceOf(benefactor), _stETHToDeposit);
+        assertEq(DAIToken.balanceOf(benefactor), _DAIToDeposit);
         assertEq(lvlusdToken.balanceOf(beneficiary), 0);
 
-        assertEq(stETHToken.balanceOf(address(LevelMintingContract)), 0);
+        assertEq(DAIToken.balanceOf(address(LevelMintingContract)), 0);
     }
 
     function test_unsupported_assets_ERC20_revert() public {
         vm.startPrank(owner);
-        LevelMintingContract.removeSupportedAsset(address(stETHToken));
-        stETHToken.mint(_stETHToDeposit, benefactor);
+        LevelMintingContract.removeSupportedAsset(address(DAIToken));
+        DAIToken.mint(_DAIToDeposit, benefactor);
         vm.stopPrank();
 
         ILevelMinting.Order memory order = ILevelMinting.Order({
             order_type: ILevelMinting.OrderType.MINT,
             benefactor: benefactor,
             beneficiary: beneficiary,
-            collateral_asset: address(stETHToken),
-            collateral_amount: _stETHToDeposit,
+            collateral_asset: address(DAIToken),
+            collateral_amount: _DAIToDeposit,
             lvlusd_amount: _lvlusdToMint
         });
 
@@ -591,7 +588,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
 
         // taker
         vm.startPrank(benefactor);
-        stETHToken.approve(address(LevelMintingContract), _stETHToDeposit);
+        DAIToken.approve(address(LevelMintingContract), _DAIToDeposit);
 
         vm.stopPrank();
 
@@ -604,7 +601,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
 
     function test_unsupported_assets_ETH_revert() public {
         vm.startPrank(owner);
-        vm.deal(benefactor, _stETHToDeposit);
+        vm.deal(benefactor, _DAIToDeposit);
         vm.stopPrank();
 
         ILevelMinting.Order memory order = ILevelMinting.Order({
@@ -612,7 +609,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
             benefactor: benefactor,
             beneficiary: beneficiary,
             collateral_asset: address(token),
-            collateral_amount: _stETHToDeposit,
+            collateral_amount: _DAIToDeposit,
             lvlusd_amount: _lvlusdToMint
         });
 
@@ -629,7 +626,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
 
         // taker
         vm.startPrank(benefactor);
-        stETHToken.approve(address(LevelMintingContract), _stETHToDeposit);
+        DAIToken.approve(address(LevelMintingContract), _DAIToDeposit);
 
         vm.stopPrank();
 
@@ -711,11 +708,11 @@ contract LevelMintingCoreTest is LevelMintingUtils {
     }
 
     function test_mismatchedAddressesAndRatios_revert() public {
-        uint256 _smallUsdeToMint = 1.75 * 10 ** 23;
+        uint256 _smallLvlUsdToMint = 1.75 * 10 ** 23;
         (
             ILevelMinting.Order memory order,
             ILevelMinting.Route memory route
-        ) = mint_setup(_smallUsdeToMint, _stETHToDeposit, false);
+        ) = mint_setup(_smallLvlUsdToMint, _DAIToDeposit, false);
 
         address[] memory targets = new address[](3);
         targets[0] = address(LevelMintingContract);

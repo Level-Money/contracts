@@ -2,12 +2,11 @@
 pragma solidity >=0.8.19;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 
-contract MockToken is ERC20, ERC20Permit {
-    uint8 private __decimals;
+contract MockToken is ERC20Burnable, ERC20Permit {
+    uint8 private immutable __decimals;
 
     constructor(
         string memory name,
@@ -15,9 +14,8 @@ contract MockToken is ERC20, ERC20Permit {
         uint8 _decimals,
         address owner
     ) ERC20(name, symbol) ERC20Permit(name) {
+        require(owner != address(0), "Owner address cannot be zero");
         __decimals = _decimals;
-        require(owner != address(0), "Zero address not valid");
-
         _mint(owner, 100000000 * (10 ** _decimals));
     }
 
@@ -30,6 +28,9 @@ contract MockToken is ERC20, ERC20Permit {
     }
 
     function mint(uint256 amount, address receiver) external {
+        require(receiver != address(0), "Cannot mint to zero address");
         _mint(receiver, amount);
     }
+    // add this to be excluded from coverage report
+    function test() public {}
 }

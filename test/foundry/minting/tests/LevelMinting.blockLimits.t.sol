@@ -19,18 +19,18 @@ contract LevelMintingBlockLimitsTest is LevelMintingUtils {
         (
             ILevelMinting.Order memory aOrder,
             ILevelMinting.Route memory aRoute
-        ) = mint_setup(firstMintAmount, _stETHToDeposit, false);
+        ) = mint_setup(firstMintAmount, _DAIToDeposit, false);
 
         vm.prank(minter);
         LevelMintingContract.mint(aOrder, aRoute);
 
         vm.prank(owner);
-        stETHToken.mint(_stETHToDeposit, benefactor);
+        DAIToken.mint(_DAIToDeposit, benefactor);
 
         (
             ILevelMinting.Order memory bOrder,
             ILevelMinting.Route memory bRoute
-        ) = mint_setup(secondMintAmount, _stETHToDeposit, true);
+        ) = mint_setup(secondMintAmount, _DAIToDeposit, true);
         vm.prank(minter);
         LevelMintingContract.mint(bOrder, bRoute);
 
@@ -61,11 +61,11 @@ contract LevelMintingBlockLimitsTest is LevelMintingUtils {
         (
             ILevelMinting.Order memory mintOrder,
             ILevelMinting.Route memory route
-        ) = mint_setup(excessiveMintAmount, _stETHToDeposit, false);
+        ) = mint_setup(excessiveMintAmount, _DAIToDeposit, false);
 
         // maker
         vm.startPrank(minter);
-        assertEq(stETHToken.balanceOf(benefactor), _stETHToDeposit);
+        assertEq(DAIToken.balanceOf(benefactor), _DAIToDeposit);
         assertEq(lvlusdToken.balanceOf(beneficiary), 0);
 
         vm.expectRevert(MaxMintPerBlockExceeded);
@@ -73,8 +73,8 @@ contract LevelMintingBlockLimitsTest is LevelMintingUtils {
         LevelMintingContract.mint(mintOrder, route);
 
         assertEq(
-            stETHToken.balanceOf(benefactor),
-            _stETHToDeposit,
+            DAIToken.balanceOf(benefactor),
+            _DAIToDeposit,
             "The benefactor stEth balance should be the same as the minted stEth"
         );
         assertEq(
@@ -92,7 +92,7 @@ contract LevelMintingBlockLimitsTest is LevelMintingUtils {
         (
             ILevelMinting.Order memory order,
             ILevelMinting.Route memory route
-        ) = mint_setup(_lvlusdToMint, _stETHToDeposit, false);
+        ) = mint_setup(_lvlusdToMint, _DAIToDeposit, false);
 
         vm.prank(minter);
         LevelMintingContract.mint(order, route);
@@ -139,7 +139,7 @@ contract LevelMintingBlockLimitsTest is LevelMintingUtils {
 
         ILevelMinting.Order memory redeemOrder = redeem_setup(
             firstRedeemAmount,
-            _stETHToDeposit,
+            _DAIToDeposit,
             false
         );
 
@@ -147,11 +147,11 @@ contract LevelMintingBlockLimitsTest is LevelMintingUtils {
         LevelMintingContract.redeem(redeemOrder);
 
         vm.prank(owner);
-        stETHToken.mint(_stETHToDeposit, benefactor);
+        DAIToken.mint(_DAIToDeposit, benefactor);
 
         ILevelMinting.Order memory bRedeemOrder = redeem_setup(
             secondRedeemAmount,
-            _stETHToDeposit,
+            _DAIToDeposit,
             true
         );
 
@@ -184,7 +184,7 @@ contract LevelMintingBlockLimitsTest is LevelMintingUtils {
 
         ILevelMinting.Order memory redeemOrder = redeem_setup(
             excessiveRedeemAmount,
-            _stETHToDeposit,
+            _DAIToDeposit,
             false
         );
 
@@ -193,15 +193,11 @@ contract LevelMintingBlockLimitsTest is LevelMintingUtils {
         LevelMintingContract.redeem(redeemOrder);
 
         assertEq(
-            stETHToken.balanceOf(address(LevelMintingContract)),
-            _stETHToDeposit,
-            "Mismatch in stETH balance"
+            DAIToken.balanceOf(address(LevelMintingContract)),
+            _DAIToDeposit,
+            "Mismatch in DAI balance"
         );
-        assertEq(
-            stETHToken.balanceOf(beneficiary),
-            0,
-            "Mismatch in stETH balance"
-        );
+        assertEq(DAIToken.balanceOf(beneficiary), 0, "Mismatch in DAI balance");
         assertEq(
             lvlusdToken.balanceOf(beneficiary),
             excessiveRedeemAmount,
@@ -218,7 +214,7 @@ contract LevelMintingBlockLimitsTest is LevelMintingUtils {
         );
         ILevelMinting.Order memory redeemOrder = redeem_setup(
             redeemAmount,
-            _stETHToDeposit,
+            _DAIToDeposit,
             false
         );
 
