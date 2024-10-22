@@ -3,10 +3,10 @@ pragma solidity >=0.8.19;
 
 import "./DeploymentUtils.s.sol";
 import "forge-std/Script.sol";
-import "../src/lvlUSD.sol";
-import "../src/interfaces/IlvlUSD.sol";
+import {lvlUSD} from "../src/lvlUSD.sol";
+import {IlvlUSD} from "../src/interfaces/IlvlUSD.sol";
 import "../src/interfaces/ILevelMinting.sol";
-import "../src/LevelMinting.sol";
+import {LevelMinting} from "../src/LevelMinting.sol";
 
 contract DeployMainnet is Script, DeploymentUtils {
     struct Contracts {

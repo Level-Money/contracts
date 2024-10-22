@@ -9,74 +9,48 @@ import {stdStorage, StdStorage, Test} from "forge-std/Test.sol";
 import {SigUtils} from "../../utils/SigUtils.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {Utils} from "../../utils/Utils.sol";
+
+import {MissingReturnToken} from "@solmate/src/test/utils/weird-tokens/MissingReturnToken.sol";
 import {AggregatorV3Interface} from "../../../src/interfaces/AggregatorV3Interface.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
-import "../../mocks/MockToken.sol";
-import "../../../src/lvlUSD.sol";
-import "../../../src/LevelReserveManager.sol";
-import "../../../src/interfaces/ILevelMinting.sol";
-import "../../../src/interfaces/ILevelMintingEvents.sol";
-import "../../../src/interfaces/ILevelReserveManager.sol";
-import "./LevelMintingChild.sol";
-import "../../../src/interfaces/ISingleAdminAccessControl.sol";
-import "../../../src/interfaces/IlvlUSDDefinitions.sol";
+import {MockToken} from "../../mocks/MockToken.sol";
+import {MockAToken} from "../../mocks/MockAToken.sol";
+import {MockAaveV3Pool} from "../../mocks/MockAaveV3Pool.sol";
+import {MockOracle} from "../../mocks/MockOracle.sol";
 
-// Add this mock oracle contract
-contract MockOracle is AggregatorV3Interface {
-    int256 private _price;
-    uint8 private _decimals;
+import {lvlUSD} from "../../../src/lvlUSD.sol";
+import {IPool} from "aave-v3-core/contracts/interfaces/IPool.sol";
+import {IlvlUSD} from "../../../src/interfaces/IlvlUSD.sol";
+import {StakedlvlUSD} from "../../../src/StakedlvlUSD.sol";
+import {AaveV3YieldManager} from "../../../src/yield/AaveV3YieldManager.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-    constructor(int256 initialPrice, uint8 initialDecimals) {
-        _price = initialPrice;
-        _decimals = initialDecimals;
-    }
-
-    function decimals() external view returns (uint8) {
-        return _decimals;
-    }
-
-    function description() external pure returns (string memory) {
-        return "Mock Oracle";
-    }
-
-    function version() external pure returns (uint256) {
-        return 1;
-    }
-
-    function getRoundData(
-        uint80
-    ) external view returns (uint80, int256, uint256, uint256, uint80) {
-        return (0, _price, 0, 1e18, 0);
-    }
-
-    function latestRoundData()
-        external
-        view
-        returns (uint80, int256, uint256, uint256, uint80)
-    {
-        return (0, _price, 0, 1e18, 0);
-    }
-
-    // Function to update the price (for testing purposes)
-    function updatePriceAndDecimals(
-        int256 newPrice,
-        uint8 newDecimals
-    ) external {
-        _price = newPrice;
-        _decimals = newDecimals;
-    }
-}
+import {LevelBaseReserveManager} from "../../../src/reserve/LevelBaseReserveManager.sol";
+import {EigenlayerReserveManager} from "../../../src/reserve/LevelEigenlayerReserveManager.sol";
+import {WrappedRebasingERC20} from "../../../src/WrappedRebasingERC20.sol";
+import {ILevelMinting} from "../../../src/interfaces/ILevelMinting.sol";
+import {ILevelMintingEvents} from "../../../src/interfaces/ILevelMintingEvents.sol";
+import {LevelMintingChild} from "./LevelMintingChild.sol";
+import {ISingleAdminAccessControl} from "../../../src/interfaces/ISingleAdminAccessControl.sol";
+import {IlvlUSDDefinitions} from "../../../src/interfaces/IlvlUSDDefinitions.sol";
+import {ILevelBaseReserveManager} from "../../../src/interfaces/ILevelBaseReserveManager.sol";
 
 contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
     Utils internal utils;
     lvlUSD internal lvlusdToken;
-    LevelReserveManager internal levelReserveManager;
-    MockToken internal stETHToken;
-    MockToken internal cbETHToken;
-    MockToken internal rETHToken;
+    StakedlvlUSD internal stakedlvlUSD;
+    EigenlayerReserveManager internal eigenlayerReserveManager;
+    AaveV3YieldManager internal aaveYieldManager;
+    MockAaveV3Pool internal mockAavePool;
+    MockToken internal DAIToken;
     MockToken internal USDCToken;
-    MockToken internal USDTToken;
+    MissingReturnToken internal USDTToken;
     MockToken internal token;
+    WrappedRebasingERC20 internal waUSDC; // wrapped aUSDC
+    WrappedRebasingERC20 internal waDAIToken; //wrapped DAI (18 decimals)
+    MockAToken internal aUSDC; // aUSDC
     MockOracle public mockOracle;
     LevelMintingChild internal LevelMintingContract;
     SigUtils internal sigUtils;
@@ -97,6 +71,10 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
     uint256 internal reserve1PrivateKey;
     uint256 internal reserve2PrivateKey;
     uint256 internal randomerPrivateKey;
+    uint256 internal managerAgentPrivateKey;
+    uint256 internal treasuryPrivateKey;
+    uint256 internal pauserPrivateKey;
+
     address internal poolAddressesProvider;
 
     address internal owner;
@@ -114,6 +92,9 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
     address internal reserve1;
     address internal reserve2;
     address internal randomer;
+    address internal managerAgent;
+    address internal treasury;
+    address internal pauser;
 
     address[] assets;
     address[] reserves;
@@ -183,6 +164,10 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
     bytes internal DenylistedErr =
         abi.encodeWithSelector(IlvlUSDDefinitions.Denylisted.selector);
 
+    // bytes internal InvalidRecipient =
+    //     abi.encodeWithSelector(
+    //         ILevelBaseReserveManager.InvalidRecipient.selector
+    //     );
     bytes32 internal constant ROUTE_TYPE =
         keccak256("Route(address[] addresses,uint256[] ratios)");
     bytes32 internal constant ORDER_TYPE =
@@ -191,8 +176,8 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
         );
 
     uint256 internal _slippageRange = 50000000000000000;
-    uint256 internal _stETHToDeposit = 50 * 10 ** 18;
-    uint256 internal _stETHToWithdraw = 30 * 10 ** 18;
+    uint256 internal _DAIToDeposit = 50 * 10 ** 18;
+    uint256 internal _DAIToWithdraw = 30 * 10 ** 18;
     uint256 internal _lvlusdToMint = 8.75 * 10 ** 23;
     uint256 internal _maxMintPerBlock = 10e23;
     uint256 internal _maxRedeemPerBlock = _maxMintPerBlock;
@@ -220,33 +205,17 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
         utils = new Utils();
 
         lvlusdToken = new lvlUSD(address(this));
-        stETHToken = new MockToken("Staked ETH", "sETH", 18, msg.sender);
-        cbETHToken = new MockToken("Coinbase ETH", "cbETH", 18, msg.sender);
-        rETHToken = new MockToken("Rocket Pool ETH", "rETH", 18, msg.sender);
+        DAIToken = new MockToken("DAI", "DAI", 18, msg.sender);
         USDCToken = new MockToken(
             "United States Dollar Coin",
             "USDC",
             6,
             msg.sender
         );
-        USDTToken = new MockToken(
-            "United States Dollar Token",
-            "USDT",
-            18,
-            msg.sender
-        );
         mockOracle = new MockOracle(1e8, 8); // 1:1 price ratio with 8 decimals
 
-        sigUtils = new SigUtils(stETHToken.DOMAIN_SEPARATOR());
+        sigUtils = new SigUtils(DAIToken.DOMAIN_SEPARATOR());
         sigUtilslvlUSD = new SigUtils(lvlusdToken.DOMAIN_SEPARATOR());
-
-        assets = new address[](6);
-        assets[0] = address(stETHToken);
-        assets[1] = address(cbETHToken);
-        assets[2] = address(rETHToken);
-        assets[3] = address(USDCToken);
-        assets[4] = address(USDTToken);
-        assets[5] = NATIVE_TOKEN;
 
         ownerPrivateKey = 0xA11CE;
         newOwnerPrivateKey = 0xA14CE;
@@ -263,6 +232,9 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
         reserve1PrivateKey = 0x1DCDE;
         reserve2PrivateKey = 0x1DCCE;
         randomerPrivateKey = 0x1DECC;
+        managerAgentPrivateKey = 0x1DECC1;
+        treasuryPrivateKey = 0x1DECC3;
+        pauserPrivateKey = 0x1DECC4;
 
         owner = vm.addr(ownerPrivateKey);
         newOwner = vm.addr(newOwnerPrivateKey);
@@ -279,17 +251,18 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
         reserve1 = vm.addr(reserve1PrivateKey);
         reserve2 = vm.addr(reserve2PrivateKey);
         randomer = vm.addr(randomerPrivateKey);
+        managerAgent = vm.addr(managerAgentPrivateKey);
+        treasury = vm.addr(treasuryPrivateKey);
+        pauser = vm.addr(pauserPrivateKey);
 
         reserves = new address[](1);
         reserves[0] = reserve1;
 
-        oracles = new address[](6);
-        oracles[0] = address(0);
-        oracles[1] = address(0);
-        oracles[2] = address(0);
-        oracles[3] = address(0);
-        oracles[4] = address(0);
-        oracles[5] = address(0);
+        oracles = new address[](4);
+        oracles[0] = address(mockOracle);
+        oracles[1] = address(mockOracle);
+        oracles[2] = address(mockOracle);
+        oracles[3] = address(mockOracle);
 
         ratios = new uint256[](1);
         ratios[0] = 10000;
@@ -308,9 +281,20 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
         vm.label(reserve1, "reserve1");
         vm.label(reserve2, "reserve2");
         vm.label(randomer, "randomer");
+        vm.label(managerAgent, "managerAgent");
+        vm.label(treasury, "treasury");
+        vm.label(pauser, "pauser");
 
         // Set the roles
         vm.startPrank(owner);
+        USDTToken = new MissingReturnToken();
+
+        assets = new address[](4);
+        assets[0] = address(DAIToken);
+        assets[1] = address(USDCToken);
+        assets[2] = address(USDTToken);
+        assets[3] = NATIVE_TOKEN;
+
         LevelMintingContract = new LevelMintingChild(
             IlvlUSD(address(lvlusdToken)),
             assets,
@@ -335,22 +319,72 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
         LevelMintingContract.addReserveAddress(address(LevelMintingContract));
 
         // Mint stEth to the benefactor in order to test
-        stETHToken.mint(_stETHToDeposit, benefactor);
-        // stETHToken.mint(_stETHToDeposit, beneficiary);
+        DAIToken.mint(_DAIToDeposit, benefactor);
+        // DAIToken.mint(_DAIToDeposit, beneficiary);
 
-        // set up level reserve manager
-        levelReserveManager = new LevelReserveManager(
-            IlvlUSD(address(lvlusdToken)),
+        stakedlvlUSD = new StakedlvlUSD(
+            lvlusdToken,
             address(owner),
             address(owner)
         );
-        USDCToken.mint(100000000, address(levelReserveManager));
-
-        LevelMintingContract.addReserveAddress(address(levelReserveManager));
 
         vm.stopPrank();
 
         lvlusdToken.setMinter(address(LevelMintingContract));
+
+        vm.startPrank(owner);
+        // set up mock aave pool proxy (which creates a mock aToken when initReserve is called)
+        mockAavePool = new MockAaveV3Pool();
+        mockAavePool.initReserve(address(USDCToken), "aUSDC");
+        mockAavePool.initReserve(address(DAIToken), "aDAI");
+        // set up aave yield manager
+        aaveYieldManager = new AaveV3YieldManager(
+            IPool(mockAavePool),
+            address(owner)
+        );
+        // create ERC20 wrapper for aToken
+        aUSDC = MockAToken(
+            mockAavePool.getReserveData(address(USDCToken)).aTokenAddress
+        );
+        address aDAIToken = mockAavePool
+            .getReserveData(address(DAIToken))
+            .aTokenAddress;
+        waUSDC = new WrappedRebasingERC20(
+            IERC20(address(aUSDC)),
+            "waUSDC",
+            "waUSDC"
+        );
+        waDAIToken = new WrappedRebasingERC20(
+            IERC20(aDAIToken),
+            "waDAI",
+            "waDAI"
+        );
+        aaveYieldManager.setWrapperForToken(address(aUSDC), address(waUSDC));
+        aaveYieldManager.setWrapperForToken(aDAIToken, address(waDAIToken));
+
+        // set up reserve managers
+        eigenlayerReserveManager = new EigenlayerReserveManager(
+            IlvlUSD(address(lvlusdToken)),
+            address(0),
+            address(0),
+            stakedlvlUSD,
+            address(owner),
+            address(owner),
+            "operator1"
+        );
+        _setupReserveManager(eigenlayerReserveManager);
+
+        vm.stopPrank();
+    }
+
+    function _setupReserveManager(LevelBaseReserveManager lrm) internal {
+        LevelMintingContract.addReserveAddress(address(lrm));
+
+        lrm.setTreasury(treasury);
+        lrm.setYieldManager(address(USDCToken), address(aaveYieldManager));
+        lrm.setYieldManager(address(DAIToken), address(aaveYieldManager));
+        lrm.grantRole(keccak256("MANAGER_AGENT_ROLE"), address(managerAgent));
+        lrm.grantRole(keccak256("PAUSER_ROLE"), pauser);
     }
 
     function _generateRouteTypeHash(
@@ -398,7 +432,7 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
             order_type: ILevelMinting.OrderType.MINT,
             benefactor: benefactor,
             beneficiary: beneficiary,
-            collateral_asset: address(stETHToken),
+            collateral_asset: address(DAIToken),
             lvlusd_amount: lvlusdAmount,
             collateral_amount: collateralAmount
         });
@@ -412,7 +446,7 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
         route = ILevelMinting.Route({addresses: targets, ratios: ratios});
 
         vm.startPrank(benefactor);
-        stETHToken.approve(address(LevelMintingContract), collateralAmount);
+        DAIToken.approve(address(LevelMintingContract), collateralAmount);
         vm.stopPrank();
 
         vm.startPrank(benefactor);
@@ -420,7 +454,7 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
         vm.stopPrank();
 
         vm.startPrank(beneficiary);
-        stETHToken.approve(address(LevelMintingContract), collateralAmount);
+        DAIToken.approve(address(LevelMintingContract), collateralAmount);
         vm.stopPrank();
 
         vm.startPrank(beneficiary);
@@ -428,7 +462,7 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
         vm.stopPrank();
 
         vm.startPrank(redeemer);
-        stETHToken.approve(address(LevelMintingContract), collateralAmount);
+        DAIToken.approve(address(LevelMintingContract), collateralAmount);
         vm.stopPrank();
     }
 
@@ -450,7 +484,7 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
             order_type: ILevelMinting.OrderType.REDEEM,
             benefactor: beneficiary,
             beneficiary: beneficiary,
-            collateral_asset: address(stETHToken),
+            collateral_asset: address(DAIToken),
             lvlusd_amount: lvlusdAmount,
             collateral_amount: collateralAmount
         });
@@ -466,14 +500,16 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
 
     function _getInvalidRoleError(
         bytes32 role,
-        address addr
+        address account
     ) internal pure returns (bytes memory) {
         return
-            abi.encodePacked(
-                "AccessControl: account ",
-                Strings.toHexString(addr),
-                " is missing role ",
-                Strings.toHexString(uint256(role), 32)
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                account,
+                role
             );
     }
+
+    // add this to be excluded from coverage report
+    function test() public {}
 }

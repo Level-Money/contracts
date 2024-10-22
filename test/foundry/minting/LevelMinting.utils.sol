@@ -16,7 +16,7 @@ contract LevelMintingUtils is MintingBaseSetup {
         (
             ILevelMinting.Order memory order,
             ILevelMinting.Route memory route
-        ) = mint_setup(excessiveMintAmount, _stETHToDeposit, false);
+        ) = mint_setup(excessiveMintAmount, _DAIToDeposit, false);
 
         vm.prank(minter);
         vm.expectRevert(MaxMintPerBlockExceeded);
@@ -28,14 +28,14 @@ contract LevelMintingUtils is MintingBaseSetup {
             "The beneficiary balance should be 0"
         );
         assertEq(
-            stETHToken.balanceOf(address(LevelMintingContract)),
+            DAIToken.balanceOf(address(LevelMintingContract)),
             0,
-            "The level minting stETH balance should be 0"
+            "The level minting DAI balance should be 0"
         );
         assertEq(
-            stETHToken.balanceOf(benefactor),
-            _stETHToDeposit,
-            "Mismatch in stETH balance"
+            DAIToken.balanceOf(benefactor),
+            _DAIToDeposit,
+            "Mismatch in DAI balance"
         );
     }
 
@@ -43,29 +43,25 @@ contract LevelMintingUtils is MintingBaseSetup {
         uint256 excessiveRedeemAmount
     ) public {
         // Set the max mint per block to the same value as the max redeem in order to get to the redeem
-        vm.prank(owner);
+        vm.startPrank(owner);
         LevelMintingContract.setMaxMintPerBlock(excessiveRedeemAmount);
 
         ILevelMinting.Order memory redeemOrder = redeem_setup(
             excessiveRedeemAmount,
-            _stETHToDeposit,
+            _DAIToDeposit,
             false
         );
-
+        vm.stopPrank();
         vm.startPrank(redeemer);
         vm.expectRevert(MaxRedeemPerBlockExceeded);
         LevelMintingContract.redeem(redeemOrder);
 
         assertEq(
-            stETHToken.balanceOf(address(LevelMintingContract)),
-            _stETHToDeposit,
-            "Mismatch in stETH balance"
+            DAIToken.balanceOf(address(LevelMintingContract)),
+            _DAIToDeposit,
+            "Mismatch in DAI balance"
         );
-        assertEq(
-            stETHToken.balanceOf(beneficiary),
-            0,
-            "Mismatch in stETH balance"
-        );
+        assertEq(DAIToken.balanceOf(beneficiary), 0, "Mismatch in DAI balance");
         assertEq(
             lvlusdToken.balanceOf(beneficiary),
             excessiveRedeemAmount,
@@ -79,7 +75,7 @@ contract LevelMintingUtils is MintingBaseSetup {
         (
             ILevelMinting.Order memory order,
             ILevelMinting.Route memory route
-        ) = mint_setup(_lvlusdToMint, _stETHToDeposit, false);
+        ) = mint_setup(_lvlusdToMint, _DAIToDeposit, false);
 
         vm.prank(minter);
         LevelMintingContract.mint(order, route);
@@ -88,7 +84,7 @@ contract LevelMintingUtils is MintingBaseSetup {
     function executeRedeem() public {
         ILevelMinting.Order memory redeemOrder = redeem_setup(
             _lvlusdToMint,
-            _stETHToDeposit,
+            _DAIToDeposit,
             false
         );
         vm.prank(redeemer);

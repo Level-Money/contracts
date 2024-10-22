@@ -3,8 +3,14 @@ pragma solidity >=0.8.19;
 
 /* solhint-disable func-name-mixedcase  */
 
-import "../LevelMinting.utils.sol";
+import {LevelMintingUtils} from "../LevelMinting.utils.sol";
 import "../../../../src/interfaces/ISingleAdminAccessControl.sol";
+import {LevelMinting} from "../../../../src/LevelMinting.sol";
+import {ILevelMinting} from "../../../../src/interfaces/ILevelMinting.sol";
+import {IlvlUSD} from "../../../../src/interfaces/IlvlUSD.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {LevelMintingChild} from "../LevelMintingChild.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 
 contract LevelMintingACLTest is LevelMintingUtils {
     function setUp() public override {
@@ -16,8 +22,8 @@ contract LevelMintingACLTest is LevelMintingUtils {
         vm.deal(maker1, 1 ether);
         vm.deal(maker2, 1 ether);
         vm.startPrank(minter);
-        stETHToken.mint(1 * 1e18, maker1);
-        stETHToken.mint(1 * 1e18, trader1);
+        DAIToken.mint(1 * 1e18, maker1);
+        DAIToken.mint(1 * 1e18, trader1);
         vm.expectRevert(OnlyMinterErr);
         lvlusdToken.mint(address(maker2), 2000 * 1e18);
         vm.expectRevert(OnlyMinterErr);
@@ -54,24 +60,24 @@ contract LevelMintingACLTest is LevelMintingUtils {
 
     function test_owner_canTransfer_reserve() public {
         vm.startPrank(owner);
-        stETHToken.mint(1000, address(LevelMintingContract));
+        DAIToken.mint(1000, address(LevelMintingContract));
         LevelMintingContract.addReserveAddress(beneficiary);
         vm.expectEmit(true, true, true, true);
-        emit ReserveTransfer(beneficiary, address(stETHToken), 1000);
+        emit ReserveTransfer(beneficiary, address(DAIToken), 1000);
         LevelMintingContract.transferToReserve(
             beneficiary,
-            address(stETHToken),
+            address(DAIToken),
             1000
         );
-        assertEq(stETHToken.balanceOf(beneficiary), 1000);
-        assertEq(stETHToken.balanceOf(address(LevelMintingContract)), 0);
+        assertEq(DAIToken.balanceOf(beneficiary), 1000);
+        assertEq(DAIToken.balanceOf(address(LevelMintingContract)), 0);
     }
 
     function test_fuzz_nonAdmin_cannot_transferReserve_revert(
         address nonAdmin
     ) public {
         vm.assume(nonAdmin != owner);
-        stETHToken.mint(1000, address(LevelMintingContract));
+        DAIToken.mint(1000, address(LevelMintingContract));
 
         vm.expectRevert(
             bytes(
@@ -86,7 +92,7 @@ contract LevelMintingACLTest is LevelMintingUtils {
         vm.prank(nonAdmin);
         LevelMintingContract.transferToReserve(
             beneficiary,
-            address(stETHToken),
+            address(DAIToken),
             1000
         );
     }
@@ -121,7 +127,7 @@ contract LevelMintingACLTest is LevelMintingUtils {
         (
             ILevelMinting.Order memory order,
             ILevelMinting.Route memory route
-        ) = mint_setup(_lvlusdToMint, _stETHToDeposit, false);
+        ) = mint_setup(_lvlusdToMint, _DAIToDeposit, false);
 
         vm.prank(minter);
         vm.expectRevert(MaxMintPerBlockExceeded);

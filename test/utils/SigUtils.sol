@@ -19,6 +19,9 @@ contract SigUtils {
         uint256 deadline;
     }
 
+    // add this to be excluded from coverage report
+    function test() public {}
+
     // computes the hash of a permit
     function getStructHash(
         Permit memory _permit

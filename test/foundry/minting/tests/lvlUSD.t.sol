@@ -10,10 +10,12 @@ import {stdStorage, StdStorage, Test} from "forge-std/Test.sol";
 import {SigUtils} from "../../../utils/SigUtils.sol";
 import {Vm} from "forge-std/Vm.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
-
-import "../../../../src/lvlUSD.sol";
-import "../LevelMinting.utils.sol";
+import "@openzeppelin/contracts/access/IAccessControl.sol";
+import {lvlUSD} from "../../../../src/lvlUSD.sol";
+import {LevelMintingUtils} from "../LevelMinting.utils.sol";
 import "../../../mocks/MockSlasher.sol";
+import {IlvlUSDDefinitions} from "../../../../src/interfaces/IlvlUSDDefinitions.sol";
+import "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 
 contract lvlUSDTest is Test, IlvlUSDDefinitions, LevelMintingUtils {
     lvlUSD internal _lvlusdToken;
@@ -129,7 +131,9 @@ contract lvlUSDTest is Test, IlvlUSDDefinitions, LevelMintingUtils {
 
     function testOnlyOwnerCanSetMinter() public {
         vm.startPrank(_newOwner);
-        vm.expectRevert(_getInvalidRoleError(adminRole, _newOwner));
+        vm.expectRevert(
+            "AccessControl: account 0x15ad6f3eb96192d0013eae1890fd5d0472f601d2 is missing role 0x0000000000000000000000000000000000000000000000000000000000000000"
+        );
         _lvlusdToken.setMinter(_newMinter);
         vm.stopPrank();
 
@@ -183,7 +187,9 @@ contract lvlUSDTest is Test, IlvlUSDDefinitions, LevelMintingUtils {
         assertEq(_lvlusdToken.owner(), _newOwner);
 
         vm.startPrank(_owner);
-        vm.expectRevert(_getInvalidRoleError(adminRole, _owner));
+        vm.expectRevert(
+            "AccessControl: account 0xe05fcc23807536bee418f142d19fa0d21bb0cff7 is missing role 0x0000000000000000000000000000000000000000000000000000000000000000"
+        );
         _lvlusdToken.transferAdmin(_newMinter);
         vm.stopPrank();
 
@@ -199,7 +205,9 @@ contract lvlUSDTest is Test, IlvlUSDDefinitions, LevelMintingUtils {
         assertEq(_lvlusdToken.owner(), _newOwner);
 
         vm.startPrank(_owner);
-        vm.expectRevert(_getInvalidRoleError(adminRole, _owner));
+        vm.expectRevert(
+            "AccessControl: account 0xe05fcc23807536bee418f142d19fa0d21bb0cff7 is missing role 0x0000000000000000000000000000000000000000000000000000000000000000"
+        );
         _lvlusdToken.setMinter(_newMinter);
         vm.stopPrank();
 
