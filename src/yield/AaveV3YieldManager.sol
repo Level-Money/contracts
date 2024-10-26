@@ -7,7 +7,6 @@ import "../WrappedRebasingERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPool} from "aave-v3-core/contracts/interfaces/IPool.sol";
 import {DataTypes} from "aave-v3-core/contracts/protocol/libraries/types/DataTypes.sol";
-import {Test, console2} from "forge-std/Test.sol";
 
 /**
  * @title Aave Yield Manager
