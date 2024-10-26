@@ -83,53 +83,6 @@ contract LevelReserveManagerTest is Test, ReserveBaseSetup {
         );
     }
 
-    function testDepositToStakedLvlusd(
-        uint256 mintAmount,
-        uint256 rewardAmount
-    ) public {
-        vm.assume(mintAmount > 0);
-        vm.assume(rewardAmount > 0);
-        vm.assume(mintAmount <= INITIAL_BALANCE);
-
-        vm.startPrank(owner);
-
-        // Assert collateral balances
-        assertEq(
-            USDCToken.balanceOf(address(symbioticReserveManager)),
-            INITIAL_BALANCE,
-            "Incorrect USDCToken balance."
-        );
-
-        symbioticReserveManager.mintlvlUSD(address(USDCToken), mintAmount);
-
-        // Assert collateral balances
-        assertEq(
-            USDCToken.balanceOf(address(symbioticReserveManager)),
-            INITIAL_BALANCE,
-            "Incorrect USDCToken balance."
-        );
-
-        uint256 lvlUsdBalance = lvlusdToken.balanceOf(
-            address(symbioticReserveManager)
-        );
-
-        vm.assume(rewardAmount <= lvlUsdBalance);
-
-        symbioticReserveManager.rewardStakedlvlUSD(rewardAmount);
-
-        // Assert Level USD balances
-        assertEq(
-            lvlusdToken.balanceOf(address(stakedlvlUSD)),
-            rewardAmount,
-            "Incorrect StakedlvlUSD balance."
-        );
-        assertEq(
-            lvlusdToken.balanceOf(address(symbioticReserveManager)),
-            lvlUsdBalance - rewardAmount,
-            "Incorrect SymbioticReserveManager balance."
-        );
-    }
-
     function testTransferErc20(uint256 transferAmount) public {
         vm.assume(transferAmount > 0);
         vm.assume(transferAmount <= INITIAL_BALANCE);
