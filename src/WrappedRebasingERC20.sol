@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.0.0) (token/ERC20/extensions/ERC20Wrapper.sol)
+// Note: we modified ERC20Wrapper so that it is compatible with Aave aTokens, which
+// are special because their functions assume amount is denominated in the underlying for the
+// aToken, instead of the aToken itself
 
 pragma solidity ^0.8.20;
 
@@ -23,6 +26,10 @@ import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.so
 contract WrappedRebasingERC20 is ERC20, SingleAdminAccessControl {
     using SafeERC20 for IERC20;
     IERC20 private immutable _underlying;
+
+    uint256 private _scaledTotalSupply;
+    bytes32 public RECOVERER_ROLE = keccak256("RECOVERER_ROLE");
+
     /**
      * @dev The underlying token couldn't be wrapped.
      */
@@ -74,9 +81,18 @@ contract WrappedRebasingERC20 is ERC20, SingleAdminAccessControl {
         if (account == address(this)) {
             revert IERC20Errors.ERC20InvalidReceiver(account);
         }
+        uint256 balanceBefore = _underlying.balanceOf(address(this));
         SafeERC20.safeTransferFrom(_underlying, sender, address(this), value);
-        _mint(account, value);
+        uint256 actualReceived = _underlying.balanceOf(address(this)) -
+            balanceBefore;
+
+        _mint(account, actualReceived);
+        _scaledTotalSupply += actualReceived;
         return true;
+    }
+
+    function scaledTotalSupply() public view returns (uint256) {
+        return _scaledTotalSupply;
     }
 
     /**
@@ -90,6 +106,7 @@ contract WrappedRebasingERC20 is ERC20, SingleAdminAccessControl {
             revert IERC20Errors.ERC20InvalidReceiver(account);
         }
         _burn(_msgSender(), value);
+        _scaledTotalSupply -= value;
         SafeERC20.safeTransfer(_underlying, account, value);
         return true;
     }
@@ -98,11 +115,17 @@ contract WrappedRebasingERC20 is ERC20, SingleAdminAccessControl {
      * @dev Mint wrapped token to cover any underlyingTokens that would have been transferred by mistake or acquired from
      * rebasing mechanisms. Internal function that can be exposed with access control if desired.
      */
-    function recover(
-        address account
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) returns (uint256) {
-        uint256 value = _underlying.balanceOf(address(this)) - totalSupply();
-        _mint(account, value);
+    function recoverUnderlying()
+        external
+        onlyRole(RECOVERER_ROLE)
+        returns (uint256)
+    {
+        address sender = _msgSender();
+        uint256 value = _underlying.balanceOf(address(this)) -
+            _scaledTotalSupply;
+        if (value > 0) {
+            SafeERC20.safeTransfer(_underlying, sender, value);
+        }
         return value;
     }
 }
