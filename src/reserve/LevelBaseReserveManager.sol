@@ -177,28 +177,25 @@ abstract contract LevelBaseReserveManager is
      * @param amount amount of lvlUSD to reward
      * @dev only callable by admin
      */
-    function rewardStakedlvlUSD(
-        uint256 amount
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) whenNotPaused {
+    function rewardStakedlvlUSD(uint256 amount) internal whenNotPaused {
+        IERC20(lvlUSD).forceApprove(address(stakedlvlUSD), amount);
         stakedlvlUSD.transferInRewards(amount);
     }
 
     /**
      * @notice Mint lvlUSD using collateral
      * @param collateral address of the collateral token
-     * @param amount amount of collateral to mint lvlUSD with
+     * @param collateralAmount amount of collateral to mint lvlUSD with
      * @dev only callable by admin
      */
     function mintlvlUSD(
         address collateral,
-        uint256 amount
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) whenNotPaused {
-        (, uint256 collateralAmount) = _takeRake(collateral, amount);
-
-        if (collateralAmount == 0) {
-            revert InvalidAmount();
-        }
-
+        uint256 collateralAmount
+    ) internal whenNotPaused {
+        IERC20(collateral).forceApprove(
+            address(levelMinting),
+            collateralAmount
+        );
         uint256 collateralDecimals = ERC20(collateral).decimals();
         uint256 lvlUSDAmount;
 
@@ -227,6 +224,20 @@ abstract contract LevelBaseReserveManager is
             lvlUSDAmount // expected minimum level USD amount to receive to this contract
         );
         levelMinting.mintDefault(order);
+    }
+
+    function collectYieldFromYieldManagerMintlvlUSDAndRewardStakedlvlUSD(
+        address token
+    ) external onlyRole(MANAGER_AGENT_ROLE) whenNotPaused {
+        uint amount = yieldManager[token].collectYield(token);
+        (, uint256 collateralAmount) = _takeRake(token, amount);
+        if (collateralAmount == 0) {
+            revert InvalidAmount();
+        }
+        uint lvlUSDBalBefore = lvlUSD.balanceOf(address(this));
+        mintlvlUSD(token, collateralAmount);
+        uint lvlUSDBalAfter = lvlUSD.balanceOf(address(this));
+        rewardStakedlvlUSD(lvlUSDBalAfter - lvlUSDBalBefore);
     }
 
     /** Rescue functions- only callable by admin for emergencies */

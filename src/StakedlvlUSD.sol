@@ -31,7 +31,7 @@ contract StakedlvlUSD is
 
     /* ------------- CONSTANTS ------------- */
     /// @notice The role that is allowed to distribute rewards to this contract
-    bytes32 private constant REWARDER_ROLE = keccak256("REWARDER_ROLE");
+    bytes32 public constant REWARDER_ROLE = keccak256("REWARDER_ROLE");
     /// @notice The role that is allowed to blacklist and un-blacklist addresses
     bytes32 private constant DENYLIST_MANAGER_ROLE =
         keccak256("DENYLIST_MANAGER_ROLE");

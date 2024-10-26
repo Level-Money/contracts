@@ -17,6 +17,8 @@ abstract contract BaseYieldManager is
 {
     using SafeERC20 for IERC20;
 
+    bytes32 public YIELD_RECOVERER_ROLE = keccak256("YIELD_RECOVERER_ROLE");
+
     /* --------------- CONSTRUCTOR --------------- */
 
     constructor(address _admin) {

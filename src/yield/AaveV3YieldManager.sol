@@ -7,6 +7,7 @@ import "../WrappedRebasingERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IPool} from "aave-v3-core/contracts/interfaces/IPool.sol";
 import {DataTypes} from "aave-v3-core/contracts/protocol/libraries/types/DataTypes.sol";
+import {Test, console2} from "forge-std/Test.sol";
 
 /**
  * @title Aave Yield Manager
@@ -94,14 +95,30 @@ contract AaveV3YieldManager is BaseYieldManager {
 
     function withdraw(
         address token, // e.g. USDC
-        uint256 amount
+        uint256 amount // quoted in terms of underlying (e.g. USDC)
     ) external {
         address aTokenAddress = underlyingToaToken[token];
         address wrapper = tokenToWrapper[aTokenAddress];
         IERC20(wrapper).safeTransferFrom(msg.sender, address(this), amount);
         _unwrapToken(wrapper, amount);
-        _withdrawFromAave(token, amount);
+        _withdrawFromAave(token, amount); // burns aTokens held nby this contract
         IERC20(token).transfer(msg.sender, amount);
+    }
+
+    // collect all accrued yield in the form of native token
+    function collectYield(
+        address token // e.g. USDC
+    ) external onlyRole(YIELD_RECOVERER_ROLE) returns (uint256) {
+        address aTokenAddress = underlyingToaToken[token];
+        address wrapper = tokenToWrapper[aTokenAddress];
+        // amount is quoted in terms of the underlying of the aToken
+        // that is transferred to this contract by recoverUnderlying (e.g. USDC)
+        uint amount = WrappedRebasingERC20(wrapper).recoverUnderlying();
+        // the amount argument here is quoted in terms of the underlying (e.g. USDC)
+        _withdrawFromAave(token, amount);
+        // transfer the underlying to the caller
+        IERC20(token).transfer(msg.sender, amount);
+        return amount;
     }
 
     /* --------------- SETTERS --------------- */
