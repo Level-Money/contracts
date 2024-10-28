@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.0.0) (token/ERC20/extensions/ERC20Wrapper.sol)
-// Note: we modified ERC20Wrapper so that it is compatible with Aave aTokens, which
-// are special because their functions assume amount is denominated in the underlying for the
-// aToken, instead of the aToken itself
 
 pragma solidity ^0.8.20;
 
@@ -27,7 +24,6 @@ contract WrappedRebasingERC20 is ERC20, SingleAdminAccessControl {
     using SafeERC20 for IERC20;
     IERC20 private immutable _underlying;
 
-    uint256 private _scaledTotalSupply;
     bytes32 public RECOVERER_ROLE = keccak256("RECOVERER_ROLE");
 
     /**
@@ -81,18 +77,9 @@ contract WrappedRebasingERC20 is ERC20, SingleAdminAccessControl {
         if (account == address(this)) {
             revert IERC20Errors.ERC20InvalidReceiver(account);
         }
-        uint256 balanceBefore = _underlying.balanceOf(address(this));
         SafeERC20.safeTransferFrom(_underlying, sender, address(this), value);
-        uint256 actualReceived = _underlying.balanceOf(address(this)) -
-            balanceBefore;
-
-        _mint(account, actualReceived);
-        _scaledTotalSupply += actualReceived;
+        _mint(account, value);
         return true;
-    }
-
-    function scaledTotalSupply() public view returns (uint256) {
-        return _scaledTotalSupply;
     }
 
     /**
@@ -106,7 +93,6 @@ contract WrappedRebasingERC20 is ERC20, SingleAdminAccessControl {
             revert IERC20Errors.ERC20InvalidReceiver(account);
         }
         _burn(_msgSender(), value);
-        _scaledTotalSupply -= value;
         SafeERC20.safeTransfer(_underlying, account, value);
         return true;
     }
@@ -121,8 +107,7 @@ contract WrappedRebasingERC20 is ERC20, SingleAdminAccessControl {
         returns (uint256)
     {
         address sender = _msgSender();
-        uint256 value = _underlying.balanceOf(address(this)) -
-            _scaledTotalSupply;
+        uint256 value = _underlying.balanceOf(address(this)) - totalSupply();
         if (value > 0) {
             SafeERC20.safeTransfer(_underlying, sender, value);
         }
