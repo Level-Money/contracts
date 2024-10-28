@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.8.19;
 
-import "@openzeppelin-4.9.0/contracts/access/AccessControl.sol";
-import "@openzeppelin-4.9.0/contracts/interfaces/IERC5313.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/interfaces/IERC5313.sol";
 import "../../interfaces/ISingleAdminAccessControl.sol";
 
 /**
  * @title SingleAdminAccessControl
- * @notice SingleAdminAccessControl is a contract that provides a single admin role
+ * @notice SingleAdminAccessControl is a contract that provides a single admin role with timelock
  * @notice This contract is a simplified alternative to OpenZeppelin's AccessControlDefaultAdminRules
- * @dev Changelog: update solidity versions
+ * @dev Added 7-day timelock for admin transfers
  */
 abstract contract SingleAdminAccessControl is
     IERC5313,
@@ -19,6 +19,20 @@ abstract contract SingleAdminAccessControl is
     address private _currentDefaultAdmin;
     address private _pendingDefaultAdmin;
 
+    // New variables for timelock
+    uint256 public constant TIMELOCK_DELAY = 7 days;
+    uint256 private _transferRequestTime;
+
+    error TimelockNotExpired(uint256 remainingTime);
+    error NoActiveTransferRequest();
+    error TransferAlreadyInProgress();
+
+    // Add this event to ISingleAdminAccessControl.sol
+    event AdminTransferCancelled(
+        address indexed currentAdmin,
+        address indexed pendingAdmin
+    );
+
     modifier notAdmin(bytes32 role) {
         if (role == DEFAULT_ADMIN_ROLE) revert InvalidAdminChange();
         _;
@@ -26,18 +40,60 @@ abstract contract SingleAdminAccessControl is
 
     /// @notice Transfer the admin role to a new address
     /// @notice This can ONLY be executed by the current admin
-    /// @param newAdmin address
+    /// @notice Initiates a transfer request with a 7-day timelock
+    /// @param newAdmin address of the new admin
     function transferAdmin(
         address newAdmin
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (newAdmin == msg.sender) revert InvalidAdminChange();
+        if (newAdmin == address(0)) revert InvalidAdminChange();
+        if (_transferRequestTime != 0) revert TransferAlreadyInProgress();
+
         _pendingDefaultAdmin = newAdmin;
+        _transferRequestTime = block.timestamp;
+
         emit AdminTransferRequested(_currentDefaultAdmin, newAdmin);
     }
 
+    /// @notice Cancel a pending admin transfer request
+    /// @notice Can only be called by the current admin
+    function cancelTransferAdmin() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_pendingDefaultAdmin == address(0))
+            revert NoActiveTransferRequest();
+
+        delete _pendingDefaultAdmin;
+        delete _transferRequestTime;
+
+        emit AdminTransferCancelled(_currentDefaultAdmin, _pendingDefaultAdmin);
+    }
+
+    /// @notice Accept the admin role transfer after timelock expires
+    /// @notice Can only be called by the pending admin after the timelock period
     function acceptAdmin() external {
         if (msg.sender != _pendingDefaultAdmin) revert NotPendingAdmin();
+        if (_transferRequestTime == 0) revert NoActiveTransferRequest();
+
+        uint256 timeElapsed = block.timestamp - _transferRequestTime;
+        if (timeElapsed < TIMELOCK_DELAY) {
+            revert TimelockNotExpired(TIMELOCK_DELAY - timeElapsed);
+        }
+
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
+
+    /// @notice Check the remaining time until a transfer can be accepted
+    /// @return remaining time in seconds, 0 if no active transfer or if timelock has expired
+    function getTransferTimelockStatus() external view returns (uint256) {
+        if (_pendingDefaultAdmin == address(0) || _transferRequestTime == 0) {
+            return 0;
+        }
+
+        uint256 timeElapsed = block.timestamp - _transferRequestTime;
+        if (timeElapsed >= TIMELOCK_DELAY) {
+            return 0;
+        }
+
+        return TIMELOCK_DELAY - timeElapsed;
     }
 
     /// @notice grant a role
@@ -85,13 +141,17 @@ abstract contract SingleAdminAccessControl is
     /**
      * @notice no way to change admin without removing old admin first
      */
-    function _grantRole(bytes32 role, address account) internal override {
+    function _grantRole(
+        bytes32 role,
+        address account
+    ) internal override returns (bool) {
         if (role == DEFAULT_ADMIN_ROLE) {
             emit AdminTransferred(_currentDefaultAdmin, account);
             _revokeRole(DEFAULT_ADMIN_ROLE, _currentDefaultAdmin);
             _currentDefaultAdmin = account;
             delete _pendingDefaultAdmin;
+            delete _transferRequestTime;
         }
-        super._grantRole(role, account);
+        return super._grantRole(role, account);
     }
 }
