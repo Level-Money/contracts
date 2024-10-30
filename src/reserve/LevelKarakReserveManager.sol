@@ -27,6 +27,11 @@ contract KarakReserveManager is LevelBaseReserveManager, IKarakReserveManager {
         address vault,
         uint256 amount
     ) external onlyRole(MANAGER_AGENT_ROLE) returns (uint256 shares) {
+        SafeERC20.forceApprove(
+            IERC20(IKarakVault.IVault(vault).asset()),
+            vault,
+            amount
+        );
         shares = IKarakVault.IVault(vault).deposit(amount, address(this));
 
         emit DepositedToKarak(amount, vault);

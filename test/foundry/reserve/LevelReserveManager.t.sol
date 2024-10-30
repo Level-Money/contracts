@@ -5,9 +5,12 @@ import {Test, console2} from "forge-std/Test.sol";
 
 import {SymbioticReserveManager} from "../../../src/reserve/LevelSymbioticReserveManager.sol";
 
-import "../../../src/interfaces/IDelegationManager.sol";
-import "../../../src/interfaces/ISignatureUtils.sol";
-
+import "../../../src/interfaces/eigenlayer/IDelegationManager.sol";
+import "../../../src/interfaces/eigenlayer/ISignatureUtils.sol";
+import "../../../src/reserve/LevelBaseReserveManager.sol";
+import "../../../src/yield/BaseYieldManager.sol";
+import "../../../src/interfaces/ILevelBaseReserveManager.sol";
+import "../../utils/WadRayMath.sol";
 import "./ReserveBaseSetup.sol";
 
 contract LevelReserveManagerTest is Test, ReserveBaseSetup {
@@ -25,7 +28,8 @@ contract LevelReserveManagerTest is Test, ReserveBaseSetup {
         0x18C659a269a7172eF78BBC19Fe47ad2237Be0590;
 
     uint256 public constant INITIAL_BALANCE = 100e6;
-    uint256 public constant ALLOWANCE = 100000e6;
+    uint256 public constant ALLOWANCE = 1e27;
+    uint256 public constant DEPOSIT_CAP = 1e27;
 
     function setUp() public override {
         super.setUp();
@@ -83,53 +87,6 @@ contract LevelReserveManagerTest is Test, ReserveBaseSetup {
         );
     }
 
-    function testDepositToStakedLvlusd(
-        uint256 mintAmount,
-        uint256 rewardAmount
-    ) public {
-        vm.assume(mintAmount > 0);
-        vm.assume(rewardAmount > 0);
-        vm.assume(mintAmount <= INITIAL_BALANCE);
-
-        vm.startPrank(owner);
-
-        // Assert collateral balances
-        assertEq(
-            USDCToken.balanceOf(address(symbioticReserveManager)),
-            INITIAL_BALANCE,
-            "Incorrect USDCToken balance."
-        );
-
-        symbioticReserveManager.mintlvlUSD(address(USDCToken), mintAmount);
-
-        // Assert collateral balances
-        assertEq(
-            USDCToken.balanceOf(address(symbioticReserveManager)),
-            INITIAL_BALANCE,
-            "Incorrect USDCToken balance."
-        );
-
-        uint256 lvlUsdBalance = lvlusdToken.balanceOf(
-            address(symbioticReserveManager)
-        );
-
-        vm.assume(rewardAmount <= lvlUsdBalance);
-
-        symbioticReserveManager.rewardStakedlvlUSD(rewardAmount);
-
-        // Assert Level USD balances
-        assertEq(
-            lvlusdToken.balanceOf(address(stakedlvlUSD)),
-            rewardAmount,
-            "Incorrect StakedlvlUSD balance."
-        );
-        assertEq(
-            lvlusdToken.balanceOf(address(symbioticReserveManager)),
-            lvlUsdBalance - rewardAmount,
-            "Incorrect SymbioticReserveManager balance."
-        );
-    }
-
     function testTransferErc20(uint256 transferAmount) public {
         vm.assume(transferAmount > 0);
         vm.assume(transferAmount <= INITIAL_BALANCE);
@@ -171,6 +128,173 @@ contract LevelReserveManagerTest is Test, ReserveBaseSetup {
             address(USDCToken),
             randomUser,
             1
+        );
+    }
+
+    function _depositForYield(
+        LevelBaseReserveManager lrm,
+        IERC20 token,
+        uint amount
+    ) public {
+        vm.startPrank(managerAgent);
+        lrm.depositForYield(address(token), amount);
+        vm.stopPrank();
+    }
+
+    function _grantRewarderRole(LevelBaseReserveManager lrm) public {
+        vm.startPrank(owner);
+        stakedlvlUSD.grantRole(keccak256("REWARDER_ROLE"), address(lrm));
+        vm.stopPrank();
+    }
+
+    function _grantRecovererRole(
+        WrappedRebasingERC20 wrapper,
+        BaseYieldManager yieldManager
+    ) public {
+        vm.startPrank(owner);
+        wrapper.grantRole(wrapper.RECOVERER_ROLE(), address(yieldManager));
+        vm.stopPrank();
+    }
+
+    function _grantYieldRecovererRole(
+        BaseYieldManager yieldManager,
+        LevelBaseReserveManager lrm
+    ) public {
+        vm.startPrank(owner);
+        yieldManager.grantRole(
+            yieldManager.YIELD_RECOVERER_ROLE(),
+            address(lrm)
+        );
+        vm.stopPrank();
+    }
+
+    function _collectYieldMintlvlUSDAndReward(
+        LevelBaseReserveManager lrm,
+        MockToken token
+    ) public {
+        vm.startPrank(managerAgent);
+        lrm.rewardStakedlvlUSD(address(token));
+        vm.stopPrank();
+    }
+
+    function _testCollectYieldAndRewardMultipleTimesReverts(
+        LevelBaseReserveManager lrm,
+        MockToken token
+    ) public {
+        vm.expectRevert();
+        this._collectYieldAndRewardMultipleTimes(lrm, token);
+    }
+
+    function _collectYieldAndRewardMultipleTimes(
+        LevelBaseReserveManager lrm,
+        MockToken token
+    ) external {
+        vm.warp(block.timestamp + 9 hours);
+        _collectYieldMintlvlUSDAndReward(lrm, token);
+        vm.warp(block.timestamp + 9 hours);
+        _collectYieldMintlvlUSDAndReward(lrm, token);
+    }
+
+    function test__usdc__collectYieldFromYieldManagerMintlvlUSDAndRewardStakedlvlUSD(
+        uint depositAmount,
+        uint increaseAmountPercent
+    ) public {
+        vm.assume(100000 < depositAmount);
+        vm.assume(depositAmount < 1e15);
+        vm.assume(1 < increaseAmountPercent);
+        vm.assume(increaseAmountPercent < 100);
+        _collectYieldFromYieldManagerMintlvlUSDAndRewardStakedlvlUSD(
+            USDCToken,
+            aUSDC,
+            waUSDC,
+            depositAmount,
+            increaseAmountPercent
+        );
+    }
+
+    function test__dai__collectYieldFromYieldManagerMintlvlUSDAndRewardStakedlvlUSD(
+        uint depositAmount,
+        uint increaseAmountPercent
+    ) public {
+        vm.assume(100000 < depositAmount);
+        vm.assume(depositAmount < 1e27);
+        vm.assume(1 < increaseAmountPercent);
+        vm.assume(increaseAmountPercent < 100);
+        _collectYieldFromYieldManagerMintlvlUSDAndRewardStakedlvlUSD(
+            DAIToken,
+            aDAI,
+            waDAI,
+            depositAmount,
+            increaseAmountPercent
+        );
+    }
+
+    function _collectYieldFromYieldManagerMintlvlUSDAndRewardStakedlvlUSD(
+        MockToken token,
+        MockAToken aToken,
+        WrappedRebasingERC20 waToken,
+        uint depositAmount,
+        uint increaseAmountPercent
+    ) public {
+        // mint tokens and grant approvals, setting up for test
+        vm.startPrank(owner);
+        token.mint(DEPOSIT_CAP);
+        token.transfer(address(eigenlayerReserveManager), DEPOSIT_CAP);
+        aaveYieldManager.approveSpender(
+            address(token),
+            address(mockAavePool),
+            DEPOSIT_CAP
+        );
+        eigenlayerReserveManager.approveSpender(
+            address(token),
+            address(aaveYieldManager),
+            DEPOSIT_CAP
+        );
+        vm.stopPrank();
+
+        // deposit collateral into yieldManager to earn yield
+        _depositForYield(eigenlayerReserveManager, token, depositAmount);
+
+        // grant roles necessary for collecting and rewarding yield
+        _grantRewarderRole(eigenlayerReserveManager);
+        _grantRecovererRole(waToken, aaveYieldManager);
+        _grantYieldRecovererRole(aaveYieldManager, eigenlayerReserveManager);
+
+        // accrue interest
+        aToken.accrueInterest(increaseAmountPercent * 100);
+
+        // deposit amount has increased in value due to interest accrual
+        // here, we are basically doing depositAmount * (1e4 + increaseAmountPercent * 100) / 1e4,
+        // except we pre-multiply by WadRayMath.RAY to ensure a high level of precision
+        // rayMul does a multiplication and divides by 1 RAY to get us back to the expected result
+        uint newTotalAmountQuotedInUnderlying = WadRayMath.rayMul(
+            (depositAmount *
+                WadRayMath.RAY *
+                (1e4 + increaseAmountPercent * 100)) / 1e4,
+            1
+        );
+
+        // Note: aToken balanceOf returns the balance quoted in the underlying asset, and not the aToken
+        assertApproxEqRel(
+            aToken.balanceOf(address(waToken)),
+            newTotalAmountQuotedInUnderlying,
+            1e15 // 0.1%
+        );
+
+        // collect yield and reward stakedlvlUSD
+        uint lvlUSDbalBefore = lvlusdToken.balanceOf(address(stakedlvlUSD));
+        _collectYieldMintlvlUSDAndReward(eigenlayerReserveManager, token);
+        uint lvlUSDbalAfter = lvlusdToken.balanceOf(address(stakedlvlUSD));
+
+        // check that expected amount of rewards is deposited into stakedlvlUSD
+        uint expectedlvlUSDAmount = (newTotalAmountQuotedInUnderlying -
+            depositAmount) * 10 ** (18 - ERC20(token).decimals());
+        assertEq(lvlUSDbalAfter - lvlUSDbalBefore, expectedlvlUSDAmount);
+
+        // failure case - at this point, further collect yield + reward operations should fail
+        _testCollectYieldAndRewardMultipleTimesReverts(
+            eigenlayerReserveManager,
+            token
         );
     }
 }

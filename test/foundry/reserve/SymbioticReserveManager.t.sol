@@ -92,18 +92,6 @@ contract SymbioticReserveManagerTest is Test, ReserveBaseSetup {
 
         USDCToken.mint(INITIAL_BALANCE, address(symbioticReserveManager));
         USDTToken.transfer(address(symbioticReserveManager), INITIAL_BALANCE);
-
-        symbioticReserveManager.approveSpender(
-            address(USDCToken),
-            address(usdcVault),
-            ALLOWANCE
-        );
-
-        symbioticReserveManager.approveSpender(
-            address(USDTToken),
-            address(usdtVault),
-            ALLOWANCE
-        );
     }
 
     // Vaults parameters include:

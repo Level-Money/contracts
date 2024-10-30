@@ -118,6 +118,11 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
         abi.encodeWithSelector(
             ILevelMinting.MinimumCollateralAmountNotMet.selector
         );
+
+    bytes internal MinimumlvlUSDAmountNotMet =
+        abi.encodeWithSelector(
+            ILevelMinting.MinimumlvlUSDAmountNotMet.selector
+        );
     bytes internal Duplicate =
         abi.encodeWithSelector(ILevelMinting.Duplicate.selector);
     bytes internal InvalidAddress =
@@ -176,10 +181,10 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
         );
 
     uint256 internal _slippageRange = 50000000000000000;
-    uint256 internal _DAIToDeposit = 50 * 10 ** 18;
-    uint256 internal _DAIToWithdraw = 30 * 10 ** 18;
+    uint256 internal _DAIToDeposit = 50 * 10 ** 25;
+    uint256 internal _DAIToWithdraw = 30 * 10 ** 25;
     uint256 internal _lvlusdToMint = 8.75 * 10 ** 23;
-    uint256 internal _maxMintPerBlock = 10e23;
+    uint256 internal _maxMintPerBlock = 50 * 10 ** 27;
     uint256 internal _maxRedeemPerBlock = _maxMintPerBlock;
 
     // Declared at contract level to avoid stack too deep
@@ -320,6 +325,8 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
 
         // Mint stEth to the benefactor in order to test
         DAIToken.mint(_DAIToDeposit, benefactor);
+        USDCToken.mint(_DAIToDeposit, benefactor);
+
         // DAIToken.mint(_DAIToDeposit, beneficiary);
 
         stakedlvlUSD = new StakedlvlUSD(
@@ -365,6 +372,7 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
         // set up reserve managers
         eigenlayerReserveManager = new EigenlayerReserveManager(
             IlvlUSD(address(lvlusdToken)),
+            address(0),
             address(0),
             address(0),
             stakedlvlUSD,
@@ -420,7 +428,8 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
     function mint_setup(
         uint256 lvlusdAmount,
         uint256 collateralAmount,
-        bool multipleMints
+        bool multipleMints,
+        address collateral
     )
         public
         returns (
@@ -432,7 +441,7 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
             order_type: ILevelMinting.OrderType.MINT,
             benefactor: benefactor,
             beneficiary: beneficiary,
-            collateral_asset: address(DAIToken),
+            collateral_asset: collateral,
             lvlusd_amount: lvlusdAmount,
             collateral_amount: collateralAmount
         });
@@ -446,7 +455,10 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
         route = ILevelMinting.Route({addresses: targets, ratios: ratios});
 
         vm.startPrank(benefactor);
-        DAIToken.approve(address(LevelMintingContract), collateralAmount);
+        IERC20(collateral).approve(
+            address(LevelMintingContract),
+            collateralAmount
+        );
         vm.stopPrank();
 
         vm.startPrank(benefactor);
@@ -454,7 +466,10 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
         vm.stopPrank();
 
         vm.startPrank(beneficiary);
-        DAIToken.approve(address(LevelMintingContract), collateralAmount);
+        IERC20(collateral).approve(
+            address(LevelMintingContract),
+            collateralAmount
+        );
         vm.stopPrank();
 
         vm.startPrank(beneficiary);
@@ -462,7 +477,10 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
         vm.stopPrank();
 
         vm.startPrank(redeemer);
-        DAIToken.approve(address(LevelMintingContract), collateralAmount);
+        IERC20(collateral).approve(
+            address(LevelMintingContract),
+            collateralAmount
+        );
         vm.stopPrank();
     }
 
@@ -470,21 +488,22 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
     function redeem_setup(
         uint256 lvlusdAmount,
         uint256 collateralAmount,
-        bool multipleRedeem
+        bool multipleRedeem,
+        address collateral
     ) public returns (ILevelMinting.Order memory redeemOrder) {
         (
             ILevelMinting.Order memory mintOrder,
             ILevelMinting.Route memory route
-        ) = mint_setup(lvlusdAmount, collateralAmount, false);
+        ) = mint_setup(lvlusdAmount, collateralAmount, false, collateral);
         vm.prank(minter);
-        LevelMintingContract.mint(mintOrder, route);
+        LevelMintingContract.__mint(mintOrder, route);
 
         //redeem
         redeemOrder = ILevelMinting.Order({
             order_type: ILevelMinting.OrderType.REDEEM,
             benefactor: beneficiary,
             beneficiary: beneficiary,
-            collateral_asset: address(DAIToken),
+            collateral_asset: collateral,
             lvlusd_amount: lvlusdAmount,
             collateral_amount: collateralAmount
         });

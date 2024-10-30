@@ -7,7 +7,7 @@ ignored_warnings_from = ["test", "node_modules", "lib"]
 evm_version = "cancun"
 
 [fuzz]
-max_test_rejects = 655360
+max_test_rejects = 6553600
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 

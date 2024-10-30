@@ -1,4 +1,4 @@
-// src/contracts/interfaces/ISlasher.sol
+pragma solidity ^0.8.20;
 import "./IStrategyManager.sol";
 import "./IDelegationManager.sol";
 

@@ -3,6 +3,7 @@ pragma solidity >=0.8.19;
 
 /* solhint-disable func-name-mixedcase  */
 import "../minting/MintingBaseSetup.sol";
+import "../../utils/WadRayMath.sol";
 
 contract LevelYieldManagerTest is MintingBaseSetup {
     function setUp() public override {
@@ -16,11 +17,6 @@ contract LevelYieldManagerTest is MintingBaseSetup {
         vm.startPrank(owner);
         uint amount = 10000000000000;
         USDCToken.mint(amount);
-        aaveYieldManager.approveSpender(
-            address(USDCToken),
-            address(mockAavePool),
-            amount
-        );
         USDCToken.approve(address(aaveYieldManager), amount);
         aaveYieldManager.depositForYield(address(USDCToken), 10);
         assertEq(
@@ -47,11 +43,6 @@ contract LevelYieldManagerTest is MintingBaseSetup {
         vm.startPrank(owner);
         uint amount = 10000000000000;
         DAIToken.mint(amount);
-        aaveYieldManager.approveSpender(
-            address(DAIToken),
-            address(mockAavePool),
-            amount
-        );
         DAIToken.approve(address(aaveYieldManager), amount);
         aaveYieldManager.depositForYield(address(DAIToken), 10);
         assertEq(
@@ -81,16 +72,6 @@ contract LevelYieldManagerTest is MintingBaseSetup {
         uint transferAmount = 99999999;
         USDCToken.mint(amount);
         USDCToken.transfer(address(eigenlayerReserveManager), transferAmount);
-        aaveYieldManager.approveSpender(
-            address(USDCToken),
-            address(mockAavePool),
-            amount
-        );
-        eigenlayerReserveManager.approveSpender(
-            address(USDCToken),
-            address(aaveYieldManager),
-            amount
-        );
         eigenlayerReserveManager.approveSpender(
             address(waUSDC),
             address(aaveYieldManager),
@@ -122,43 +103,80 @@ contract LevelYieldManagerTest is MintingBaseSetup {
     }
 
     // test that aave yield is accrued to ERC20Wrapper (in this case waUSDC)
-    function testAaveAccrueInterest() public {
+    // test recover mechanism that allows someone with RECOVERER_ROLE to collect accrued interest
+    function testAaveAccrueInterest(
+        uint depositAmount,
+        uint increaseAmountPercent
+    ) public {
+        vm.assume(100000 < depositAmount);
+        vm.assume(depositAmount < 99999999);
+        vm.assume(1 < increaseAmountPercent);
+        vm.assume(increaseAmountPercent < 100);
         vm.startPrank(owner);
         uint amount = 10000000000000;
         uint transferAmount = 99999999;
         USDCToken.mint(amount);
         USDCToken.transfer(address(eigenlayerReserveManager), transferAmount);
-        aaveYieldManager.approveSpender(
-            address(USDCToken),
-            address(mockAavePool),
-            amount
-        );
-        eigenlayerReserveManager.approveSpender(
-            address(USDCToken),
-            address(aaveYieldManager),
-            amount
-        );
         vm.stopPrank();
 
         vm.startPrank(managerAgent);
-        eigenlayerReserveManager.depositForYield(address(USDCToken), 10);
+        eigenlayerReserveManager.depositForYield(
+            address(USDCToken),
+            depositAmount
+        );
         vm.stopPrank();
         assertEq(
             waUSDC.balanceOf(address(eigenlayerReserveManager)),
-            10,
+            depositAmount,
             "Incorrect waUSDC balance."
+        );
+        assertApproxEqRel(
+            aUSDC.balanceOf(address(waUSDC)),
+            depositAmount,
+            1e15
         );
 
         vm.startPrank(owner);
-        // // rebase
-        aUSDC.accrueInterest(1000); // increase aUSDC balances by 10%
 
-        // withdraw extra tokens from ERC20Wrapper to bob
-        waUSDC.recover(address(bob));
-        assertEq(
-            waUSDC.balanceOf(address(bob)),
-            1, // mint 1 waUSDC token to bob
-            "Incorrect waUSDC balance."
+        // test rebase / accrue interest
+        aUSDC.accrueInterest(increaseAmountPercent * 100);
+        // here, we are basically doing depositAmount * (1e4 + increaseAmountPercent * 100) / 1e4,
+        // except we pre-multiply by WadRayMath.RAY to ensure a high level of precision
+        // rayMul does a multiplication and divides by 1 RAY to get us back to the expected result
+        uint newTotalAmountQuotedInUnderlying = WadRayMath.rayMul(
+            (depositAmount *
+                WadRayMath.RAY *
+                (1e4 + increaseAmountPercent * 100)) / 1e4,
+            1
+        );
+
+        // Note: aToken balanceOf returns the balance quoted in the underlying asset, and not the aToken
+        assertApproxEqRel(
+            aUSDC.balanceOf(address(waUSDC)),
+            newTotalAmountQuotedInUnderlying,
+            1e15
+        );
+        waUSDC.grantRole(waUSDC.RECOVERER_ROLE(), bob);
+        vm.stopPrank();
+        vm.startPrank(bob);
+
+        // recover accrued interest in the form of the underlying asset
+        uint value = waUSDC.recoverUnderlying();
+        assertEq(address(waUSDC.underlying()), address(aUSDC));
+
+        // check using approx eq because aUSDC balanceOf does decimal arithmetic under the hood
+        assertApproxEqRel(
+            aUSDC.balanceOf(address(waUSDC)),
+            depositAmount,
+            1e16, // 1% = 1e16 because 100% = 1e18
+            "Incorrect aUSDC balance."
+        );
+        // check using approx eq because aUSDC balanceOf does decimal arithmetic under the hood
+        assertApproxEqRel(
+            aUSDC.balanceOf(bob),
+            newTotalAmountQuotedInUnderlying - aUSDC.balanceOf(address(waUSDC)),
+            1e16, // 1% = 1e16 because 100% = 1e18
+            "End Incorrect aUSDC balance."
         );
     }
 }

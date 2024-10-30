@@ -16,11 +16,16 @@ contract LevelMintingUtils is MintingBaseSetup {
         (
             ILevelMinting.Order memory order,
             ILevelMinting.Route memory route
-        ) = mint_setup(excessiveMintAmount, _DAIToDeposit, false);
+        ) = mint_setup(
+                excessiveMintAmount,
+                _DAIToDeposit,
+                false,
+                address(DAIToken)
+            );
 
         vm.prank(minter);
         vm.expectRevert(MaxMintPerBlockExceeded);
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
 
         assertEq(
             lvlusdToken.balanceOf(beneficiary),
@@ -49,12 +54,13 @@ contract LevelMintingUtils is MintingBaseSetup {
         ILevelMinting.Order memory redeemOrder = redeem_setup(
             excessiveRedeemAmount,
             _DAIToDeposit,
-            false
+            false,
+            address(DAIToken)
         );
         vm.stopPrank();
         vm.startPrank(redeemer);
         vm.expectRevert(MaxRedeemPerBlockExceeded);
-        LevelMintingContract.redeem(redeemOrder);
+        LevelMintingContract.__redeem(redeemOrder);
 
         assertEq(
             DAIToken.balanceOf(address(LevelMintingContract)),
@@ -75,19 +81,20 @@ contract LevelMintingUtils is MintingBaseSetup {
         (
             ILevelMinting.Order memory order,
             ILevelMinting.Route memory route
-        ) = mint_setup(_lvlusdToMint, _DAIToDeposit, false);
+        ) = mint_setup(_lvlusdToMint, _DAIToDeposit, false, address(DAIToken));
 
         vm.prank(minter);
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
     }
 
     function executeRedeem() public {
         ILevelMinting.Order memory redeemOrder = redeem_setup(
             _lvlusdToMint,
             _DAIToDeposit,
-            false
+            false,
+            address(DAIToken)
         );
         vm.prank(redeemer);
-        LevelMintingContract.redeem(redeemOrder);
+        LevelMintingContract.__redeem(redeemOrder);
     }
 }

@@ -27,14 +27,11 @@ contract LevelMintingChild is LevelMinting {
         )
     {}
 
-    function mint(
-        Order calldata order,
-        Route calldata route
-    ) external override {
+    function __mint(Order calldata order, Route calldata route) external {
         super._mint(order, route);
     }
 
-    function redeem(Order calldata order) external override {
+    function __redeem(Order calldata order) external {
         super._redeem(order);
         lvlusd.burnFrom(order.benefactor, order.lvlusd_amount);
     }

@@ -12,10 +12,10 @@ import {WrappedRebasingERC20} from "../WrappedRebasingERC20.sol";
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 /**
  * @title Level Base Reserve Manager
@@ -28,9 +28,12 @@ abstract contract LevelBaseReserveManager is
     SingleAdminAccessControl,
     Pausable
 {
-    using Math for uint256;
+    using FixedPointMathLib for uint256;
     using SafeCast for uint256;
     using SafeERC20 for IERC20;
+
+    event EtherReceived(address indexed sender, uint256 amount);
+    event FallbackCalled(address indexed sender, uint256 amount, bytes data);
 
     /// @notice role that sets the addresses where funds can be sent from this contract
     bytes32 private constant ALLOWLIST_ROLE = keccak256("ALLOWLIST_ROLE");
@@ -103,6 +106,7 @@ abstract contract LevelBaseReserveManager is
         address token,
         uint256 amount
     ) external onlyRole(MANAGER_AGENT_ROLE) whenNotPaused {
+        IERC20(token).forceApprove(address(yieldManager[token]), amount);
         yieldManager[token].depositForYield(token, amount);
         emit DepositedToYieldManager(
             token,
@@ -164,7 +168,7 @@ abstract contract LevelBaseReserveManager is
             return (0, amount);
         }
 
-        uint256 rake = amount.mulDiv(rakeBasisPoints, MAX_BASIS_POINTS);
+        uint256 rake = amount.mulDivUp(rakeBasisPoints, MAX_BASIS_POINTS);
         uint256 remainder = amount - rake;
         IERC20(token).safeTransfer(treasury, rake);
 
@@ -177,28 +181,25 @@ abstract contract LevelBaseReserveManager is
      * @param amount amount of lvlUSD to reward
      * @dev only callable by admin
      */
-    function rewardStakedlvlUSD(
-        uint256 amount
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) whenNotPaused {
+    function _rewardStakedlvlUSD(uint256 amount) internal whenNotPaused {
+        IERC20(lvlUSD).forceApprove(address(stakedlvlUSD), amount);
         stakedlvlUSD.transferInRewards(amount);
     }
 
     /**
      * @notice Mint lvlUSD using collateral
      * @param collateral address of the collateral token
-     * @param amount amount of collateral to mint lvlUSD with
+     * @param collateralAmount amount of collateral to mint lvlUSD with
      * @dev only callable by admin
      */
-    function mintlvlUSD(
+    function _mintlvlUSD(
         address collateral,
-        uint256 amount
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) whenNotPaused {
-        (, uint256 collateralAmount) = _takeRake(collateral, amount);
-
-        if (collateralAmount == 0) {
-            revert InvalidAmount();
-        }
-
+        uint256 collateralAmount
+    ) internal whenNotPaused {
+        IERC20(collateral).forceApprove(
+            address(levelMinting),
+            collateralAmount
+        );
         uint256 collateralDecimals = ERC20(collateral).decimals();
         uint256 lvlUSDAmount;
 
@@ -206,14 +207,14 @@ abstract contract LevelBaseReserveManager is
             lvlUSDAmount =
                 collateralAmount *
                 (10 ** (lvlUsdDecimals - collateralDecimals));
-        } else if (collateralDecimals > lvlUsdDecimals) {
+        } else {
             lvlUSDAmount =
                 collateralAmount /
                 (10 ** (collateralDecimals - lvlUsdDecimals));
         }
 
         // Apply max slippage threshold
-        lvlUSDAmount = lvlUSDAmount.mulDiv(
+        lvlUSDAmount -= lvlUSDAmount.mulDivDown(
             maxSlippageThresholdBasisPoints,
             MAX_BASIS_POINTS
         );
@@ -227,6 +228,20 @@ abstract contract LevelBaseReserveManager is
             lvlUSDAmount // expected minimum level USD amount to receive to this contract
         );
         levelMinting.mintDefault(order);
+    }
+
+    function rewardStakedlvlUSD(
+        address token
+    ) external onlyRole(MANAGER_AGENT_ROLE) whenNotPaused {
+        uint amount = yieldManager[token].collectYield(token);
+        (, uint256 collateralAmount) = _takeRake(token, amount);
+        if (collateralAmount == 0) {
+            revert InvalidAmount();
+        }
+        uint lvlUSDBalBefore = lvlUSD.balanceOf(address(this));
+        _mintlvlUSD(token, collateralAmount);
+        uint lvlUSDBalAfter = lvlUSD.balanceOf(address(this));
+        _rewardStakedlvlUSD(lvlUSDBalAfter - lvlUSDBalBefore);
     }
 
     /** Rescue functions- only callable by admin for emergencies */
@@ -283,6 +298,16 @@ abstract contract LevelBaseReserveManager is
         }
     }
 
+    // Receive function - Called when ETH is sent with empty calldata
+    receive() external payable {
+        emit EtherReceived(msg.sender, msg.value);
+    }
+
+    // Fallback function - Called when ETH is sent with non-empty calldata
+    fallback() external payable {
+        emit FallbackCalled(msg.sender, msg.value, msg.data);
+    }
+
     /* --------------- SETTERS --------------- */
 
     function setPaused(bool paused) external onlyRole(PAUSER_ROLE) {
@@ -332,6 +357,10 @@ abstract contract LevelBaseReserveManager is
     function setMaxSlippageThresholdBasisPoints(
         uint16 _maxSlippageThresholdBasisPoints
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(
+            _maxSlippageThresholdBasisPoints <= MAX_BASIS_POINTS,
+            "Slippage threshold cannot exceed max basis points"
+        );
         maxSlippageThresholdBasisPoints = _maxSlippageThresholdBasisPoints;
     }
 }

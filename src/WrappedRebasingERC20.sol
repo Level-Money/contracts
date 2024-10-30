@@ -7,6 +7,7 @@ import {IERC20, IERC20Metadata, ERC20} from "@openzeppelin/contracts/token/ERC20
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./auth/v5/SingleAdminAccessControl.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import "./interfaces/aave/IRewardsController.sol";
 
 /**
  * @dev Extension of the ERC-20 token contract to support token wrapping.
@@ -23,6 +24,9 @@ import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.so
 contract WrappedRebasingERC20 is ERC20, SingleAdminAccessControl {
     using SafeERC20 for IERC20;
     IERC20 private immutable _underlying;
+
+    bytes32 public RECOVERER_ROLE = keccak256("RECOVERER_ROLE");
+
     /**
      * @dev The underlying token couldn't be wrapped.
      */
@@ -98,11 +102,62 @@ contract WrappedRebasingERC20 is ERC20, SingleAdminAccessControl {
      * @dev Mint wrapped token to cover any underlyingTokens that would have been transferred by mistake or acquired from
      * rebasing mechanisms. Internal function that can be exposed with access control if desired.
      */
-    function recover(
-        address account
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) returns (uint256) {
+    function recoverUnderlying()
+        external
+        onlyRole(RECOVERER_ROLE)
+        returns (uint256)
+    {
+        address sender = _msgSender();
         uint256 value = _underlying.balanceOf(address(this)) - totalSupply();
-        _mint(account, value);
+        if (value > 0) {
+            SafeERC20.safeTransfer(_underlying, sender, value);
+        }
         return value;
+    }
+
+    /**
+     * @dev Recover any ERC20 tokens that were accidentally sent to this contract.
+     * Can only be called by admin. Cannot recover the underlying token - use recover() for that.
+     * @param tokenAddress The token contract address to recover
+     * @param tokenReceiver The address to send the tokens to
+     * @param tokenAmount The amount of tokens to recover
+     */
+    function transferERC20(
+        address tokenAddress,
+        address tokenReceiver,
+        uint256 tokenAmount
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(
+            tokenAddress != address(_underlying),
+            "Use recover instead of transferERC20 to recover underlying."
+        );
+        require(tokenReceiver != address(0), "Invalid recipient");
+        IERC20(tokenAddress).safeTransfer(tokenReceiver, tokenAmount);
+    }
+
+    /**
+     * @dev Recover ETH that was accidentally sent to this contract.
+     * Can only be called by admin.
+     * @param _to The address to send the ETH to
+     */
+    function transferEth(
+        address payable _to,
+        uint256 _amount
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        (bool success, ) = _to.call{value: _amount}("");
+        require(success, "Failed to send Ether");
+    }
+
+    function claimAllRewards(
+        address rewardsController,
+        address[] calldata assets,
+        address to
+    )
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        returns (address[] memory rewardsList, uint256[] memory claimedAmounts)
+    {
+        return
+            IRewardsController(rewardsController).claimAllRewards(assets, to);
     }
 }

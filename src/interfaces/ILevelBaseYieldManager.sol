@@ -12,6 +12,8 @@ interface ILevelBaseYieldManager {
 
     function depositForYield(address token, uint256 amount) external;
 
+    function collectYield(address token) external returns (uint256);
+
     function withdraw(address token, uint256 amount) external;
 
     /// @notice Treasury is the zero address

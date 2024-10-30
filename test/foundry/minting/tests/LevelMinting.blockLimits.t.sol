@@ -19,10 +19,15 @@ contract LevelMintingBlockLimitsTest is LevelMintingUtils {
         (
             ILevelMinting.Order memory aOrder,
             ILevelMinting.Route memory aRoute
-        ) = mint_setup(firstMintAmount, _DAIToDeposit, false);
+        ) = mint_setup(
+                firstMintAmount,
+                _DAIToDeposit,
+                false,
+                address(DAIToken)
+            );
 
         vm.prank(minter);
-        LevelMintingContract.mint(aOrder, aRoute);
+        LevelMintingContract.__mint(aOrder, aRoute);
 
         vm.prank(owner);
         DAIToken.mint(_DAIToDeposit, benefactor);
@@ -30,9 +35,14 @@ contract LevelMintingBlockLimitsTest is LevelMintingUtils {
         (
             ILevelMinting.Order memory bOrder,
             ILevelMinting.Route memory bRoute
-        ) = mint_setup(secondMintAmount, _DAIToDeposit, true);
+        ) = mint_setup(
+                secondMintAmount,
+                _DAIToDeposit,
+                true,
+                address(DAIToken)
+            );
         vm.prank(minter);
-        LevelMintingContract.mint(bOrder, bRoute);
+        LevelMintingContract.__mint(bOrder, bRoute);
 
         assertEq(
             LevelMintingContract.mintedPerBlock(block.number),
@@ -61,7 +71,12 @@ contract LevelMintingBlockLimitsTest is LevelMintingUtils {
         (
             ILevelMinting.Order memory mintOrder,
             ILevelMinting.Route memory route
-        ) = mint_setup(excessiveMintAmount, _DAIToDeposit, false);
+        ) = mint_setup(
+                excessiveMintAmount,
+                _DAIToDeposit,
+                false,
+                address(DAIToken)
+            );
 
         // maker
         vm.startPrank(minter);
@@ -70,7 +85,7 @@ contract LevelMintingBlockLimitsTest is LevelMintingUtils {
 
         vm.expectRevert(MaxMintPerBlockExceeded);
         // minter passes in permit signature data
-        LevelMintingContract.mint(mintOrder, route);
+        LevelMintingContract.__mint(mintOrder, route);
 
         assertEq(
             DAIToken.balanceOf(benefactor),
@@ -92,10 +107,10 @@ contract LevelMintingBlockLimitsTest is LevelMintingUtils {
         (
             ILevelMinting.Order memory order,
             ILevelMinting.Route memory route
-        ) = mint_setup(_lvlusdToMint, _DAIToDeposit, false);
+        ) = mint_setup(_lvlusdToMint, _DAIToDeposit, false, address(DAIToken));
 
         vm.prank(minter);
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
 
         vm.roll(block.number + 1);
 
@@ -140,11 +155,12 @@ contract LevelMintingBlockLimitsTest is LevelMintingUtils {
         ILevelMinting.Order memory redeemOrder = redeem_setup(
             firstRedeemAmount,
             _DAIToDeposit,
-            false
+            false,
+            address(DAIToken)
         );
 
         vm.prank(redeemer);
-        LevelMintingContract.redeem(redeemOrder);
+        LevelMintingContract.__redeem(redeemOrder);
 
         vm.prank(owner);
         DAIToken.mint(_DAIToDeposit, benefactor);
@@ -152,11 +168,12 @@ contract LevelMintingBlockLimitsTest is LevelMintingUtils {
         ILevelMinting.Order memory bRedeemOrder = redeem_setup(
             secondRedeemAmount,
             _DAIToDeposit,
-            true
+            true,
+            address(DAIToken)
         );
 
         vm.prank(redeemer);
-        LevelMintingContract.redeem(bRedeemOrder);
+        LevelMintingContract.__redeem(bRedeemOrder);
 
         assertEq(
             LevelMintingContract.mintedPerBlock(block.number),
@@ -185,12 +202,13 @@ contract LevelMintingBlockLimitsTest is LevelMintingUtils {
         ILevelMinting.Order memory redeemOrder = redeem_setup(
             excessiveRedeemAmount,
             _DAIToDeposit,
-            false
+            false,
+            address(DAIToken)
         );
 
         vm.startPrank(redeemer);
         vm.expectRevert(MaxRedeemPerBlockExceeded);
-        LevelMintingContract.redeem(redeemOrder);
+        LevelMintingContract.__redeem(redeemOrder);
 
         assertEq(
             DAIToken.balanceOf(address(LevelMintingContract)),
@@ -215,11 +233,12 @@ contract LevelMintingBlockLimitsTest is LevelMintingUtils {
         ILevelMinting.Order memory redeemOrder = redeem_setup(
             redeemAmount,
             _DAIToDeposit,
-            false
+            false,
+            address(DAIToken)
         );
 
         vm.startPrank(redeemer);
-        LevelMintingContract.redeem(redeemOrder);
+        LevelMintingContract.__redeem(redeemOrder);
 
         vm.roll(block.number + 1);
 
