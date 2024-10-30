@@ -35,6 +35,8 @@ contract SymbioticReserveManager is
         whenNotPaused
         returns (uint256 depositedAmount, uint256 mintedShares)
     {
+        address collateral = ISymbioticVault.IVault(vault).collateral();
+        IERC20(collateral).forceApprove(vault, amount);
         (depositedAmount, mintedShares) = ISymbioticVault.IVault(vault).deposit(
             address(this),
             amount

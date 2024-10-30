@@ -5,6 +5,7 @@ pragma solidity >=0.8.19;
 
 import "../LevelMinting.utils.sol";
 import {console2} from "forge-std/console2.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract LevelMintingCoreTest is LevelMintingUtils {
     function setUp() public override {
@@ -43,7 +44,8 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         ILevelMinting.Order memory redeemOrder = redeem_setup(
             50 wei,
             50 wei,
-            false
+            false,
+            address(DAIToken)
         );
         vm.prank(owner);
         LevelMintingContract.grantRole(redeemerRole, beneficiary);
@@ -52,7 +54,8 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         (, ILevelMinting.Route memory route) = mint_setup(
             500 wei,
             500 wei,
-            false
+            false,
+            address(DAIToken)
         );
         ILevelMinting.Order memory order = ILevelMinting.Order({
             order_type: ILevelMinting.OrderType.MINT,
@@ -63,7 +66,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
             collateral_amount: 50 wei
         });
         DAIToken.mint(50000 wei, beneficiary);
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
 
         vm.startPrank(beneficiary);
         LevelMintingContract.initiateRedeem(redeemOrder);
@@ -113,7 +116,8 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         ILevelMinting.Order memory redeemOrder = redeem_setup(
             lvlusdAmount,
             collateralAmount,
-            false
+            false,
+            address(DAIToken)
         );
 
         vm.prank(owner);
@@ -123,7 +127,8 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         (, ILevelMinting.Route memory route) = mint_setup(
             lvlusdAmount,
             collateralAmount,
-            false
+            false,
+            address(DAIToken)
         );
 
         ILevelMinting.Order memory order = ILevelMinting.Order({
@@ -136,7 +141,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         });
 
         DAIToken.mint(mintAmount * 1000, beneficiary); // Mint enough for the test
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
 
         vm.startPrank(beneficiary);
         LevelMintingContract.initiateRedeem(redeemOrder);
@@ -168,7 +173,8 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         ILevelMinting.Order memory redeemOrder = redeem_setup(
             50 wei,
             40 wei,
-            false
+            false,
+            address(DAIToken)
         );
         vm.prank(owner);
         LevelMintingContract.grantRole(redeemerRole, beneficiary);
@@ -177,7 +183,8 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         (, ILevelMinting.Route memory route) = mint_setup(
             500 wei,
             500 wei,
-            false
+            false,
+            address(DAIToken)
         );
         ILevelMinting.Order memory order = ILevelMinting.Order({
             order_type: ILevelMinting.OrderType.MINT,
@@ -188,7 +195,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
             collateral_amount: 50 wei
         });
         DAIToken.mint(50000 wei, beneficiary);
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
 
         vm.startPrank(beneficiary);
         LevelMintingContract.initiateRedeem(redeemOrder);
@@ -213,7 +220,8 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         ILevelMinting.Order memory redeemOrder = redeem_setup(
             50 wei,
             50 wei,
-            false
+            false,
+            address(DAIToken)
         );
         vm.prank(owner);
         LevelMintingContract.grantRole(redeemerRole, beneficiary);
@@ -222,7 +230,8 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         (, ILevelMinting.Route memory route) = mint_setup(
             500 wei,
             500 wei,
-            false
+            false,
+            address(DAIToken)
         );
         ILevelMinting.Order memory order = ILevelMinting.Order({
             order_type: ILevelMinting.OrderType.MINT,
@@ -233,7 +242,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
             collateral_amount: 50 wei
         });
         DAIToken.mint(50000 wei, beneficiary);
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
 
         vm.startPrank(beneficiary);
         LevelMintingContract.initiateRedeem(redeemOrder);
@@ -253,7 +262,8 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         ILevelMinting.Order memory redeemOrder = redeem_setup(
             50 wei,
             51 wei,
-            false
+            false,
+            address(DAIToken)
         );
         vm.prank(owner);
         LevelMintingContract.grantRole(redeemerRole, beneficiary);
@@ -261,7 +271,8 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         (, ILevelMinting.Route memory route) = mint_setup(
             500 wei,
             500 wei,
-            false
+            false,
+            address(DAIToken)
         );
         ILevelMinting.Order memory order = ILevelMinting.Order({
             order_type: ILevelMinting.OrderType.MINT,
@@ -272,7 +283,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
             collateral_amount: 50 wei
         });
         DAIToken.mint(50000 wei, beneficiary);
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
 
         vm.startPrank(beneficiary);
         LevelMintingContract.initiateRedeem(redeemOrder);
@@ -283,6 +294,270 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         vm.stopPrank();
     }
 
+    function test__usdc__mintMinLvlUSDAmountNotMetRevert(
+        uint mintDollarAmount,
+        uint lvlUSDDollarAmount,
+        int mockOraclePriceDeviationBps
+    ) public {
+        vm.assume(mintDollarAmount >= 1);
+        vm.assume(mintDollarAmount < 1e9);
+        vm.assume(mockOraclePriceDeviationBps > -2000);
+        // we only consider mockOraclePriceDeviationBps values < 0, because in the positive
+        // deviation case, the multiplier for lvlUSDDollarAmount will be capped at 1
+        vm.assume(mockOraclePriceDeviationBps < 0);
+        vm.assume(lvlUSDDollarAmount < 1e10);
+        vm.assume(
+            lvlUSDDollarAmount >
+                (mintDollarAmount * uint(1e4 + mockOraclePriceDeviationBps)) /
+                    1e4
+        );
+        mockOracle.updatePriceAndDecimals(
+            int((1e8 * (1e4 + mockOraclePriceDeviationBps)) / 1e4),
+            mockOracle.decimals()
+        );
+        _test_mint_min_lvlusd_amount_not_met_revert(
+            USDCToken,
+            address(mockOracle),
+            mintDollarAmount,
+            lvlUSDDollarAmount
+        );
+    }
+
+    function test__dai__mintMinLvlUSDAmountNotMetRevert(
+        uint mintDollarAmount,
+        uint lvlUSDDollarAmount,
+        int mockOraclePriceDeviationBps
+    ) public {
+        vm.assume(mintDollarAmount >= 1);
+        vm.assume(mintDollarAmount < 1e9);
+        vm.assume(mockOraclePriceDeviationBps > -2000);
+        // we only consider mockOraclePriceDeviationBps values < 0, because in the positive
+        // deviation case, the multiplier for lvlUSDDollarAmount will be capped at 1
+        vm.assume(mockOraclePriceDeviationBps < 0);
+        vm.assume(lvlUSDDollarAmount < 1e10);
+        vm.assume(
+            lvlUSDDollarAmount >
+                (mintDollarAmount * uint(1e4 + mockOraclePriceDeviationBps)) /
+                    1e4
+        );
+        mockOracle.updatePriceAndDecimals(
+            int((1e8 * (1e4 + mockOraclePriceDeviationBps)) / 1e4),
+            mockOracle.decimals()
+        );
+        _test_mint_min_lvlusd_amount_not_met_revert(
+            DAIToken,
+            address(mockOracle),
+            mintDollarAmount,
+            lvlUSDDollarAmount
+        );
+    }
+
+    function test__usdc__mintLvlUSD(
+        uint mintDollarAmount,
+        uint lvlUSDDollarAmount,
+        int mockOraclePriceDeviationBps
+    ) public {
+        vm.assume(mintDollarAmount >= 1);
+        vm.assume(mintDollarAmount < 1e9);
+        vm.assume(mockOraclePriceDeviationBps > -2000);
+        // we only consider mockOraclePriceDeviationBps values < 0, because in the positive
+        // deviation case, the multiplier for lvlUSDDollarAmount will be capped at 1
+        vm.assume(mockOraclePriceDeviationBps < 0);
+        vm.assume(lvlUSDDollarAmount < 1e18);
+        uint newOraclePrice = uint(
+            (1e8 * (1e4 + mockOraclePriceDeviationBps)) / 1e4
+        );
+        // we multiple the LHS and RHS by 1e18 to make sure that the statement is not true because of rounding errors
+        vm.assume(
+            (1e18 * mintDollarAmount * newOraclePrice) / 1e8 >=
+                1e18 * lvlUSDDollarAmount
+        );
+        vm.assume(lvlUSDDollarAmount > 0);
+        mockOracle.updatePriceAndDecimals(
+            int(newOraclePrice),
+            mockOracle.decimals()
+        );
+        _test_mint_lvlusd(
+            USDCToken,
+            address(mockOracle),
+            mintDollarAmount,
+            lvlUSDDollarAmount
+        );
+    }
+
+    function test__dai__mintLvlUSD(
+        uint mintDollarAmount,
+        uint lvlUSDDollarAmount,
+        int mockOraclePriceDeviationBps
+    ) public {
+        vm.assume(mintDollarAmount >= 1);
+        vm.assume(mintDollarAmount < 1e8);
+        vm.assume(mockOraclePriceDeviationBps > -2000);
+        // we only consider mockOraclePriceDeviationBps values < 0, because in the positive
+        // deviation case, the multiplier for lvlUSDDollarAmount will be capped at 1
+        vm.assume(mockOraclePriceDeviationBps < 0);
+        vm.assume(lvlUSDDollarAmount < 1e10);
+        uint newOraclePrice = uint(
+            (1e8 * (1e4 + mockOraclePriceDeviationBps)) / 1e4
+        );
+        // we multiple the LHS and RHS by 1e18 to make sure that the statement is not true because of rounding errors
+        vm.assume(
+            (1e18 * mintDollarAmount * newOraclePrice) / 1e8 >=
+                1e18 * lvlUSDDollarAmount
+        );
+        vm.assume(lvlUSDDollarAmount > 0);
+        mockOracle.updatePriceAndDecimals(
+            int(newOraclePrice),
+            mockOracle.decimals()
+        );
+        _test_mint_lvlusd(
+            DAIToken,
+            address(mockOracle),
+            mintDollarAmount,
+            lvlUSDDollarAmount
+        );
+    }
+
+    function _normalizeAmount(
+        uint amount,
+        address token
+    ) public returns (uint) {
+        uint8 decimals = ERC20(address(token)).decimals();
+        return amount * (10 ** decimals);
+    }
+
+    function _test_mint_min_lvlusd_amount_not_met_revert(
+        MockToken token,
+        address oracle,
+        uint mintDollarAmount,
+        uint lvlUSDDollarAmount
+    ) public {
+        vm.startPrank(owner);
+        LevelMintingContract.addOracle(address(token), oracle);
+        LevelMintingContract.setMaxRedeemPerBlock(type(uint256).max);
+        LevelMintingContract.grantRole(redeemerRole, beneficiary);
+        vm.stopPrank();
+        (, ILevelMinting.Route memory route) = mint_setup(
+            50 ether,
+            50 ether,
+            false,
+            address(token)
+        );
+        ILevelMinting.Order memory order = ILevelMinting.Order({
+            order_type: ILevelMinting.OrderType.MINT,
+            benefactor: beneficiary,
+            beneficiary: beneficiary,
+            collateral_asset: address(token),
+            lvlusd_amount: _normalizeAmount(
+                lvlUSDDollarAmount,
+                address(lvlusdToken)
+            ),
+            collateral_amount: _normalizeAmount(
+                mintDollarAmount,
+                address(token)
+            )
+        });
+        token.mint(500 ether, beneficiary);
+        token.mint(500 ether, benefactor);
+
+        vm.startPrank(order.benefactor);
+        vm.expectRevert(MinimumlvlUSDAmountNotMet);
+        LevelMintingContract.mint(order, route);
+        vm.stopPrank();
+    }
+
+    function _test_mint_lvlusd(
+        MockToken token,
+        address oracle,
+        uint mintDollarAmount,
+        uint lvlUSDDollarAmount
+    ) public {
+        vm.startPrank(owner);
+        LevelMintingContract.addOracle(address(token), oracle);
+        LevelMintingContract.setMaxRedeemPerBlock(type(uint256).max);
+        LevelMintingContract.grantRole(redeemerRole, beneficiary);
+        vm.stopPrank();
+        (, ILevelMinting.Route memory route) = mint_setup(
+            500000000 ether,
+            500000000 ether,
+            false,
+            address(token)
+        );
+        ILevelMinting.Order memory order = ILevelMinting.Order({
+            order_type: ILevelMinting.OrderType.MINT,
+            benefactor: beneficiary,
+            beneficiary: beneficiary,
+            collateral_asset: address(token),
+            lvlusd_amount: _normalizeAmount(
+                lvlUSDDollarAmount,
+                address(lvlusdToken)
+            ),
+            collateral_amount: _normalizeAmount(
+                mintDollarAmount,
+                address(token)
+            )
+        });
+        token.mint(5000000000000000000000000000000 ether, beneficiary);
+        token.mint(5000000000000000000000000000000 ether, benefactor);
+
+        vm.startPrank(order.benefactor);
+        // note: we calculate balances of "beneficiary" both before and after
+        //       because that account is used as the benefactor of the mint order
+        uint beneficiaryBalBefore = ERC20(token).balanceOf(beneficiary);
+        uint reserveBalBefore = ERC20(token).balanceOf(
+            address(LevelMintingContract)
+        );
+        uint lvlusdTokenSupplyBefore = lvlusdToken.totalSupply();
+        LevelMintingContract.mint(order, route);
+        uint reserveBalAfter = ERC20(token).balanceOf(
+            address(LevelMintingContract)
+        );
+        assertEq(
+            reserveBalAfter - reserveBalBefore,
+            _normalizeAmount(mintDollarAmount, address(token))
+        );
+        assertEq(
+            beneficiaryBalBefore - ERC20(token).balanceOf(beneficiary),
+            _normalizeAmount(mintDollarAmount, address(token))
+        );
+
+        // check that (dollar value of reserves) == (dollar value of lvlUSD in circulation)
+        // note that we are checking for strict equality, rather than over-collateralization,
+        // because this also tests that the minted amount of lvlUSD is correct
+        _checkSolvency(
+            address(token),
+            address(LevelMintingContract),
+            oracle,
+            true
+        );
+        vm.stopPrank();
+    }
+
+    // check solvency of protocol, assuming that reserves are all stored in a single address
+    function _checkSolvency(
+        address collateral,
+        address reserve,
+        address oracle,
+        bool checkEquality // check equality of reserve value and outstanding lvlUSD value
+    ) public {
+        int _price;
+        (, _price, , , ) = MockOracle(oracle).latestRoundData();
+        uint collateralDecimals = ERC20(collateral).decimals();
+        uint reserveBal = ERC20(collateral).balanceOf(address(reserve));
+        // calculate the reserve value scaled up by the difference in decimals
+        // between lvlUSD and collateral asset
+        uint scaledReserveValue = (10 ** (18 - collateralDecimals) *
+            reserveBal *
+            uint(_price)) / (10 ** MockOracle(oracle).decimals());
+        if (checkEquality) {
+            // this is a strict equality check
+            assertEq(scaledReserveValue, lvlusdToken.totalSupply());
+        } else {
+            // check that protocol is fully collateralized
+            assertGe(scaledReserveValue, lvlusdToken.totalSupply());
+        }
+    }
+
     function test_initiate_and_complete_redeem_insufficient_cooldown_revert()
         public
     {
@@ -291,12 +566,14 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         ILevelMinting.Order memory redeemOrder = redeem_setup(
             50 wei,
             50 wei,
-            false
+            false,
+            address(DAIToken)
         );
         (, ILevelMinting.Route memory route) = mint_setup(
             50 wei,
             50 wei,
-            false
+            false,
+            address(DAIToken)
         );
         ILevelMinting.Order memory order = ILevelMinting.Order({
             order_type: ILevelMinting.OrderType.MINT,
@@ -307,7 +584,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
             collateral_amount: 50 wei
         });
         DAIToken.mint(50 wei, beneficiary);
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
 
         vm.prank(owner);
         LevelMintingContract.grantRole(redeemerRole, beneficiary);
@@ -320,7 +597,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         vm.stopPrank();
     }
 
-    function test_nativeEth_withdraw() public {
+    function test_dai_withdraw() public {
         vm.deal(address(LevelMintingContract), _DAIToDeposit);
 
         ILevelMinting.Order memory order = ILevelMinting.Order({
@@ -353,7 +630,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
 
         vm.recordLogs();
         vm.prank(minter);
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
         vm.getRecordedLogs();
 
         assertEq(lvlusdToken.balanceOf(benefactor), _lvlusdToMint);
@@ -375,7 +652,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         vm.stopPrank();
 
         vm.startPrank(redeemer);
-        LevelMintingContract.redeem(redeemOrder);
+        LevelMintingContract.__redeem(redeemOrder);
 
         assertEq(DAIToken.balanceOf(benefactor), _DAIToDeposit);
         assertEq(lvlusdToken.balanceOf(benefactor), 0);
@@ -388,11 +665,10 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         (
             ILevelMinting.Order memory order,
             ILevelMinting.Route memory route
-        ) = mint_setup(expectedAmount, _DAIToDeposit, false);
+        ) = mint_setup(expectedAmount, _DAIToDeposit, false, address(DAIToken));
 
         vm.recordLogs();
-        vm.prank(minter);
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
         vm.getRecordedLogs();
         assertEq(DAIToken.balanceOf(benefactor), 0);
         assertEq(
@@ -438,13 +714,13 @@ contract LevelMintingCoreTest is LevelMintingUtils {
 
         vm.prank(minter);
         vm.expectRevert(InvalidRoute);
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
 
         vm.prank(owner);
         LevelMintingContract.addReserveAddress(reserve2);
 
         vm.prank(minter);
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
 
         assertEq(DAIToken.balanceOf(benefactor), 0);
         assertEq(lvlusdToken.balanceOf(beneficiary), _smallLvlUsdToMint);
@@ -468,7 +744,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
 
         vm.prank(minter);
         vm.expectRevert(InvalidRoute);
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
     }
 
     function test_fuzz_multipleInvalid_reserveRatios_revert(
@@ -508,7 +784,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
 
         vm.expectRevert(InvalidRoute);
         vm.prank(minter);
-        LevelMintingContract.mint(mintOrder, route);
+        LevelMintingContract.__mint(mintOrder, route);
 
         assertEq(DAIToken.balanceOf(benefactor), _DAIToDeposit);
         assertEq(lvlusdToken.balanceOf(beneficiary), 0);
@@ -552,7 +828,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
 
         vm.expectRevert(InvalidRoute);
         vm.prank(minter);
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
 
         assertEq(DAIToken.balanceOf(benefactor), _DAIToDeposit);
         assertEq(lvlusdToken.balanceOf(beneficiary), 0);
@@ -595,7 +871,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         vm.recordLogs();
         vm.expectRevert(UnsupportedAsset);
         vm.prank(minter);
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
         vm.getRecordedLogs();
     }
 
@@ -633,7 +909,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         vm.recordLogs();
         vm.expectRevert(UnsupportedAsset);
         vm.prank(minter);
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
         vm.getRecordedLogs();
     }
 
@@ -688,7 +964,8 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         ILevelMinting.Order memory order = redeem_setup(
             1 ether,
             50 ether,
-            false
+            false,
+            address(DAIToken)
         );
 
         address[] memory targets = new address[](1);
@@ -704,7 +981,7 @@ contract LevelMintingCoreTest is LevelMintingUtils {
 
         vm.expectRevert(InvalidOrder);
         vm.prank(minter);
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
     }
 
     function test_mismatchedAddressesAndRatios_revert() public {
@@ -712,7 +989,12 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         (
             ILevelMinting.Order memory order,
             ILevelMinting.Route memory route
-        ) = mint_setup(_smallLvlUsdToMint, _DAIToDeposit, false);
+        ) = mint_setup(
+                _smallLvlUsdToMint,
+                _DAIToDeposit,
+                false,
+                address(DAIToken)
+            );
 
         address[] memory targets = new address[](3);
         targets[0] = address(LevelMintingContract);
@@ -728,6 +1010,35 @@ contract LevelMintingCoreTest is LevelMintingUtils {
         vm.recordLogs();
         vm.prank(minter);
         vm.expectRevert(InvalidRoute);
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
+    }
+
+    function testRecoverTokensFromWrappedRebasingErc20() public {
+        vm.startPrank(owner);
+        // mint non-underlying token to a wrapped rebasing ERC20 contract
+        DAIToken.mint(1000, address(waUSDC));
+        waUSDC.transferERC20(address(DAIToken), bob, 999);
+        assertEq(DAIToken.balanceOf(bob), 999);
+        assertEq(DAIToken.balanceOf(address(waUSDC)), 1);
+    }
+
+    function testRecoverETHFromWrappedRebasingErc20() public {
+        vm.startPrank(owner);
+
+        // mint ETH to the wrapped rebasing ERC20 contract
+        vm.deal(address(waUSDC), 100 ether);
+
+        // verify initial ETH balances
+        assertEq(address(waUSDC).balance, 100 ether);
+        assertEq(bob.balance, 0);
+
+        // recover ETH to bob
+        waUSDC.transferEth(payable(bob), 100 ether);
+
+        // verify final ETH balances
+        assertEq(address(waUSDC).balance, 0);
+        assertEq(bob.balance, 100 ether);
+
+        vm.stopPrank();
     }
 }

@@ -127,15 +127,15 @@ contract LevelMintingACLTest is LevelMintingUtils {
         (
             ILevelMinting.Order memory order,
             ILevelMinting.Route memory route
-        ) = mint_setup(_lvlusdToMint, _DAIToDeposit, false);
+        ) = mint_setup(_lvlusdToMint, _DAIToDeposit, false, address(DAIToken));
 
         vm.prank(minter);
         vm.expectRevert(MaxMintPerBlockExceeded);
-        LevelMintingContract.mint(order, route);
+        LevelMintingContract.__mint(order, route);
 
         vm.prank(redeemer);
         vm.expectRevert(MaxRedeemPerBlockExceeded);
-        LevelMintingContract.redeem(order);
+        LevelMintingContract.__redeem(order);
 
         assertEq(
             LevelMintingContract.maxMintPerBlock(),

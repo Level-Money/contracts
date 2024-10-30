@@ -14,6 +14,7 @@ import {LevelBaseReserveManager} from "../src/reserve/LevelBaseReserveManager.so
 import {EigenlayerReserveManager} from "../src/reserve/LevelEigenlayerReserveManager.sol";
 import {StakedlvlUSD} from "../src/StakedlvlUSD.sol";
 
+// deploy Eigenlayer LRM to Holesky testnet
 contract DeployHolesky is Script, DeploymentUtils {
     struct Contracts {
         lvlUSD levelUSDToken;
@@ -34,8 +35,12 @@ contract DeployHolesky is Script, DeploymentUtils {
 
     address public constant HOLESKY_DELEGATION_MANAGER =
         0xA44151489861Fe9e3055d95adC98FbD462B948e7;
+
     address public constant HOLESKY_STRATEGY_MANAGER =
         0xdfB5f6CE42aAA7830E94ECFCcAd411beF4d4D5b6;
+
+    address public constant HOLESKY_REWARDS_COORDINATOR =
+        0xAcc1fb458a1317E886dB376Fc8141540537E68fE;
 
     function run() public virtual {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -45,7 +50,7 @@ contract DeployHolesky is Script, DeploymentUtils {
     function deployment(
         uint256 deployerPrivateKey
     ) public returns (Contracts memory) {
-        address deployerAddress = vm.addr(deployerPrivateKey);
+        // address deployerAddress = vm.addr(deployerPrivateKey);
         Contracts memory contracts;
 
         vm.startBroadcast(deployerPrivateKey);
@@ -55,6 +60,7 @@ contract DeployHolesky is Script, DeploymentUtils {
             IlvlUSD(address(0x123)),
             HOLESKY_DELEGATION_MANAGER,
             HOLESKY_STRATEGY_MANAGER,
+            HOLESKY_REWARDS_COORDINATOR,
             IStakedlvlUSD(address(0x234)),
             HOLESKY_ADMIN,
             HOLESKY_ADMIN,

@@ -75,6 +75,7 @@ contract DeployTestnet is Script, DeploymentUtils {
             IlvlUSD(address(contracts.levelUSDToken)),
             SEPOLIA_ADMIN,
             SEPOLIA_ADMIN,
+            SEPOLIA_ADMIN,
             contracts.stakedlvlUSD,
             SEPOLIA_ADMIN,
             SEPOLIA_ADMIN,
@@ -121,6 +122,7 @@ contract DeployTestnet is Script, DeploymentUtils {
         // LevelReserveManager
         contracts.levelBaseReserveManager = new EigenlayerReserveManager(
             IlvlUSD(address(contracts.levelUSDToken)),
+            SEPOLIA_ADMIN,
             SEPOLIA_ADMIN,
             SEPOLIA_ADMIN,
             IStakedlvlUSD(address(contracts.stakedlvlUSD)),

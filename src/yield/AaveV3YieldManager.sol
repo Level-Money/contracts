@@ -37,7 +37,6 @@ contract AaveV3YieldManager is BaseYieldManager {
 
     constructor(IPool _aavePoolProxy, address _admin) BaseYieldManager(_admin) {
         aavePoolProxy = _aavePoolProxy;
-        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
     }
 
     /* --------------- INTERNAL --------------- */
@@ -46,6 +45,7 @@ contract AaveV3YieldManager is BaseYieldManager {
         if (tokenToWrapper[token] == address(0)) {
             revert TokenERC20WrapperNotSet();
         }
+        IERC20(token).forceApprove(tokenToWrapper[token], amount);
         WrappedRebasingERC20(tokenToWrapper[token]).depositFor(
             address(this),
             amount
@@ -62,6 +62,7 @@ contract AaveV3YieldManager is BaseYieldManager {
     }
 
     function _depositToAave(address token, uint256 amount) internal {
+        IERC20(token).forceApprove(address(aavePoolProxy), amount);
         aavePoolProxy.supply(token, amount, address(this), 0);
         emit DepositedToAave(amount, token);
     }
@@ -89,19 +90,34 @@ contract AaveV3YieldManager is BaseYieldManager {
         _depositToAave(token, amount);
         address aTokenAddress = _getATokenAddress(token);
         _wrapToken(aTokenAddress, amount);
-        IERC20(tokenToWrapper[aTokenAddress]).transfer(msg.sender, amount);
+        IERC20(tokenToWrapper[aTokenAddress]).safeTransfer(msg.sender, amount);
     }
 
     function withdraw(
         address token, // e.g. USDC
-        uint256 amount
+        uint256 amount // quoted in terms of underlying (e.g. USDC)
     ) external {
         address aTokenAddress = underlyingToaToken[token];
         address wrapper = tokenToWrapper[aTokenAddress];
         IERC20(wrapper).safeTransferFrom(msg.sender, address(this), amount);
         _unwrapToken(wrapper, amount);
-        _withdrawFromAave(token, amount);
+        _withdrawFromAave(token, amount); // burns aTokens held nby this contract
         IERC20(token).transfer(msg.sender, amount);
+    }
+
+    // collect all accrued yield in the form of native token
+    function collectYield(
+        address token // e.g. USDC
+    ) external onlyRole(YIELD_RECOVERER_ROLE) returns (uint256) {
+        address aTokenAddress = underlyingToaToken[token];
+        address wrapper = tokenToWrapper[aTokenAddress];
+        // amount is quoted in terms of the underlying of the aToken
+        // that is transferred to this contract by recoverUnderlying (e.g. USDC)
+        uint amount = WrappedRebasingERC20(wrapper).recoverUnderlying();
+        // the amount argument here is quoted in terms of the underlying (e.g. USDC)
+        _withdrawFromAave(token, amount);
+        IERC20(token).safeTransfer(msg.sender, amount);
+        return amount;
     }
 
     /* --------------- SETTERS --------------- */

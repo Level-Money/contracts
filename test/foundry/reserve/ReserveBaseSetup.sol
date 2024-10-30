@@ -51,12 +51,15 @@ contract ReserveBaseSetup is Test, IlvlUSDDefinitions {
     MissingReturnToken internal USDTToken;
 
     MockAToken internal aUSDC; // aUSDC
+    MockAToken internal aDAI; // aUSDC
 
     MockOracle public mockOracle;
 
     WrappedRebasingERC20 internal waUSDC; // wrapped aUSDC
     WrappedRebasingERC20 internal waUSDT; // wrapped aUSDT
-    WrappedRebasingERC20 internal waDAIToken; //wrapped DAI (18 decimals)
+    WrappedRebasingERC20 internal waDAI; //wrapped DAI (18 decimals)
+
+    EigenlayerReserveManager internal eigenlayerReserveManager;
 
     uint256 internal ownerPrivateKey;
     uint256 internal newOwnerPrivateKey;
@@ -135,21 +138,36 @@ contract ReserveBaseSetup is Test, IlvlUSDDefinitions {
         aUSDC = MockAToken(
             mockAavePool.getReserveData(address(USDCToken)).aTokenAddress
         );
-        address aDAIToken = mockAavePool
-            .getReserveData(address(DAIToken))
-            .aTokenAddress;
+        aDAI = MockAToken(
+            mockAavePool.getReserveData(address(DAIToken)).aTokenAddress
+        );
         waUSDC = new WrappedRebasingERC20(
             IERC20(address(aUSDC)),
             "waUSDC",
             "waUSDC"
         );
-        waDAIToken = new WrappedRebasingERC20(
-            IERC20(aDAIToken),
+        waDAI = new WrappedRebasingERC20(
+            IERC20(
+                mockAavePool.getReserveData(address(DAIToken)).aTokenAddress
+            ),
             "waDAI",
             "waDAI"
         );
         aaveYieldManager.setWrapperForToken(address(aUSDC), address(waUSDC));
-        aaveYieldManager.setWrapperForToken(aDAIToken, address(waDAIToken));
+        aaveYieldManager.setWrapperForToken(address(aDAI), address(waDAI));
+
+        // set up reserve managers
+        eigenlayerReserveManager = new EigenlayerReserveManager(
+            IlvlUSD(address(lvlusdToken)),
+            address(0),
+            address(0),
+            address(0),
+            stakedlvlUSD,
+            address(owner),
+            address(owner),
+            "operator1"
+        );
+        _setupReserveManager(eigenlayerReserveManager);
 
         vm.stopPrank();
     }
@@ -191,7 +209,7 @@ contract ReserveBaseSetup is Test, IlvlUSDDefinitions {
         address[] memory reserves = new address[](1);
         reserves[0] = address(owner);
 
-        uint256 _maxMintPerBlock = 10e23;
+        uint256 _maxMintPerBlock = 1e29;
         uint256 _maxRedeemPerBlock = _maxMintPerBlock;
 
         levelMinting = new LevelMinting(

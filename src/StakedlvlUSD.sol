@@ -8,14 +8,13 @@ import "@openzeppelin-4.9.0/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin-4.9.0/contracts/security/ReentrancyGuard.sol";
 import {ERC20Permit} from "@openzeppelin-4.9.0/contracts/token/ERC20/extensions/draft-ERC20Permit.sol";
 import {SingleAdminAccessControl} from "./auth/v4/SingleAdminAccessControl.sol";
-import {Context} from "openzeppelin-contracts-4.9.0/contracts/utils/Context.sol";
 import "./interfaces/IStakedlvlUSDCooldown.sol";
 import {slvlUSDSilo} from "./slvlUSDSilo.sol";
 
 /**
  * @title StakedlvlUSD
  * @notice The StakedlvlUSD contract allows users to stake lvlUSD tokens to earn dollar-denominated
-           base + AVS yields from onchain lending protocols. The contract also has an optional cooldown 
+           base + AVS yields from onchain lending protocols. The contract also has an optional cooldown
  *         period for withdrawing staked assets.
  * @notice Forked from Ethena's StakedUSDe contract.
  */

@@ -225,7 +225,7 @@ contract MaliciousContract is IMaliciousContract {
             collateral_amount: attackAmount
         });
 
-        try levelMinting.redeem(order) {
+        try levelMinting.__redeem(order) {
             console.log("Redeem attempt completed successfully");
         } catch Error(string memory reason) {
             console.log("Redeem attempt failed with reason:", reason);

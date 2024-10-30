@@ -4,7 +4,6 @@ pragma solidity >=0.8.19;
 /**
  * solhint-disable private-vars-leading-underscore
  */
-
 import {SingleAdminAccessControl} from "./auth/v4/SingleAdminAccessControl.sol";
 import "@openzeppelin-4.9.0/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -304,7 +303,6 @@ contract LevelMinting is
         uint8 collateral_asset_decimals = ERC20(order.collateral_asset)
             .decimals();
         uint8 lvlusd_decimals = lvlusd.decimals();
-
         if (order.order_type == OrderType.MINT) {
             uint256 new_lvlusd_amount;
             // Note: it is assumed that only stablecoins are used as collateral, which
