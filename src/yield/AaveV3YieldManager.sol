@@ -102,7 +102,7 @@ contract AaveV3YieldManager is BaseYieldManager {
         IERC20(wrapper).safeTransferFrom(msg.sender, address(this), amount);
         _unwrapToken(wrapper, amount);
         _withdrawFromAave(token, amount); // burns aTokens held nby this contract
-        IERC20(token).transfer(msg.sender, amount);
+        IERC20(token).safeTransfer(msg.sender, amount);
     }
 
     // collect all accrued yield in the form of native token
