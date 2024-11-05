@@ -42,6 +42,9 @@ contract EigenlayerReserveManager is LevelBaseReserveManager {
         operatorName = _operatorName;
     }
 
+    // note Delvir0 setting this in the specific reserve managers as each is different 
+    mapping (address benefactor => bytes32[] queuAnswer) public withdrawalKeys;
+
     /* --------------- EXTERNAL --------------- */
 
     function delegateTo(
@@ -66,7 +69,7 @@ contract EigenlayerReserveManager is LevelBaseReserveManager {
         emit Undelegated();
     }
 
-    function depositIntoStrategy(
+    function depositIntoStrategy( 
         address strategy,
         address token,
         uint256 amount
@@ -77,28 +80,50 @@ contract EigenlayerReserveManager is LevelBaseReserveManager {
         tokenContract.forceApprove(address(strategyManager), amount);
 
         // Deposit into the strategy
-        IStrategyManager(strategyManager).depositIntoStrategy(
+        IStrategyManager(strategyManager).depositIntoStrategy( 
             IStrategy(strategy),
             tokenContract,
             amount
         );
     }
 
+    // note Delvir0 connects keys to benefactor in order to finish redeem 
+    // current only supports single entry
+    // !important! assuming that there is 1 strategy address per token address (e.g. USDC => address strategyUSDC and USDT => address strategyUSDT )
+    function initiateGlobalRedeem(address benefactor, address asset, uint256 withdrawalAmount) external onlyRole(LEVEL_MINTING) whenNotPaused {
+        // note Delvir0 used to fetch and store answer to use later at completeQueuedWithdrawal
+        // TODO !important! need to change withdrawalAmount to shares as each deposited amount equals to a sepcific amount of shares
+        // for this to work, deposit needs to store amount of shares for each user
+        bytes32[] withdrawalParamAnswer = queueWithdrawals(assetToStrategy.asset, withdrawalAmount); 
+        withdrawalKeys[benefactor].push(withdrawalParamAnswer[0]);
+    }
+
+    function completeGlobalRedeem(address benefactor) external onlyRole(LEVEL_MINTING) whenNotPaused {
+        completeQueuedWithdrawal(benefactor);
+    }
+
+    // note Delvir0 current only supports single entry
     function queueWithdrawals(
-        IStrategy[] memory strategies,
-        uint256[] memory shares
+        address _strategy,
+        uint256 _shares
     )
         external
-        onlyRole(MANAGER_AGENT_ROLE)
+        onlyRole(MANAGER_AGENT_ROLE) // TODO Delvir0 this would need to be set to also allow LevelMinting contract
         whenNotPaused
         returns (bytes32[] memory)
     {
+
         if (strategies.length != shares.length) {
             revert StrategiesAndSharesMustBeSameLength();
         }
+
+        // Delvir0 sorry for making your eyes bleed with this
+        IDelegationManager.IStrategy[] memory strategy = [_strategy];
+        uint256[] shares = [_shares];
+    
         IDelegationManager.QueuedWithdrawalParams memory withdrawalParam = IDelegationManager
             .QueuedWithdrawalParams({
-                strategies: strategies, // Array of strategies that the QueuedWithdrawal contains
+                strategies: strategy, // Array of strategies that the QueuedWithdrawal contains
                 shares: shares, // Array containing the amount of shares in each Strategy in the `strategies` array
                 withdrawer: address(this) // The address of the withdrawer
             });
@@ -107,6 +132,7 @@ contract EigenlayerReserveManager is LevelBaseReserveManager {
                 1
             );
         withdrawalParams[0] = withdrawalParam;
+        
         return
             IDelegationManager(delegationManager).queueWithdrawals(
                 withdrawalParams
@@ -132,36 +158,36 @@ contract EigenlayerReserveManager is LevelBaseReserveManager {
     //
     // Note that multiple withdraw requests can be queued at once.
     function completeQueuedWithdrawal(
-        uint nonce,
-        address operator,
-        uint32 startBlock, // startBlock is the block at which the withdrawal was queued
-        IERC20[] calldata tokens,
-        IStrategy[] memory strategies,
-        uint256[] memory shares
-    ) external onlyRole(MANAGER_AGENT_ROLE) whenNotPaused {
-        if (
-            tokens.length != strategies.length ||
-            tokens.length != shares.length ||
-            strategies.length != shares.length
-        ) {
-            revert StrategiesSharesAndTokensMustBeSameLength();
+        address benefactor
+    ) external onlyRole(MANAGER_AGENT_ROLE) whenNotPaused { // TODO Delvir0 this would need to be set to also allow LevelMinting contract
+        
+        IDelegationManager.Withdrawal memory withdrawal; 
+
+        for (uint256 i = 0; i < withdrawalKeys[benefactor].length; i++) { 
+
+            // note Delvir0 params should be same as input so removing assigning staker and withdrawer to address(this)
+            (
+                withdrawal.staker,
+                withdrawal.delegatedTo,
+                withdrawal.withdrawer,
+                withdrawal.nonce,
+                withdrawal.startBlock,
+                withdrawal.strategies,
+                withdrawal.shares
+            ) = abi.decode(withdrawalKeys[benefactor][i], (address,address,address,uint256,uint32,IDelegationManager.IStrategy[],uint256[]));
+        
+            IDelegationManager(delegationManager).completeQueuedWithdrawal(
+                withdrawal,
+                token, //TODO Delvir0 this is waUSDC/T which is tied to waUSDC/T strategy. We need to perform a lookup on the token address behind this strategy or add an inverse assetToStrategy mapping
+                0 /* middleware index is currently a no-op */,
+                true /* receive as tokens*/
+            );
+
+            yieldManager[token].withdraw(token, amount); //TODO same as TODO above, we need to specify the wrapped token
+            IERC20[token].safeTransfer(address(withdrawal.withdrawer));
         }
-        IDelegationManager.Withdrawal memory withdrawal = IDelegationManager
-            .Withdrawal({
-                staker: address(this),
-                delegatedTo: operator,
-                withdrawer: address(this),
-                nonce: nonce,
-                startBlock: startBlock,
-                strategies: strategies,
-                shares: shares
-            });
-        IDelegationManager(delegationManager).completeQueuedWithdrawal(
-            withdrawal,
-            tokens,
-            0 /* middleware index is currently a no-op */,
-            true /* receive as tokens*/
-        );
+
+        delete withdrawalKeys[benefactor];
     }
 
     // sets the rewards claimer for this contract to be `claimer`
