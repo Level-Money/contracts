@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.19;
 
 import {SingleAdminAccessControl} from "../auth/v5/SingleAdminAccessControl.sol";
@@ -22,6 +22,7 @@ contract AaveV3YieldManager is BaseYieldManager {
     error TokenERC20WrapperNotSet();
     error InvalidWrapper();
     error TokenAndWrapperDecimalsMismatch();
+    error ZeroYieldToWithdraw();
 
     /* --------------- STATE VARIABLES --------------- */
 
@@ -114,6 +115,9 @@ contract AaveV3YieldManager is BaseYieldManager {
         // amount is quoted in terms of the underlying of the aToken
         // that is transferred to this contract by recoverUnderlying (e.g. USDC)
         uint amount = WrappedRebasingERC20(wrapper).recoverUnderlying();
+        if (amount == 0) {
+            revert ZeroYieldToWithdraw();
+        }
         // the amount argument here is quoted in terms of the underlying (e.g. USDC)
         _withdrawFromAave(token, amount);
         IERC20(token).safeTransfer(msg.sender, amount);

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.19;
 
 import "./LevelBaseReserveManager.sol";
@@ -19,6 +19,7 @@ contract EigenlayerReserveManager is LevelBaseReserveManager {
     string public operatorName;
 
     error StrategiesAndSharesMustBeSameLength();
+    error StrategiesAndTokensMustBeSameLength();
     error StrategiesSharesAndTokensMustBeSameLength();
 
     event Undelegated();
@@ -84,6 +85,30 @@ contract EigenlayerReserveManager is LevelBaseReserveManager {
         );
     }
 
+    function depositAllTokensIntoStrategy(
+        address[] calldata tokens,
+        IStrategy[] calldata strategies
+    ) external onlyRole(MANAGER_AGENT_ROLE) whenNotPaused {
+        if (tokens.length != strategies.length) {
+            revert StrategiesAndTokensMustBeSameLength();
+        }
+
+        for (uint256 i = 0; i < tokens.length; i++) {
+            IERC20 token = IERC20(tokens[i]);
+            uint256 balance = token.balanceOf(address(this));
+
+            if (balance == 0) continue;
+
+            token.forceApprove(address(strategyManager), balance);
+
+            IStrategyManager(strategyManager).depositIntoStrategy(
+                strategies[i],
+                token,
+                balance
+            );
+        }
+    }
+
     function queueWithdrawals(
         IStrategy[] memory strategies,
         uint256[] memory shares
@@ -96,8 +121,8 @@ contract EigenlayerReserveManager is LevelBaseReserveManager {
         if (strategies.length != shares.length) {
             revert StrategiesAndSharesMustBeSameLength();
         }
-        IDelegationManager.QueuedWithdrawalParams memory withdrawalParam = IDelegationManager
-            .QueuedWithdrawalParams({
+        IDelegationManager.QueuedWithdrawalParams
+            memory withdrawalParam = IDelegationManager.QueuedWithdrawalParams({
                 strategies: strategies, // Array of strategies that the QueuedWithdrawal contains
                 shares: shares, // Array containing the amount of shares in each Strategy in the `strategies` array
                 withdrawer: address(this) // The address of the withdrawer

@@ -297,4 +297,76 @@ contract LevelReserveManagerTest is Test, ReserveBaseSetup {
             token
         );
     }
+
+    function testLrmTransferAdmin() public {
+        vm.startPrank(owner);
+        eigenlayerReserveManager.transferAdmin(newOwner);
+        assertTrue(eigenlayerReserveManager.hasRole(adminRole, owner));
+        assertFalse(eigenlayerReserveManager.hasRole(adminRole, newOwner));
+
+        vm.startPrank(newOwner);
+        // expect revert because admin transfer timelock delay has not passed
+        // (3 remaining days exist on the timelock)
+        vm.expectRevert(
+            abi.encodeWithSignature("TimelockNotExpired(uint256)", 3 days)
+        );
+        eigenlayerReserveManager.acceptAdmin();
+
+        vm.warp(block.timestamp + 3 days);
+        eigenlayerReserveManager.acceptAdmin();
+        assertFalse(eigenlayerReserveManager.hasRole(adminRole, owner));
+        assertTrue(eigenlayerReserveManager.hasRole(adminRole, newOwner));
+    }
+
+    function testLrmTransferAdminCancelTransferAndReinitiateTransfer() public {
+        vm.startPrank(owner);
+        eigenlayerReserveManager.transferAdmin(newOwner);
+        assertTrue(eigenlayerReserveManager.hasRole(adminRole, owner));
+        assertFalse(eigenlayerReserveManager.hasRole(adminRole, newOwner));
+
+        vm.warp(block.timestamp + 2 days);
+
+        // cancel transfer mid-way
+        eigenlayerReserveManager.cancelTransferAdmin();
+
+        vm.warp(block.timestamp + 2 days);
+
+        // expect accept admin transfer to fail
+        vm.startPrank(newOwner);
+        vm.expectRevert();
+        eigenlayerReserveManager.acceptAdmin();
+
+        // re-initiate transfer
+        vm.startPrank(owner);
+        eigenlayerReserveManager.transferAdmin(newOwner);
+
+        // after delay has passed, new owner accepts transfer
+        vm.warp(block.timestamp + 3 days);
+        vm.startPrank(newOwner);
+        eigenlayerReserveManager.acceptAdmin();
+        assertFalse(eigenlayerReserveManager.hasRole(adminRole, owner));
+        assertTrue(eigenlayerReserveManager.hasRole(adminRole, newOwner));
+    }
+
+    function testLrmTransferAdminWhenNotAdminFails() public {
+        vm.startPrank(managerAgent);
+        vm.expectRevert();
+        eigenlayerReserveManager.transferAdmin(managerAgent);
+    }
+
+    function testLrmCannotTransferAdminWhenTransferIsInProgress() public {
+        vm.startPrank(owner);
+        eigenlayerReserveManager.transferAdmin(newOwner);
+        vm.warp(block.timestamp + 1 days);
+
+        // second transfer reverts because first transfer is already in progress
+        vm.expectRevert(bytes4(keccak256("TransferAlreadyInProgress()")));
+        eigenlayerReserveManager.transferAdmin(newOwner);
+    }
+
+    function testLrmCannotCancelNonexistentAdminTransfer() public {
+        vm.startPrank(owner);
+        vm.expectRevert(bytes4(keccak256("NoActiveTransferRequest()")));
+        eigenlayerReserveManager.cancelTransferAdmin();
+    }
 }
