@@ -68,6 +68,9 @@ abstract contract LevelBaseReserveManager is
     mapping(address => bool) public allowlist;
     IStakedlvlUSD stakedlvlUSD;
 
+    // note Delvir0 we need to map collateral to the specific strategy/ vault
+    mapping (address collateralAsset => address strategy) public assetToStrategy;
+
     // mapping of native token address to yield manager responsible for handling that token
     mapping(address => ILevelBaseYieldManager) yieldManager;
 
@@ -102,7 +105,7 @@ abstract contract LevelBaseReserveManager is
      * @param amount amount to deposit
      * @dev only callable by manager agent
      */
-    function depositForYield(
+    function depositForYield( 
         address token,
         uint256 amount
     ) external onlyRole(MANAGER_AGENT_ROLE) whenNotPaused {
@@ -296,6 +299,10 @@ abstract contract LevelBaseReserveManager is
         } else {
             revert InvalidRecipient();
         }
+    }
+
+    function setCollateralToStrategy(address collateral, address strategy) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        assetToStrategy[collateral] = strategy;
     }
 
     // Receive function - Called when ETH is sent with empty calldata
