@@ -166,7 +166,7 @@ contract KarakReserveManagerTest is Test, ReserveBaseSetup {
         vm.assume(depositAmount <= INITIAL_BALANCE);
 
         vm.assume(unlockTime >= 0);
-        vm.assume(unlockTime <= Constants.MIN_WITHDRAWAL_DELAY);
+        vm.assume(unlockTime < Constants.MIN_WITHDRAWAL_DELAY);
 
         _test__withdrawFailsWhenBeforeUnlock(
             usdcVault,

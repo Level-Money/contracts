@@ -11,6 +11,7 @@ import "../../../src/interfaces/eigenlayer/IStrategyFactory.sol";
 import "../../../src/interfaces/eigenlayer/IStrategy.sol";
 import "../../../src/interfaces/eigenlayer/IDelegationManager.sol";
 import "../../../src/interfaces/eigenlayer/IStrategyManager.sol";
+import "../../../src/interfaces/eigenlayer/IRewardsCoordinator.sol";
 import "./ReserveBaseSetup.sol";
 
 contract EigenlayerReserveManagerTest is Test, ReserveBaseSetup {
@@ -168,6 +169,14 @@ contract EigenlayerReserveManagerTest is Test, ReserveBaseSetup {
         );
     }
 
+    function test__usdc__delegateUndelegateAndDelegateToNewOperator(
+        uint256 depositAmount
+    ) public {
+        vm.assume(depositAmount > 2);
+        vm.assume(depositAmount <= INITIAL_BALANCE);
+        _delegateUndelegateAndDelegateToNewOperator(USDCToken, depositAmount);
+    }
+
     function test__dai__depositDelegateWithdraw(uint256 depositAmount) public {
         vm.assume(depositAmount > 0);
         vm.assume(depositAmount <= INITIAL_BALANCE);
@@ -238,6 +247,49 @@ contract EigenlayerReserveManagerTest is Test, ReserveBaseSetup {
             DAIToken,
             depositAmount
         );
+    }
+
+    function testSetRewardsClaimer() public {
+        _callEigenlayerReserveManagerSetters();
+        vm.startPrank(managerAgent);
+        // set rewards claimer
+        eigReserveManager.setRewardsClaimer(address(owner));
+        assertEq(
+            IRewardsCoordinator(eigReserveManager.rewardsCoordinator())
+                .claimerFor(address(eigReserveManager)),
+            address(owner)
+        );
+
+        // switch rewards claimer
+        eigReserveManager.setRewardsClaimer(address(newOwner));
+        assertEq(
+            IRewardsCoordinator(eigReserveManager.rewardsCoordinator())
+                .claimerFor(address(eigReserveManager)),
+            address(newOwner)
+        );
+    }
+ 
+    function test__depositAllTokensIntoStrategy() public {
+        IERC20[] memory tokens = new IERC20[](2);
+        tokens[0] = IERC20(USDCToken);
+        tokens[1] = IERC20(DAIToken);
+        _testEigenlayerDepositAllTokensIntoStrategy(tokens);
+    }
+
+    function test__depositAllTokensIntoStrategyReverts() public {
+        IERC20[] memory tokens = new IERC20[](2);
+        tokens[0] = IERC20(USDCToken);
+        tokens[1] = IERC20(DAIToken);
+        _testEigenlayerDepositAllTokensIntoStrategyReverts(tokens);
+    }
+
+    function test__dai__delegateUndelegateAndDelegateToNewOperator(
+        uint256 depositAmount
+    ) public {
+        vm.assume(depositAmount > 2);
+        vm.assume(depositAmount <= INITIAL_BALANCE);
+        _delegateUndelegateAndDelegateToNewOperator(DAIToken, depositAmount);
+
     }
 
     // =====================================================================
@@ -494,6 +546,88 @@ contract EigenlayerReserveManagerTest is Test, ReserveBaseSetup {
             strategyBalanceAfter - strategyBalanceBefore,
             depositAmount,
             "Strategy did not receive tokens"
+        );
+    }
+
+    function _testEigenlayerDepositAllTokensIntoStrategy(
+        IERC20[] memory tokens
+    ) public {
+        _callEigenlayerReserveManagerSetters();
+        vm.startPrank(managerAgent);
+
+        // Create array to store strategies
+        IStrategy[] memory strategies = new IStrategy[](tokens.length);
+
+        uint256[] memory tokenBalancesBefore = new uint256[](tokens.length);
+        uint256[] memory strategyBalancesBefore = new uint256[](tokens.length);
+        uint256[] memory sharesBefore = new uint256[](tokens.length);
+
+        for (uint256 i = 0; i < tokens.length; i++) {
+            strategies[i] = _createStrategy(tokens[i]);
+
+            tokenBalancesBefore[i] = tokens[i].balanceOf(
+                address(eigReserveManager)
+            );
+            strategyBalancesBefore[i] = tokens[i].balanceOf(
+                address(strategies[i])
+            );
+            sharesBefore[i] = _getOperatorShares(
+                strategies[i],
+                HOLESKY_EIGENLAYER_OPERATOR
+            );
+        }
+
+        address[] memory tokenAddresses = new address[](tokens.length);
+        for (uint256 i = 0; i < tokens.length; i++) {
+            tokenAddresses[i] = address(tokens[i]);
+        }
+
+        eigReserveManager.depositAllTokensIntoStrategy(
+            tokenAddresses,
+            strategies
+        );
+
+        // Verify final states for each token
+        for (uint256 i = 0; i < tokens.length; i++) {
+            uint256 tokenBalanceAfter = tokens[i].balanceOf(
+                address(eigReserveManager)
+            );
+            uint256 strategyBalanceAfter = tokens[i].balanceOf(
+                address(strategies[i])
+            );
+
+            assertEq(
+                tokenBalancesBefore[i] - tokenBalanceAfter,
+                INITIAL_BALANCE
+            );
+            assertEq(
+                strategyBalanceAfter - strategyBalancesBefore[i],
+                INITIAL_BALANCE
+            );
+        }
+    }
+
+    // tests that deposit fails because tokens.length != strategies.length
+    function _testEigenlayerDepositAllTokensIntoStrategyReverts(
+        IERC20[] memory tokens
+    ) public {
+        _callEigenlayerReserveManagerSetters();
+        vm.startPrank(managerAgent);
+        // length of strategies array is one less than length of tokens array
+        IStrategy[] memory strategies = new IStrategy[](tokens.length - 1);
+        for (uint256 i = 0; i < strategies.length; i++) {
+            strategies[i] = _createStrategy(tokens[i]);
+        }
+        address[] memory tokenAddresses = new address[](tokens.length);
+        for (uint256 i = 0; i < tokens.length; i++) {
+            tokenAddresses[i] = address(tokens[i]);
+        }
+        vm.expectRevert(
+            bytes4(keccak256("StrategiesAndTokensMustBeSameLength()"))
+        );
+        eigReserveManager.depositAllTokensIntoStrategy(
+            tokenAddresses,
+            strategies
         );
     }
 
@@ -777,9 +911,12 @@ contract EigenlayerReserveManagerTest is Test, ReserveBaseSetup {
     }
 
     function _callEigenlayerReserveManagerSetters() public {
+        vm.startPrank(owner);
         eigReserveManager.setOperatorName("operator2");
         eigReserveManager.setStrategyManager(HOLESKY_STRATEGY_MANAGER);
         eigReserveManager.setDelegationManager(HOLESKY_DELEGATION_MANAGER);
+        eigReserveManager.setRewardsCoordinator(HOLESKY_REWARDS_COORDINATOR);
+        vm.stopPrank();
     }
 
     // deposit, then initiate withdraw directly without using undelegate
@@ -999,5 +1136,156 @@ contract EigenlayerReserveManagerTest is Test, ReserveBaseSetup {
         );
         uint balAfter = token.balanceOf(address(eigReserveManager));
         assertEq(balAfter - balBefore, (depositAmount / 3) * 3);
+    }
+
+    function _delegateUndelegateAndDelegateToNewOperator(
+        IERC20 token,
+        uint256 depositAmount
+    ) public {
+        vm.assume(depositAmount > 0);
+        vm.assume(depositAmount <= INITIAL_BALANCE);
+
+        _callEigenlayerReserveManagerSetters();
+
+        // Create a new strategy and deposit
+        IStrategy newStrategy = _createAndDepositIntoStrategy(
+            token,
+            depositAmount
+        );
+
+        // Register a second operator
+        address secondOperator = _registerOperatorWithApprover(address(0));
+
+        vm.startPrank(managerAgent);
+
+        // Check initial shares for both operators
+        uint256 firstOperatorSharesBefore = _getOperatorShares(
+            newStrategy,
+            HOLESKY_EIGENLAYER_OPERATOR
+        );
+        uint256 secondOperatorSharesBefore = _getOperatorShares(
+            newStrategy,
+            secondOperator
+        );
+        assertEq(
+            firstOperatorSharesBefore,
+            0,
+            "First operator should have 0 shares initially"
+        );
+        assertEq(
+            secondOperatorSharesBefore,
+            0,
+            "Second operator should have 0 shares initially"
+        );
+
+        // Check strategy shares for the reserve manager
+        uint256 strategyShares = IStrategy(newStrategy).shares(
+            address(eigReserveManager)
+        );
+        assertEq(
+            strategyShares,
+            depositAmount,
+            "Strategy shares not equal to deposit amount"
+        );
+
+        // Delegate to first operator
+        eigReserveManager.delegateTo(HOLESKY_EIGENLAYER_OPERATOR, "", 0, 0x0);
+
+        // Verify first delegation
+        uint256 firstOperatorSharesAfterDelegate = _getOperatorShares(
+            newStrategy,
+            HOLESKY_EIGENLAYER_OPERATOR
+        );
+        assertEq(
+            firstOperatorSharesAfterDelegate,
+            depositAmount,
+            "First operator shares incorrect after delegation"
+        );
+
+        // Undelegate from first operator
+        _undelegate();
+
+        // Verify undelegation
+        uint256 firstOperatorSharesAfterUndelegate = _getOperatorShares(
+            newStrategy,
+            HOLESKY_EIGENLAYER_OPERATOR
+        );
+        assertEq(
+            firstOperatorSharesAfterUndelegate,
+            0,
+            "First operator shares should be 0 after undelegate"
+        );
+
+        // Queue withdrawal after first undelegation
+        uint32 withdrawStartBlock = uint32(block.number);
+
+        // Roll forward by withdrawal delay
+        vm.roll(block.number + 10);
+
+        // Complete withdrawal
+        (
+            IStrategy[] memory strategies,
+            uint256[] memory shares,
+            IERC20[] memory tokens
+        ) = _getStrategySharesAndTokenArrays(newStrategy, depositAmount, token);
+
+        _completeWithdraw(
+            0,
+            withdrawStartBlock,
+            eigReserveManager,
+            tokens,
+            shares,
+            strategies
+        );
+
+        vm.startPrank(managerAgent);
+
+        // Deposit again for second delegation
+        eigReserveManager.depositIntoStrategy(
+            address(newStrategy),
+            address(token),
+            depositAmount
+        );
+
+        // Delegate to second operator
+        eigReserveManager.delegateTo(secondOperator, "", 0, 0x0);
+
+        // Verify second delegation
+        uint256 secondOperatorSharesAfterDelegate = _getOperatorShares(
+            newStrategy,
+            secondOperator
+        );
+        assertEq(
+            secondOperatorSharesAfterDelegate,
+            depositAmount,
+            "Second operator shares incorrect after delegation"
+        );
+
+        // Verify first operator still has no shares
+        uint256 firstOperatorSharesFinal = _getOperatorShares(
+            newStrategy,
+            HOLESKY_EIGENLAYER_OPERATOR
+        );
+        assertEq(
+            firstOperatorSharesFinal,
+            0,
+            "First operator should still have 0 shares"
+        );
+
+        // Clean up - undelegate from second operator
+        _undelegate();
+
+        // Verify final undelegation
+        uint256 secondOperatorSharesFinal = _getOperatorShares(
+            newStrategy,
+            secondOperator
+        );
+        assertEq(
+            secondOperatorSharesFinal,
+            0,
+            "Second operator shares should be 0 after final undelegate"
+        );
+
+        vm.stopPrank();
     }
 }

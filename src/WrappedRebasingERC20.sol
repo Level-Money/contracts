@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: BUSL-1.1
 // OpenZeppelin Contracts (last updated v5.0.0) (token/ERC20/extensions/ERC20Wrapper.sol)
 
 pragma solidity ^0.8.20;
@@ -148,6 +148,12 @@ contract WrappedRebasingERC20 is ERC20, SingleAdminAccessControl {
         require(success, "Failed to send Ether");
     }
 
+    /**
+     * @dev Claim Aave rewards
+     * @param rewardsController Aave rewards controller contract
+     * @param assets tokens to claim
+     * @param to The address to send the rewards to
+     */
     function claimAllRewards(
         address rewardsController,
         address[] calldata assets,
