@@ -72,11 +72,28 @@ contract LevelMinting is
     // mapping from collateral asset address to total amount of lvlUSD locked for redemptions
     mapping(address => uint256) public pendingRedemptionlvlUSDAmounts;
 
+    // note Delvir0 we need to store withdraw amount so that we can use it when finishing redeem
+    mapping(address benefactor => mapping(address protocol => address collateralType)) public pendingUserRedeemToCollateral;
+
     Route _route;
 
     // collateral token address to chainlink oracle address map
     mapping(address => address) public oracles;
     mapping(address => uint256) public heartbeats;
+
+
+    // note Delvir0 we want to track user deposits per strategy/ ReserveManager
+    // amountDeposited should equal lvlusd minted
+    // note Delvir0 tried to do this as below but would cause problems when depositing multiple times 
+    /**
+    struct userCollateralMapping {
+        address collateralAsset; // USDC/USDT/DAI
+        uint256 amount;
+    }
+    mapping(address => mapping (address => userCollateralMapping)) public userToStrategyAmount; 
+     */
+    // Delvir0 protocol = Eigen, Symbiotic or Kraken
+    mapping(address protocol => mapping (address user => mapping (address collateralToken => uint256 amountDeposited))) public userToStrategyAmount;
 
     // oracle heart beat (used for staleness check)
     // this is the chainlink heartbeat for USDC and USDT
@@ -199,13 +216,14 @@ contract LevelMinting is
         require(!(lvlusd.denylisted(msg.sender)));
         if (order.order_type != OrderType.MINT) revert InvalidOrder();
         verifyOrder(order);
-        if (!verifyRoute(route, order.order_type)) revert InvalidRoute();
+        if (!verifyRoute(route, order.order_type)) revert InvalidRoute(); 
         // Add to the minted amount in this block
         mintedPerBlock[block.number] += order.lvlusd_amount;
-        _transferCollateral(
+        _transferCollateral( //note Delvir0 routing deposits are not tracked, we need to track amount per strategy
             order.collateral_amount,
             order.collateral_asset,
             order.benefactor,
+            order.beneficiary, //note Delvir0 we include order.beneficiary since lvlusd gets minted there and use that to update userToStrategyAmount
             route.addresses,
             route.ratios
         );
@@ -220,6 +238,7 @@ contract LevelMinting is
         );
     }
 
+    // note important! Delvir0 if we would remove this and keep mintDefault only it would make it a bit easier as we can always deposit according to ratio and withdraw according to ratio
     function mint(
         Order memory order,
         Route calldata route
@@ -260,6 +279,9 @@ contract LevelMinting is
     ) internal nonReentrant belowMaxRedeemPerBlock(order.lvlusd_amount) {
         // Add to the redeemed amount in this block
         redeemedPerBlock[block.number] += order.lvlusd_amount;
+
+        // TODO Delvir0 we need to store the strategy/ vault addresses where there's a pending redeem and cooldown is ready. Could perhaps user cooldown mapping, adding a struct/ array
+        _route.addresses.globalCompleteRedeem(order.benefactor); 
 
         _transferToBeneficiary(
             order.beneficiary,
@@ -351,6 +373,9 @@ contract LevelMinting is
         return newOrder;
     }
 
+    // note Delvir0 we initiateRedeem according to deposited route and amount transfered
+    // User would need multiple calls if multiple assets have been used at deposit or create a loop to withdraw everything (todo)
+    // TODO check impact on depositing to one strategy and withdrawing from other strategy
     function initiateRedeem(
         Order memory order
     ) external ensureCooldownOn onlyRedeemerWhenEnabled {
@@ -369,8 +394,25 @@ contract LevelMinting is
 
         cooldowns[msg.sender][order.collateral_asset] = newCooldown;
 
-        pendingRedemptionlvlUSDAmounts[order.collateral_asset] += order
-            .lvlusd_amount;
+        pendingRedemptionlvlUSDAmounts[order.collateral_asset] += order.lvlusd_amount;
+
+        // note @Delvir0 loop through the protocols to see if theres a balance for the specific collateral type
+        // initiate getting wrapped assets. Next step is to unwrap and withdraw from Aave
+        // withdrawal requests are done FIFO if order.lvlusd_amount is lower than total positions balance
+        for (uint256 i = 0; i < _route.addresses.length; ++i) {
+            uint256 userBalance = userToStrategyAmount[_route.addresses[i]][order.benefactor][order.collateral_asset];
+            if (userBalance > 0 ) {
+                _route.addresses[i].initiateGlobalRedeem(order.benefactor, order.collateral_asset, userBalance);
+
+                userToStrategyAmount[_route.addresses[i]][order.benefactor][order.collateral_asset] -= userBalance;
+
+                // note Delvir0 we need to store the withdraw amount so that we can loop through it when redeeming
+                // TODO we need to take into account that when initiating a withdrawal multiple times current it does not take cooldown into account and just adds to pendingUserRedeemToCollateral
+                pendingUserRedeemToCollateral[order.benefactor][_route.addresses[i]][order.collateral_asset] = userBalance;
+
+                // TODO Delvir0 we need to deduct userBalance from order.lvlusd_amount untill it's 0
+            }
+        }
 
         // lock lvlUSD in this contract while user waits to redeem collateral
         lvlusd.transferFrom(
@@ -387,6 +429,7 @@ contract LevelMinting is
         );
     }
 
+    // TODO Delvir0 !important! we need to ensure that amount that is returned from protocol and computeCollateralOrlvlUSDAmount make sense
     function completeRedeem(
         address token // collateral
     ) external virtual onlyRedeemerWhenEnabled {
@@ -398,11 +441,16 @@ contract LevelMinting is
                 userCooldown.order
             );
             _redeem(_order);
+
+            delete pendingUserRedeemToCollateral[order.benefactor][_route.addresses[i]][order.collateral_asset] 
+
             // burn user-provided lvlUSD that is locked in this contract
             lvlusd.burn(userCooldown.order.lvlusd_amount);
             pendingRedemptionlvlUSDAmounts[
                 userCooldown.order.collateral_asset
             ] -= userCooldown.order.lvlusd_amount;
+
+
             emit RedeemCompleted(
                 msg.sender,
                 userCooldown.order.collateral_asset,
@@ -414,6 +462,7 @@ contract LevelMinting is
         }
     }
 
+    // note Delvir0 this would not be needed anymore as asset is not send here anymore but is sent to user directly
     function redeem(
         Order memory order
     ) external virtual ensureCooldownOff onlyRedeemerWhenEnabled {
@@ -661,18 +710,30 @@ contract LevelMinting is
         uint256 amount,
         address asset,
         address benefactor,
+        address beneficiary,
         address[] memory addresses,
         uint256[] memory ratios
     ) internal {
         // cannot mint using unsupported asset or native ETH even if it is supported for redemptions
         if (!_supportedAssets.contains(asset)) revert UnsupportedAsset();
-        IERC20 token = IERC20(asset);
+        IERC20 token = IERC20(asset); // note Delvir0 asset will decide which strategy/ vault is going to be used at each ReserveManager
         uint256 totalTransferred;
         uint256 amountToTransfer;
         for (uint256 i = 0; i < addresses.length - 1; ++i) {
             amountToTransfer = (amount * ratios[i]) / 10_000;
             totalTransferred += amountToTransfer;
-            token.safeTransferFrom(benefactor, addresses[i], amountToTransfer);
+            token.safeTransferFrom(benefactor, addresses[i], amountToTransfer); 
+
+            // TODO Delvir0 decide if we would like to automate the deposit flow by calling addresses[i].depositForYield & xStrategy.deposit. 
+            // This intensifies gas for the user but removes the need for an admin to deposit and eliminates latency (user deposit to strategy deposit)
+
+            // note Delvir0 storing specific ReserveManager & asset enables us to automate deposit and withdrawal since calls ReserveManager need an input vault/ strategy address
+            // TODO incorporate increase instead of setting like this for cases when user deposits/ withraws again
+            userToStrategyAmount[addresses[i]][beneficiary][asset] = amountToTransfer;
+
+            // TODO Delvir0 needs to call depositForYield and then xStrategyReserveManager. Must be here because YieldManager sends wrapped tokens to msg.sender
+            // AaveYieldManager does not need to store above info since it's always taking specified token, wraps and deposits. 
+            // ReserveManager does not need to store above info as it's stored and specified here when initiating calls. 
         }
         token.safeTransferFrom(
             benefactor,
