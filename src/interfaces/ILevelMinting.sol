@@ -72,10 +72,7 @@ interface ILevelMinting is ILevelMintingEvents {
 
     function verifyOrder(Order calldata order) external view returns (bool);
 
-    function verifyRoute(
-        Route calldata route,
-        OrderType order_type
-    ) external view returns (bool);
+    function verifyRoute(Route calldata route, OrderType order_type) external view returns (bool);
 
     function mint(Order calldata order, Route calldata route) external;
 
@@ -84,4 +81,6 @@ interface ILevelMinting is ILevelMintingEvents {
     function initiateRedeem(Order memory order) external;
 
     function completeRedeem(address token) external;
+
+    function getPriceAndDecimals(address collateralToken) external view returns (int256, uint256);
 }

@@ -126,7 +126,7 @@ contract USDT is IERC20 {
                         "SafeERC20: transfer to non-ERC20Receiver implementer"
                     );
                 } else {
-                    assembly {
+                    assembly ("memory-safe") {
                         revert(add(32, reason), mload(reason))
                     }
                 }

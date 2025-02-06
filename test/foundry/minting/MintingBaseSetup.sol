@@ -198,7 +198,7 @@ contract MintingBaseSetup is Test, ILevelMintingEvents, IlvlUSDDefinitions {
         uint8 v
     ) internal pure returns (bytes memory) {
         bytes memory sig = new bytes(65);
-        assembly {
+        assembly ("memory-safe") {
             mstore(add(sig, 32), r)
             mstore(add(sig, 64), s)
             mstore8(add(sig, 96), v)

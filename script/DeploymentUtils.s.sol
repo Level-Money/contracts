@@ -4,7 +4,7 @@ pragma solidity >=0.8.19;
 /**
  * solhint-disable private-vars-leading-underscore
  */
-
+import "forge-std/console2.sol";
 import "forge-std/Vm.sol";
 import {StdUtils} from "forge-std/StdUtils.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
@@ -14,6 +14,7 @@ contract DeploymentUtils is StdUtils {
     error USER_NOT_OWNER();
     error USER_LACKS_ROLE();
     error ADDRESS_DERIVATION_ERROR();
+    error MISSING_CHAIN_ID(string message);
 
     Vm private constant vm =
         Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
@@ -156,6 +157,48 @@ contract DeploymentUtils is StdUtils {
         bool userHasRole = IAccessControl(contractAddr).hasRole(role, user);
 
         if (!userHasRole) revert USER_LACKS_ROLE();
+    }
+
+    function _printDeployedContracts(
+        uint256 chainId,
+        string memory name,
+        address contractAddress
+    ) public pure {
+        string memory baseUrl = _getEtherscanBaseUrl(chainId);
+        console2.log(
+            "%s                          : %s/address/%s",
+            name,
+            baseUrl,
+            contractAddress
+        );
+    }
+
+    function _getPrivateKey(
+        uint chainId
+    ) internal view returns (uint256 privateKey) {
+        if (chainId == 1) {
+            privateKey = vm.envUint("MAINNET_PRIVATE_KEY");
+        } else if (chainId == 11155111) {
+            privateKey = vm.envUint("TESTNET_PRIVATE_KEY");
+        } else if (chainId == 17000) {
+            privateKey = vm.envUint("TESTNET_PRIVATE_KEY");
+        } else {
+            revert MISSING_CHAIN_ID("Set CHAIN_ID in .env");
+        }
+    }
+
+    function _getEtherscanBaseUrl(
+        uint chainId
+    ) internal pure returns (string memory) {
+        if (chainId == 1) {
+            return "https://etherscan.io/";
+        } else if (chainId == 17000) {
+            return "https://holesky.etherscan.io/";
+        } else if (chainId == 11155111) {
+            return "https://sepolia.etherscan.io";
+        } else {
+            revert MISSING_CHAIN_ID("Set CHAIN_ID in .env");
+        }
     }
 
     // add this to be excluded from coverage report

@@ -268,7 +268,7 @@ contract EigenlayerReserveManagerTest is Test, ReserveBaseSetup {
             address(newOwner)
         );
     }
- 
+
     function test__depositAllTokensIntoStrategy() public {
         IERC20[] memory tokens = new IERC20[](2);
         tokens[0] = IERC20(USDCToken);
@@ -289,7 +289,6 @@ contract EigenlayerReserveManagerTest is Test, ReserveBaseSetup {
         vm.assume(depositAmount > 2);
         vm.assume(depositAmount <= INITIAL_BALANCE);
         _delegateUndelegateAndDelegateToNewOperator(DAIToken, depositAmount);
-
     }
 
     // =====================================================================
@@ -379,8 +378,8 @@ contract EigenlayerReserveManagerTest is Test, ReserveBaseSetup {
         (address operator, ) = makeAddrAndKey("operator");
 
         // Create operator details
-        IDelegationManager.OperatorDetails memory operatorDetails = IDelegationManager
-            .OperatorDetails({
+        IDelegationManager.OperatorDetails
+            memory operatorDetails = IDelegationManager.OperatorDetails({
                 delegationApprover: delegationApprover, // The delegation approver address
                 stakerOptOutWindowBlocks: 50400, // ~7 days worth of blocks
                 __deprecated_earningsReceiver: address(owner) // Set to owner address

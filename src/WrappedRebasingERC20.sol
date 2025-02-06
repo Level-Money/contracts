@@ -18,7 +18,7 @@ import "./interfaces/aave/IRewardsController.sol";
  *
  * WARNING: Any mechanism in which the underlying token changes the {balanceOf} of an account without an explicit transfer
  * may desynchronize this contract's supply and its underlying balance. Please exercise caution when wrapping tokens that
- * may undercollateralize the wrapper (i.e. wrapper's total supply is higher than its underlying balance). See {_recover}
+ * may undercollateralize the wrapper (i.e. wrapper's total supply is higher than its underlying balance). See {claimAllRewards}
  * for recovering value accrued to the wrapper.
  */
 contract WrappedRebasingERC20 is ERC20, SingleAdminAccessControl {
@@ -117,7 +117,7 @@ contract WrappedRebasingERC20 is ERC20, SingleAdminAccessControl {
 
     /**
      * @dev Recover any ERC20 tokens that were accidentally sent to this contract.
-     * Can only be called by admin. Cannot recover the underlying token - use recover() for that.
+     * Can only be called by admin. Cannot recover the underlying token - use claimAllRewards() for that.
      * @param tokenAddress The token contract address to recover
      * @param tokenReceiver The address to send the tokens to
      * @param tokenAmount The amount of tokens to recover
