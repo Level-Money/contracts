@@ -19,11 +19,7 @@ import "./interfaces/ILevelMinting.sol";
  * @notice This contract issues and redeems lvlUSD for/from other accepted stablecoins
  * @dev Changelog: change name to LevelMinting and lvlUSD, update solidity versions
  */
-contract LevelMinting is
-    ILevelMinting,
-    SingleAdminAccessControl,
-    ReentrancyGuard
-{
+contract LevelMinting is ILevelMinting, SingleAdminAccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -88,16 +84,18 @@ contract LevelMinting is
     /// @notice ensure that the already minted lvlUSD in the actual block plus the amount to be minted is below the maxMintPerBlock var
     /// @param mintAmount The lvlUSD amount to be minted
     modifier belowMaxMintPerBlock(uint256 mintAmount) {
-        if (mintedPerBlock[block.number] + mintAmount > maxMintPerBlock)
+        if (mintedPerBlock[block.number] + mintAmount > maxMintPerBlock) {
             revert MaxMintPerBlockExceeded();
+        }
         _;
     }
 
     /// @notice ensure that the already redeemed lvlUSD in the actual block plus the amount to be redeemed is below the maxRedeemPerBlock var
     /// @param redeemAmount The lvlUSD amount to be redeemed
     modifier belowMaxRedeemPerBlock(uint256 redeemAmount) {
-        if (redeemedPerBlock[block.number] + redeemAmount > maxRedeemPerBlock)
+        if (redeemedPerBlock[block.number] + redeemAmount > maxRedeemPerBlock) {
             revert MaxRedeemPerBlockExceeded();
+        }
         _;
     }
 
@@ -144,8 +142,9 @@ contract LevelMinting is
         if (address(_lvlusd) == address(0)) revert InvalidlvlUSDAddress();
         if (_assets.length == 0) revert NoAssetsProvided();
         if (_admin == address(0)) revert InvalidZeroAddress();
-        if (_assets.length != _oracles.length)
+        if (_assets.length != _oracles.length) {
             revert OraclesLengthNotEqualToAssetsLength();
+        }
 
         lvlusd = _lvlusd;
 
@@ -176,10 +175,7 @@ contract LevelMinting is
         if (!verifyRatios(_ratios)) {
             revert InvalidRatios();
         }
-        require(
-            _ratios.length == _reserves.length,
-            "ratios and reserves must have same length"
-        );
+        require(_ratios.length == _reserves.length, "ratios and reserves must have same length");
         _route = Route(_reserves, _ratios);
 
         emit lvlUSDSet(address(_lvlusd));
@@ -192,10 +188,11 @@ contract LevelMinting is
      * @param order struct containing order details and confirmation from server
      * @param route the addresses to which the collateral should be sent (and ratios describing the amount to send to each address)
      */
-    function _mint(
-        Order memory order,
-        Route memory route
-    ) internal nonReentrant belowMaxMintPerBlock(order.lvlusd_amount) {
+    function _mint(Order memory order, Route memory route)
+        internal
+        nonReentrant
+        belowMaxMintPerBlock(order.lvlusd_amount)
+    {
         require(!(lvlusd.denylisted(msg.sender)));
         if (order.order_type != OrderType.MINT) revert InvalidOrder();
         verifyOrder(order);
@@ -203,11 +200,7 @@ contract LevelMinting is
         // Add to the minted amount in this block
         mintedPerBlock[block.number] += order.lvlusd_amount;
         _transferCollateral(
-            order.collateral_amount,
-            order.collateral_asset,
-            order.benefactor,
-            route.addresses,
-            route.ratios
+            order.collateral_amount, order.collateral_asset, order.benefactor, route.addresses, route.ratios
         );
         lvlusd.mint(order.beneficiary, order.lvlusd_amount);
         emit Mint(
@@ -220,10 +213,7 @@ contract LevelMinting is
         );
     }
 
-    function mint(
-        Order memory order,
-        Route calldata route
-    ) external virtual onlyMinterWhenEnabled {
+    function mint(Order memory order, Route calldata route) external virtual onlyMinterWhenEnabled {
         if (msg.sender != order.benefactor) {
             revert MsgSenderIsNotBenefactor();
         }
@@ -231,9 +221,7 @@ contract LevelMinting is
         _mint(_order, route);
     }
 
-    function mintDefault(
-        Order memory order
-    ) external virtual onlyMinterWhenEnabled {
+    function mintDefault(Order memory order) external virtual onlyMinterWhenEnabled {
         if (msg.sender != order.benefactor) {
             revert MsgSenderIsNotBenefactor();
         }
@@ -241,13 +229,8 @@ contract LevelMinting is
         _mint(_order, _route);
     }
 
-    function setCooldownDuration(
-        uint24 newDuration
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(
-            newDuration <= MAX_COOLDOWN_DURATION,
-            "newDuration exceeds MAX_COOLDOWN_DURATION"
-        );
+    function setCooldownDuration(uint24 newDuration) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(newDuration <= MAX_COOLDOWN_DURATION, "newDuration exceeds MAX_COOLDOWN_DURATION");
         cooldownDuration = newDuration;
     }
 
@@ -255,17 +238,11 @@ contract LevelMinting is
      * @notice Redeem stablecoins for assets
      * @param order struct containing order details and confirmation from server
      */
-    function _redeem(
-        Order memory order
-    ) internal nonReentrant belowMaxRedeemPerBlock(order.lvlusd_amount) {
+    function _redeem(Order memory order) internal nonReentrant belowMaxRedeemPerBlock(order.lvlusd_amount) {
         // Add to the redeemed amount in this block
         redeemedPerBlock[block.number] += order.lvlusd_amount;
 
-        _transferToBeneficiary(
-            order.beneficiary,
-            order.collateral_asset,
-            order.collateral_amount
-        );
+        _transferToBeneficiary(order.beneficiary, order.collateral_asset, order.collateral_amount);
 
         emit Redeem(
             msg.sender,
@@ -282,12 +259,8 @@ contract LevelMinting is
     // Note: when minting, the price is taken to be min(oracle_price, 1)
     // Note: when redeeming, the price is taken to be max(oracle_price, 1)
     // These ensure that the protocol remains fully collateralized.
-    function computeCollateralOrlvlUSDAmount(
-        Order memory order
-    ) private view returns (Order memory) {
-        (int price, uint decimals) = getPriceAndDecimals(
-            order.collateral_asset
-        );
+    function computeCollateralOrlvlUSDAmount(Order memory order) private view returns (Order memory) {
+        (int256 price, uint256 decimals) = getPriceAndDecimals(order.collateral_asset);
         if (price == 0) {
             revert OraclePriceIsZero();
         }
@@ -300,25 +273,19 @@ contract LevelMinting is
             lvlusd_amount: order.lvlusd_amount
         });
 
-        uint8 collateral_asset_decimals = ERC20(order.collateral_asset)
-            .decimals();
+        uint8 collateral_asset_decimals = ERC20(order.collateral_asset).decimals();
         uint8 lvlusd_decimals = lvlusd.decimals();
         if (order.order_type == OrderType.MINT) {
             uint256 new_lvlusd_amount;
             // Note: it is assumed that only stablecoins are used as collateral, which
             // is why we compare the price to $1
             if (uint256(price) < 10 ** decimals) {
-                new_lvlusd_amount =
-                    (order.collateral_amount *
-                        uint256(price) *
-                        10 ** (lvlusd_decimals)) /
-                    10 ** (decimals) /
-                    10 ** (collateral_asset_decimals);
+                new_lvlusd_amount = (order.collateral_amount * uint256(price) * 10 ** (lvlusd_decimals))
+                    / 10 ** (decimals) / 10 ** (collateral_asset_decimals);
             } else {
                 // assume unit price ($1)
                 new_lvlusd_amount =
-                    (order.collateral_amount * (10 ** (lvlusd_decimals))) /
-                    (10 ** (collateral_asset_decimals));
+                    (order.collateral_amount * (10 ** (lvlusd_decimals))) / (10 ** (collateral_asset_decimals));
             }
             // ensure that calculated lvlusd amount exceeds the user-specified minimum
             if (new_lvlusd_amount < order.lvlusd_amount) {
@@ -329,18 +296,12 @@ contract LevelMinting is
             // redeem
             uint256 new_collateral_amount;
             if (uint256(price) > 10 ** decimals) {
-                new_collateral_amount =
-                    (order.lvlusd_amount *
-                        (10 ** (decimals)) *
-                        (10 ** (collateral_asset_decimals))) /
-                    uint256(price) /
-                    (10 ** (lvlusd_decimals));
+                new_collateral_amount = (order.lvlusd_amount * (10 ** (decimals)) * (10 ** (collateral_asset_decimals)))
+                    / uint256(price) / (10 ** (lvlusd_decimals));
             } else {
                 // assume unit price
                 new_collateral_amount =
-                    (order.lvlusd_amount *
-                        (10 ** (collateral_asset_decimals))) /
-                    (10 ** (lvlusd_decimals));
+                    (order.lvlusd_amount * (10 ** (collateral_asset_decimals))) / (10 ** (lvlusd_decimals));
             }
             // ensure that calculated collateral amount exceeds the user-specified minimum
             if (new_collateral_amount < order.collateral_amount) {
@@ -351,9 +312,7 @@ contract LevelMinting is
         return newOrder;
     }
 
-    function initiateRedeem(
-        Order memory order
-    ) external ensureCooldownOn onlyRedeemerWhenEnabled {
+    function initiateRedeem(Order memory order) external ensureCooldownOn onlyRedeemerWhenEnabled {
         if (order.order_type != OrderType.REDEEM) revert InvalidOrder();
 
         if (!_redeemableAssets.contains(order.collateral_asset)) {
@@ -362,29 +321,16 @@ contract LevelMinting is
         if (msg.sender != order.benefactor) {
             revert MsgSenderIsNotBenefactor();
         }
-        UserCooldown memory newCooldown = UserCooldown({
-            cooldownStart: uint104(block.timestamp),
-            order: order
-        });
+        UserCooldown memory newCooldown = UserCooldown({cooldownStart: uint104(block.timestamp), order: order});
 
         cooldowns[msg.sender][order.collateral_asset] = newCooldown;
 
-        pendingRedemptionlvlUSDAmounts[order.collateral_asset] += order
-            .lvlusd_amount;
+        pendingRedemptionlvlUSDAmounts[order.collateral_asset] += order.lvlusd_amount;
 
         // lock lvlUSD in this contract while user waits to redeem collateral
-        lvlusd.transferFrom(
-            order.benefactor,
-            address(this),
-            order.lvlusd_amount
-        );
+        lvlusd.transferFrom(order.benefactor, address(this), order.lvlusd_amount);
 
-        emit RedeemInitiated(
-            msg.sender,
-            order.collateral_asset,
-            order.collateral_amount,
-            order.lvlusd_amount
-        );
+        emit RedeemInitiated(msg.sender, order.collateral_asset, order.collateral_amount, order.lvlusd_amount);
     }
 
     function completeRedeem(
@@ -394,15 +340,11 @@ contract LevelMinting is
         if (block.timestamp >= userCooldown.cooldownStart + cooldownDuration) {
             userCooldown.cooldownStart = type(uint104).max;
             cooldowns[msg.sender][token] = userCooldown;
-            Order memory _order = computeCollateralOrlvlUSDAmount(
-                userCooldown.order
-            );
+            Order memory _order = computeCollateralOrlvlUSDAmount(userCooldown.order);
             _redeem(_order);
             // burn user-provided lvlUSD that is locked in this contract
             lvlusd.burn(userCooldown.order.lvlusd_amount);
-            pendingRedemptionlvlUSDAmounts[
-                userCooldown.order.collateral_asset
-            ] -= userCooldown.order.lvlusd_amount;
+            pendingRedemptionlvlUSDAmounts[userCooldown.order.collateral_asset] -= userCooldown.order.lvlusd_amount;
             emit RedeemCompleted(
                 msg.sender,
                 userCooldown.order.collateral_asset,
@@ -414,9 +356,7 @@ contract LevelMinting is
         }
     }
 
-    function redeem(
-        Order memory order
-    ) external virtual ensureCooldownOff onlyRedeemerWhenEnabled {
+    function redeem(Order memory order) external virtual ensureCooldownOff onlyRedeemerWhenEnabled {
         if (order.order_type != OrderType.REDEEM) revert InvalidOrder();
         if (msg.sender != order.benefactor) {
             revert MsgSenderIsNotBenefactor();
@@ -427,16 +367,12 @@ contract LevelMinting is
     }
 
     /// @notice Sets the max mintPerBlock limit
-    function setMaxMintPerBlock(
-        uint256 _maxMintPerBlock
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setMaxMintPerBlock(uint256 _maxMintPerBlock) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setMaxMintPerBlock(_maxMintPerBlock);
     }
 
     /// @notice Sets the max redeemPerBlock limit
-    function setMaxRedeemPerBlock(
-        uint256 _maxRedeemPerBlock
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setMaxRedeemPerBlock(uint256 _maxRedeemPerBlock) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setMaxRedeemPerBlock(_maxRedeemPerBlock);
     }
 
@@ -447,28 +383,25 @@ contract LevelMinting is
     }
 
     /// @notice transfers an asset to a reserve wallet
-    function transferToReserve(
-        address wallet,
-        address asset,
-        uint256 amount
-    ) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (wallet == address(0) || !_reserveAddresses.contains(wallet))
+    function transferToReserve(address wallet, address asset, uint256 amount)
+        external
+        nonReentrant
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        if (wallet == address(0) || !_reserveAddresses.contains(wallet)) {
             revert InvalidAddress();
+        }
         IERC20(asset).safeTransfer(wallet, amount);
         emit ReserveTransfer(wallet, asset, amount);
     }
 
     /// @notice Removes an asset from the supported assets list
-    function removeSupportedAsset(
-        address asset
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function removeSupportedAsset(address asset) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (!_supportedAssets.remove(asset)) revert InvalidAssetAddress();
         emit AssetRemoved(asset);
     }
 
-    function removeRedeemableAssets(
-        address asset
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function removeRedeemableAssets(address asset) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (!_redeemableAssets.remove(asset)) revert InvalidAssetAddress();
         emit RedeemableAssetRemoved(asset);
     }
@@ -479,41 +412,32 @@ contract LevelMinting is
     }
 
     /// @notice Removes a reserve from the reserve address list
-    function removeReserveAddress(
-        address reserve
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function removeReserveAddress(address reserve) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (!_reserveAddresses.remove(reserve)) revert InvalidReserveAddress();
         emit ReserveAddressRemoved(reserve);
     }
 
     /// @notice Removes the minter role from an account, this can ONLY be executed by the gatekeeper role
     /// @param minter The address to remove the minter role from
-    function removeMinterRole(
-        address minter
-    ) external onlyRole(GATEKEEPER_ROLE) {
+    function removeMinterRole(address minter) external onlyRole(GATEKEEPER_ROLE) {
         _revokeRole(MINTER_ROLE, minter);
     }
 
     /// @notice Removes the redeemer role from an account, this can ONLY be executed by the gatekeeper role
     /// @param redeemer The address to remove the redeemer role from
-    function removeRedeemerRole(
-        address redeemer
-    ) external onlyRole(GATEKEEPER_ROLE) {
+    function removeRedeemerRole(address redeemer) external onlyRole(GATEKEEPER_ROLE) {
         _revokeRole(REDEEMER_ROLE, redeemer);
     }
 
     /* --------------- PUBLIC --------------- */
 
-    function getPriceAndDecimals(
-        address collateralToken
-    ) public view returns (int256, uint) {
+    function getPriceAndDecimals(address collateralToken) public view returns (int256, uint256) {
         address oracle = oracles[collateralToken];
         if (oracle == address(0)) {
             revert OracleUndefined();
         }
         uint8 decimals = AggregatorV3Interface(oracle).decimals();
-        (, int answer, , uint256 updatedAt, ) = AggregatorV3Interface(oracle)
-            .latestRoundData();
+        (, int256 answer,, uint256 updatedAt,) = AggregatorV3Interface(oracle).latestRoundData();
         require(answer > 0, "invalid price");
         uint256 heartBeat = heartbeats[collateralToken];
         if (heartBeat == 0) {
@@ -524,52 +448,32 @@ contract LevelMinting is
     }
 
     /// @notice Adds an asset to the supported assets list.
-    function addSupportedAsset(
-        address asset
-    ) public onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (
-            asset == address(0) ||
-            asset == address(lvlusd) ||
-            !_supportedAssets.add(asset)
-        ) {
+    function addSupportedAsset(address asset) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (asset == address(0) || asset == address(lvlusd) || !_supportedAssets.add(asset)) {
             revert InvalidAssetAddress();
         }
         _redeemableAssets.add(asset);
         emit AssetAdded(asset);
     }
 
-    function addOracle(
-        address collateral,
-        address oracle
-    ) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function addOracle(address collateral, address oracle) public onlyRole(DEFAULT_ADMIN_ROLE) {
         oracles[collateral] = oracle;
     }
 
-    function setHeartBeat(
-        address collateral,
-        uint256 heartBeat
-    ) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setHeartBeat(address collateral, uint256 heartBeat) public onlyRole(DEFAULT_ADMIN_ROLE) {
         heartbeats[collateral] = heartBeat;
     }
 
     /// @notice Adds a reserve to the supported reserves list.
-    function addReserveAddress(
-        address reserve
-    ) public onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (
-            reserve == address(0) ||
-            reserve == address(lvlusd) ||
-            !_reserveAddresses.add(reserve)
-        ) {
+    function addReserveAddress(address reserve) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (reserve == address(0) || reserve == address(lvlusd) || !_reserveAddresses.add(reserve)) {
             revert InvalidReserveAddress();
         }
         emit ReserveAddressAdded(reserve);
     }
 
     /// @notice assert validity of order
-    function verifyOrder(
-        Order memory order
-    ) public pure override returns (bool) {
+    function verifyOrder(Order memory order) public pure override returns (bool) {
         if (order.beneficiary == address(0)) revert InvalidAmount();
         if (order.collateral_amount == 0) revert InvalidAmount();
         if (order.lvlusd_amount == 0) revert InvalidAmount();
@@ -577,18 +481,15 @@ contract LevelMinting is
     }
 
     function verifyRatios(uint256[] memory ratios) public pure returns (bool) {
-        uint total = 0;
-        for (uint i = 0; i < ratios.length; i++) {
+        uint256 total = 0;
+        for (uint256 i = 0; i < ratios.length; i++) {
             total += ratios[i];
         }
         return total == 10_000;
     }
 
     /// @notice assert validity of route object per type
-    function verifyRoute(
-        Route memory route,
-        OrderType orderType
-    ) public view override returns (bool) {
+    function verifyRoute(Route memory route, OrderType orderType) public view override returns (bool) {
         // routes only used to mint
         if (orderType == OrderType.REDEEM) {
             return true;
@@ -601,9 +502,8 @@ contract LevelMinting is
         }
         for (uint256 i = 0; i < route.addresses.length; ++i) {
             if (
-                !_reserveAddresses.contains(route.addresses[i]) ||
-                route.addresses[i] == address(0) ||
-                route.ratios[i] == 0
+                !_reserveAddresses.contains(route.addresses[i]) || route.addresses[i] == address(0)
+                    || route.ratios[i] == 0
             ) {
                 return false;
             }
@@ -614,31 +514,18 @@ contract LevelMinting is
         return true;
     }
 
-    function setCheckMinterRole(
-        bool _check
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setCheckMinterRole(bool _check) external onlyRole(DEFAULT_ADMIN_ROLE) {
         checkMinterRole = _check;
     }
 
-    function setCheckRedeemerRole(
-        bool _check
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setCheckRedeemerRole(bool _check) external onlyRole(DEFAULT_ADMIN_ROLE) {
         checkRedeemerRole = _check;
     }
 
-    function setRoute(
-        address[] memory _reserves,
-        uint256[] memory _ratios
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(
-            _reserves.length == _ratios.length,
-            "Reserves and ratios must have the same length"
-        );
+    function setRoute(address[] memory _reserves, uint256[] memory _ratios) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_reserves.length == _ratios.length, "Reserves and ratios must have the same length");
         for (uint256 i = 0; i < _reserves.length; i++) {
-            require(
-                _reserveAddresses.contains(_reserves[i]),
-                "Reserve address not found in _reserveAddresses"
-            );
+            require(_reserveAddresses.contains(_reserves[i]), "Reserve address not found in _reserveAddresses");
         }
         require(verifyRatios(_ratios), "ratios do not add up to 10,000");
         _route = Route(_reserves, _ratios);
@@ -647,11 +534,7 @@ contract LevelMinting is
     /* --------------- INTERNAL --------------- */
 
     /// @notice transfer supported asset to beneficiary address
-    function _transferToBeneficiary(
-        address beneficiary,
-        address asset,
-        uint256 amount
-    ) internal {
+    function _transferToBeneficiary(address beneficiary, address asset, uint256 amount) internal {
         if (!_redeemableAssets.contains(asset)) revert UnsupportedAsset();
         IERC20(asset).safeTransfer(beneficiary, amount);
     }
@@ -674,11 +557,7 @@ contract LevelMinting is
             totalTransferred += amountToTransfer;
             token.safeTransferFrom(benefactor, addresses[i], amountToTransfer);
         }
-        token.safeTransferFrom(
-            benefactor,
-            addresses[addresses.length - 1],
-            amount - totalTransferred
-        );
+        token.safeTransferFrom(benefactor, addresses[addresses.length - 1], amount - totalTransferred);
     }
 
     /// @notice Sets the max mintPerBlock limit
