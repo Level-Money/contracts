@@ -1,5 +1,5 @@
 # LevelReserveLensChainlinkOracle
-[Git Source](https://github.com/Level-Money/contracts/blob/7fc97def4c32b2c55e844838ecbb532dceb8179d/src/lens/LevelReserveLensChainlinkOracle.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/596e7d17f2f0a509e7a447183bc335cd46833918/src/lens/LevelReserveLensChainlinkOracle.sol)
 
 **Inherits:**
 [ILevelReserveLensChainlinkOracle](/src/interfaces/lens/ILevelReserveLensChainlinkOracle.sol/interface.ILevelReserveLensChainlinkOracle.md), [SingleAdminAccessControl](/src/auth/v5/SingleAdminAccessControl.sol/abstract.SingleAdminAccessControl.md), Pausable
@@ -37,37 +37,29 @@ ILevelReserveLens public immutable lens;
 ```
 
 
-### lvlusd
-
-```solidity
-IERC20Metadata public immutable lvlusd;
-```
-
-
 ## Functions
 ### constructor
 
 
 ```solidity
-constructor(address _admin, address _pauser, address _lens, address _lvlusd);
+constructor(address _admin, address _pauser, address _lens);
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`_admin`|`address`||
-|`_pauser`|`address`||
+|`_admin`|`address`|The address of the admin.|
+|`_pauser`|`address`|The address of the pauser.|
 |`_lens`|`address`|The address of the LevelReserveLens contract.|
-|`_lvlusd`|`address`|The address of the lvlUSD token.|
 
 
 ### decimals
 
-*In this contract, returns the precision of the USD price returned by the lens contract.*
+*Returns the number of decimals; use Chainlink's default for USD pairs.*
 
 
 ```solidity
-function decimals() public view override returns (uint8);
+function decimals() public pure override returns (uint8);
 ```
 **Returns**
 
@@ -149,6 +141,8 @@ function getRoundData(uint80)
 ### latestRoundData
 
 *Returns the price of lvlUSD. This function should always return some value.*
+
+*Invariants: answer > 0, answer <= this.decimals()*
 
 
 ```solidity

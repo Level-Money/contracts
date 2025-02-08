@@ -50,6 +50,12 @@ interface ILevelReserveLens {
     function getReservePrice() external view returns (uint256);
 
     /**
+     * @notice Returns the number of decimals used for the reserve price.
+     * @return reservePriceDecimals The number of decimals used for the reserve price
+     */
+    function getReservePriceDecimals() external view returns (uint8);
+
+    /**
      * @notice Returns the price of minting lvlUSD using the same logic as LevelMinting
      * @param collateral The address of the collateral token
      * @return mintPrice The price of lvlUSD for 1 unit of the collateral token, with lvlUSD's decimals (18)
@@ -62,34 +68,4 @@ interface ILevelReserveLens {
      * @return redeemPrice The price of collateral for 1 unit of lvlUSD, with the same decimals as the collateral token
      */
     function getRedeemPrice(IERC20Metadata collateral) external view returns (uint256);
-
-    /**
-     * @notice Returns the underlying tokens staked in a given Eigen strategy
-     * @dev Note: this function returns everything held in the strategy, which may include deposits from non-Level participants
-     * @param collateral The address of the collateral token
-     * @param strategy The address of the strategy
-     * @return eigenStake The total collateral tokens held by the given Level strategy
-     */
-    function getEigenStake(IERC20Metadata collateral, address strategy) external view returns (uint256);
-
-    /**
-     * @notice Returns the underlying tokens staked in a given Symbiotic vault and burner
-     * @dev Note: this function returns everything held in the strategy, which may include deposits from non-Level participants
-     * @param collateral The address of the collateral token
-     * @param vault The address of the Symbiotic vault
-     * @return symbioticStake The total collateral tokens held by the given vault and vault burner
-     */
-    function getSymbioticStake(IERC20Metadata collateral, address vault) external view returns (uint256);
-
-    /**
-     * @notice Adjusts the amount for the difference in decimals. Reverts if the amount would lose precision.
-     * @param amount The amount to adjust
-     * @param fromDecimals The decimals of the amount
-     * @param toDecimals The decimals to adjust to
-     * @return adjustedAmount The adjusted amount
-     */
-    function safeAdjustForDecimals(uint256 amount, uint8 fromDecimals, uint8 toDecimals)
-        external
-        pure
-        returns (uint256);
 }

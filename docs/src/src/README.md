@@ -5,6 +5,7 @@
 - [interfaces](/src/interfaces)
 - [lens](/src/lens)
 - [reserve](/src/reserve)
+- [vaults](/src/vaults)
 - [yield](/src/yield)
 - [LevelMinting](LevelMinting.sol/contract.LevelMinting.md)
 - [StakedlvlUSD](StakedlvlUSD.sol/contract.StakedlvlUSD.md)

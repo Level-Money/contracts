@@ -1,5 +1,5 @@
 # ILevelReserveLens
-[Git Source](https://github.com/Level-Money/contracts/blob/7fc97def4c32b2c55e844838ecbb532dceb8179d/src/interfaces/lens/ILevelReserveLens.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/596e7d17f2f0a509e7a447183bc335cd46833918/src/interfaces/lens/ILevelReserveLens.sol)
 
 **Author:**
 Level (https://level.money)
@@ -96,6 +96,21 @@ function getReservePrice() external view returns (uint256);
 |`<none>`|`uint256`|reservePrice The reserve price of lvlUSD, with lvlUSD's decimals (18).|
 
 
+### getReservePriceDecimals
+
+Returns the number of decimals used for the reserve price.
+
+
+```solidity
+function getReservePriceDecimals() external view returns (uint8);
+```
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`<none>`|`uint8`|reservePriceDecimals The number of decimals used for the reserve price|
+
+
 ### getMintPrice
 
 Returns the price of minting lvlUSD using the same logic as LevelMinting
@@ -136,76 +151,5 @@ function getRedeemPrice(IERC20Metadata collateral) external view returns (uint25
 |Name|Type|Description|
 |----|----|-----------|
 |`<none>`|`uint256`|redeemPrice The price of collateral for 1 unit of lvlUSD, with the same decimals as the collateral token|
-
-
-### getEigenStake
-
-Returns the underlying tokens staked in a given Eigen strategy
-
-*Note: this function returns everything held in the strategy, which may include deposits from non-Level participants*
-
-
-```solidity
-function getEigenStake(IERC20Metadata collateral, address strategy) external view returns (uint256);
-```
-**Parameters**
-
-|Name|Type|Description|
-|----|----|-----------|
-|`collateral`|`IERC20Metadata`|The address of the collateral token|
-|`strategy`|`address`|The address of the strategy|
-
-**Returns**
-
-|Name|Type|Description|
-|----|----|-----------|
-|`<none>`|`uint256`|eigenStake The total collateral tokens held by the given Level strategy|
-
-
-### getSymbioticStake
-
-Returns the underlying tokens staked in a given Symbiotic vault and burner
-
-*Note: this function returns everything held in the strategy, which may include deposits from non-Level participants*
-
-
-```solidity
-function getSymbioticStake(IERC20Metadata collateral, address vault) external view returns (uint256);
-```
-**Parameters**
-
-|Name|Type|Description|
-|----|----|-----------|
-|`collateral`|`IERC20Metadata`|The address of the collateral token|
-|`vault`|`address`|The address of the Symbiotic vault|
-
-**Returns**
-
-|Name|Type|Description|
-|----|----|-----------|
-|`<none>`|`uint256`|symbioticStake The total collateral tokens held by the given vault and vault burner|
-
-
-### safeAdjustForDecimals
-
-Adjusts the amount for the difference in decimals. Reverts if the amount would lose precision.
-
-
-```solidity
-function safeAdjustForDecimals(uint256 amount, uint8 fromDecimals, uint8 toDecimals) external pure returns (uint256);
-```
-**Parameters**
-
-|Name|Type|Description|
-|----|----|-----------|
-|`amount`|`uint256`|The amount to adjust|
-|`fromDecimals`|`uint8`|The decimals of the amount|
-|`toDecimals`|`uint8`|The decimals to adjust to|
-
-**Returns**
-
-|Name|Type|Description|
-|----|----|-----------|
-|`<none>`|`uint256`|adjustedAmount The adjusted amount|
 
 

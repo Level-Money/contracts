@@ -1,5 +1,5 @@
 # lvlUSD
-[Git Source](https://github.com/Level-Money/contracts/blob/7fc97def4c32b2c55e844838ecbb532dceb8179d/src/lvlUSD.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/596e7d17f2f0a509e7a447183bc335cd46833918/src/lvlUSD.sol)
 
 **Inherits:**
 ERC20Burnable, ERC20Permit, [IlvlUSDDefinitions](/src/interfaces/IlvlUSDDefinitions.sol/interface.IlvlUSDDefinitions.md), [SingleAdminAccessControl](/src/auth/v5/SingleAdminAccessControl.sol/abstract.SingleAdminAccessControl.md)

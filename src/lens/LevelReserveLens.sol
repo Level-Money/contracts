@@ -141,6 +141,11 @@ contract LevelReserveLens is ILevelReserveLens, Initializable, OwnableUpgradeabl
     }
 
     /// @inheritdoc ILevelReserveLens
+    function getReservePriceDecimals() external pure override returns (uint8) {
+        return LVLUSD_DECIMALS;
+    }
+
+    /// @inheritdoc ILevelReserveLens
     function getMintPrice(IERC20Metadata collateral) external view override returns (uint256) {
         ILevelMinting levelMinting = ILevelMinting(levelMintingAddress);
 
@@ -185,14 +190,26 @@ contract LevelReserveLens is ILevelReserveLens, Initializable, OwnableUpgradeabl
         return redeemPrice;
     }
 
-    /// @inheritdoc ILevelReserveLens
-    function getEigenStake(IERC20Metadata collateral, address strategy) public view override returns (uint256) {
+    /**
+     * @notice Returns the underlying tokens staked in a given Eigen strategy
+     * @dev Note: this function returns everything held in the strategy, which may include deposits from non-Level participants
+     * @param collateral The address of the collateral token
+     * @param strategy The address of the strategy
+     * @return eigenStake The total collateral tokens held by the given Level strategy
+     */
+    function getEigenStake(IERC20Metadata collateral, address strategy) public view returns (uint256) {
         IERC20Metadata collateralToken = IERC20Metadata(collateral);
         return collateralToken.balanceOf(strategy);
     }
 
-    /// @inheritdoc ILevelReserveLens
-    function getSymbioticStake(IERC20Metadata collateral, address vault) public view override returns (uint256) {
+    /**
+     * @notice Returns the underlying tokens staked in a given Symbiotic vault and burner
+     * @dev Note: this function returns everything held in the strategy, which may include deposits from non-Level participants
+     * @param collateral The address of the collateral token
+     * @param vault The address of the Symbiotic vault
+     * @return symbioticStake The total collateral tokens held by the given vault and vault burner
+     */
+    function getSymbioticStake(IERC20Metadata collateral, address vault) public view returns (uint256) {
         IERC20Metadata collateralToken = IERC20Metadata(collateral);
         IVault symbioticVault = IVault(vault);
 
@@ -204,11 +221,16 @@ contract LevelReserveLens is ILevelReserveLens, Initializable, OwnableUpgradeabl
         return balance;
     }
 
-    /// @inheritdoc ILevelReserveLens
+    /**
+     * @notice Adjusts the amount for the difference in decimals. Reverts if the amount would lose precision.
+     * @param amount The amount to adjust
+     * @param fromDecimals The decimals of the amount
+     * @param toDecimals The decimals to adjust to
+     * @return adjustedAmount The adjusted amount
+     */
     function safeAdjustForDecimals(uint256 amount, uint8 fromDecimals, uint8 toDecimals)
         public
         pure
-        override
         returns (uint256)
     {
         if (fromDecimals == toDecimals) {

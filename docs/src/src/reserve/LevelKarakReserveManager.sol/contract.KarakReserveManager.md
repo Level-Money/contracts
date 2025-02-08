@@ -1,5 +1,5 @@
 # KarakReserveManager
-[Git Source](https://github.com/Level-Money/contracts/blob/7fc97def4c32b2c55e844838ecbb532dceb8179d/src/reserve/LevelKarakReserveManager.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/596e7d17f2f0a509e7a447183bc335cd46833918/src/reserve/LevelKarakReserveManager.sol)
 
 **Inherits:**
 [LevelBaseReserveManager](/src/reserve/LevelBaseReserveManager.sol/abstract.LevelBaseReserveManager.md), [IKarakReserveManager](/src/interfaces/ILevelKarakReserveManager.sol/interface.IKarakReserveManager.md)
