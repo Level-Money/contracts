@@ -4,11 +4,11 @@ pragma solidity >=0.8.21;
 import {ILevelReserveLensChainlinkOracle} from "../interfaces/lens/ILevelReserveLensChainlinkOracle.sol";
 import {ILevelReserveLens} from "../interfaces/lens/ILevelReserveLens.sol";
 import {SingleAdminAccessControl} from "../auth/v5/SingleAdminAccessControl.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  *                                     .-==+=======+:
@@ -28,22 +28,22 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
  * @notice The LevelReserveLensChainlinkOracle contract is a thin wrapper around LevelReserveLens that implements the Chainlink AggregatorV3Interface.
  */
 contract LevelReserveLensChainlinkOracle is ILevelReserveLensChainlinkOracle, SingleAdminAccessControl, Pausable {
+    using Math for uint256;
     using SafeCast for uint256;
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
     ILevelReserveLens public immutable lens;
-    IERC20Metadata public immutable lvlusd;
 
     /**
      * @param _lens The address of the LevelReserveLens contract.
-     * @param _lvlusd The address of the lvlUSD token.
+     * @param _admin The address of the admin.
+     * @param _pauser The address of the pauser.
      */
-    constructor(address _admin, address _pauser, address _lens, address _lvlusd) {
-        if (_lens == address(0) || _lvlusd == address(0) || _admin == address(0)) revert("Address cannot be zero");
+    constructor(address _admin, address _pauser, address _lens) {
+        if (_lens == address(0) || _admin == address(0)) revert("Address cannot be zero");
 
         lens = ILevelReserveLens(_lens);
-        lvlusd = IERC20Metadata(_lvlusd);
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
 
@@ -53,11 +53,11 @@ contract LevelReserveLensChainlinkOracle is ILevelReserveLensChainlinkOracle, Si
     }
 
     /**
-     * @dev In this contract, returns the precision of the USD price returned by the lens contract.
+     * @dev Returns the number of decimals; use Chainlink's default for USD pairs.
      * @return decimals The number of decimals.
      */
-    function decimals() public view override returns (uint8) {
-        return lvlusd.decimals();
+    function decimals() public pure override returns (uint8) {
+        return 8;
     }
 
     /**
@@ -112,6 +112,7 @@ contract LevelReserveLensChainlinkOracle is ILevelReserveLensChainlinkOracle, Si
 
     /**
      * @dev Returns the price of lvlUSD. This function should always return some value.
+     * @dev Invariants: answer > 0, answer <= this.decimals()
      * @return roundId non-meaningful value
      * @return answer The price of lvlUSD, where 1e18 means 1 USD. Returns $1 (1e18) if the reserves are overcollateralized, if the contract is paused, or the underlying lens contract reverts. Otherwise, returns the ratio of USD reserves to lvlUSD supply.
      * @return startedAt non-meaningful value
@@ -128,16 +129,20 @@ contract LevelReserveLensChainlinkOracle is ILevelReserveLensChainlinkOracle, Si
             return defaultRoundData();
         }
 
-        (bool success, bytes memory returnData) = address(lens).staticcall(abi.encodeWithSignature("getReservePrice()"));
+        (bool reservePriceSuccess, bytes memory reservePriceData) =
+            address(lens).staticcall(abi.encodeWithSignature("getReservePrice()"));
+        (bool reserveDecimalsSuccess, bytes memory reserveDecimalsData) =
+            address(lens).staticcall(abi.encodeWithSignature("getReservePriceDecimals()"));
 
-        if (!success) {
+        if (!reservePriceSuccess || !reserveDecimalsSuccess) {
             return defaultRoundData();
         }
 
         // Decode the returned value
-        uint256 price = abi.decode(returnData, (uint256));
-        answer = int256(price);
+        uint256 reservePrice = abi.decode(reservePriceData, (uint256));
+        uint8 reserveDecimals = abi.decode(reserveDecimalsData, (uint8));
 
+        answer = int256(reservePrice.mulDiv(10 ** decimals(), 10 ** reserveDecimals, Math.Rounding.Ceil));
         return (0, answer, block.timestamp, block.timestamp, 0);
     }
 }
