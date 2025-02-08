@@ -1,5 +1,5 @@
 # LevelReserveLens
-[Git Source](https://github.com/Level-Money/contracts/blob/7fc97def4c32b2c55e844838ecbb532dceb8179d/src/lens/LevelReserveLens.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/596e7d17f2f0a509e7a447183bc335cd46833918/src/lens/LevelReserveLens.sol)
 
 **Inherits:**
 [ILevelReserveLens](/src/interfaces/lens/ILevelReserveLens.sol/interface.ILevelReserveLens.md), Initializable, OwnableUpgradeable, UUPSUpgradeable
@@ -237,6 +237,21 @@ function getReservePrice() public view override returns (uint256);
 |`<none>`|`uint256`|reservePrice The reserve price of lvlUSD, with lvlUSD's decimals (18).|
 
 
+### getReservePriceDecimals
+
+Returns the number of decimals used for the reserve price.
+
+
+```solidity
+function getReservePriceDecimals() external pure override returns (uint8);
+```
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`<none>`|`uint8`|reservePriceDecimals The number of decimals used for the reserve price|
+
+
 ### getMintPrice
 
 Returns the price of minting lvlUSD using the same logic as LevelMinting
@@ -287,7 +302,7 @@ Returns the underlying tokens staked in a given Eigen strategy
 
 
 ```solidity
-function getEigenStake(IERC20Metadata collateral, address strategy) public view override returns (uint256);
+function getEigenStake(IERC20Metadata collateral, address strategy) public view returns (uint256);
 ```
 **Parameters**
 
@@ -311,7 +326,7 @@ Returns the underlying tokens staked in a given Symbiotic vault and burner
 
 
 ```solidity
-function getSymbioticStake(IERC20Metadata collateral, address vault) public view override returns (uint256);
+function getSymbioticStake(IERC20Metadata collateral, address vault) public view returns (uint256);
 ```
 **Parameters**
 
@@ -333,11 +348,7 @@ Adjusts the amount for the difference in decimals. Reverts if the amount would l
 
 
 ```solidity
-function safeAdjustForDecimals(uint256 amount, uint8 fromDecimals, uint8 toDecimals)
-    public
-    pure
-    override
-    returns (uint256);
+function safeAdjustForDecimals(uint256 amount, uint8 fromDecimals, uint8 toDecimals) public pure returns (uint256);
 ```
 **Parameters**
 
