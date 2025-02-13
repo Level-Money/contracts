@@ -2,15 +2,15 @@
 pragma solidity >=0.8.21;
 
 import {Test, console2} from "forge-std/Test.sol";
-import {LevelReserveLensChainlinkOracle} from "../../../src/lens/LevelReserveLensChainlinkOracle.sol";
+import {LevelReserveLensMorphoOracle} from "../../../src/lens/LevelReserveLensMorphoOracle.sol";
 import {LevelReserveLens} from "../../../src/lens/LevelReserveLens.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {MockLevelReserveLens} from "../../mocks/MockLevelReserveLens.sol";
 import {MockToken} from "../../mocks/MockToken.sol";
 
-contract LevelReserveLensChainlinkOracleTest is Test {
-    LevelReserveLensChainlinkOracle public oracle;
+contract LevelReserveLensMorphoOracleTest is Test {
+    LevelReserveLensMorphoOracle public oracle;
     MockLevelReserveLens public lens;
     MockToken public lvlUSD;
 
@@ -24,7 +24,7 @@ contract LevelReserveLensChainlinkOracleTest is Test {
         lvlUSD = new MockToken("Level USD", "lvlUSD", 18, address(admin));
         lens = new MockLevelReserveLens();
 
-        oracle = new LevelReserveLensChainlinkOracle(admin, pauser, address(lens));
+        oracle = new LevelReserveLensMorphoOracle(admin, pauser, address(lens));
     }
 
     function test_constructor() public {
@@ -35,12 +35,12 @@ contract LevelReserveLensChainlinkOracleTest is Test {
 
     function test_constructor_zeroAddressAdmin() public {
         vm.expectRevert("Address cannot be zero");
-        new LevelReserveLensChainlinkOracle(address(0), pauser, address(lens));
+        new LevelReserveLensMorphoOracle(address(0), pauser, address(lens));
     }
 
     function test_constructor_zeroAddressLens() public {
         vm.expectRevert("Address cannot be zero");
-        new LevelReserveLensChainlinkOracle(admin, pauser, address(0));
+        new LevelReserveLensMorphoOracle(admin, pauser, address(0));
     }
 
     function test_decimals() public {
