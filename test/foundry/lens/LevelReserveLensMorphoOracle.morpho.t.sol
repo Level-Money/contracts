@@ -5,7 +5,7 @@ import {Test, console2} from "forge-std/Test.sol";
 import {Utils} from "../../utils/Utils.sol";
 
 import {LevelReserveLens} from "../../../src/lens/LevelReserveLens.sol";
-import {LevelReserveLensChainlinkOracle} from "../../../src/lens/LevelReserveLensChainlinkOracle.sol";
+import {LevelReserveLensMorphoOracle} from "../../../src/lens/LevelReserveLensMorphoOracle.sol";
 
 import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
@@ -22,7 +22,7 @@ import {IMorphoChainlinkOracleV2Factory} from "../../interfaces/morpho/IMorphoCh
 import {IMorphoChainlinkOracleV2} from "../../interfaces/morpho/IMorphoChainlinkOracleV2.sol";
 import {AggregatorV3Interface} from "../../../src/interfaces/AggregatorV3Interface.sol";
 
-contract LevelReserveLensChainlinkOracleMorphoTest is Test {
+contract LevelReserveLensMorphoOracleMorphoTest is Test {
     Utils internal utils;
 
     address internal owner;
@@ -32,7 +32,7 @@ contract LevelReserveLensChainlinkOracleMorphoTest is Test {
 
     LevelReserveLens internal lens;
     ERC1967Proxy internal proxy;
-    LevelReserveLensChainlinkOracle internal oracle;
+    LevelReserveLensMorphoOracle internal oracle;
 
     IERC20Metadata internal lvlusd = IERC20Metadata(0x7C1156E515aA1A2E851674120074968C905aAF37);
     IMorphoChainlinkOracleV2Factory internal morphoOracleFactory =
@@ -61,7 +61,7 @@ contract LevelReserveLensChainlinkOracleMorphoTest is Test {
         );
 
         lens = LevelReserveLens(address(proxy));
-        oracle = new LevelReserveLensChainlinkOracle(owner, owner, address(lens));
+        oracle = new LevelReserveLensMorphoOracle(owner, owner, address(lens));
 
         morphoOracle = morphoOracleFactory.createMorphoChainlinkOracleV2(
             IERC4626(address(0)),

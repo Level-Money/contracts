@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.21;
 
-import {ILevelReserveLensChainlinkOracle} from "../interfaces/lens/ILevelReserveLensChainlinkOracle.sol";
+import {ILevelReserveLensMorphoOracle} from "../interfaces/lens/ILevelReserveLensMorphoOracle.sol";
 import {ILevelReserveLens} from "../interfaces/lens/ILevelReserveLens.sol";
 import {SingleAdminAccessControl} from "../auth/v5/SingleAdminAccessControl.sol";
 
@@ -12,7 +12,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  *                                     .-==+=======+:
- *                                      :---=-::-==:
+ *                                      :---=-::-==:g
  *                                      .-:-==-:-==:
  *                    .:::--::::::.     .--:-=--:--.       .:--:::--..
  *                   .=++=++:::::..     .:::---::--.    ....::...:::.
@@ -23,11 +23,12 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  *    :------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
  *    .::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
  *
- * @title LevelReserveLensChainlinkOracle
+ * @title LevelReserveLensMorphoOracle
  * @author Level (https://level.money)
- * @notice The LevelReserveLensChainlinkOracle contract is a thin wrapper around LevelReserveLens that implements the Chainlink AggregatorV3Interface.
+ * @notice The LevelReserveLensMorphoOracle contract is a thin wrapper around LevelReserveLens that implements the Chainlink AggregatorV3Interface.
+ * @notice This contract reverts to a default price of $1 to protect borrowers from liquidation, which may come at the cost of lenders. Vault curators and lenders should take care to monitor the solvency of lvlUSD off-chain and pause new loans if necessary. See audit reports for more details. 
  */
-contract LevelReserveLensChainlinkOracle is ILevelReserveLensChainlinkOracle, SingleAdminAccessControl, Pausable {
+contract LevelReserveLensMorphoOracle is ILevelReserveLensMorphoOracle, SingleAdminAccessControl, Pausable {
     using Math for uint256;
     using SafeCast for uint256;
 
@@ -77,7 +78,7 @@ contract LevelReserveLensChainlinkOracle is ILevelReserveLensChainlinkOracle, Si
     }
 
     /**
-     * @inheritdoc ILevelReserveLensChainlinkOracle
+     * @inheritdoc ILevelReserveLensMorphoOracle
      */
     function setPaused(bool _paused) external onlyRole(PAUSER_ROLE) {
         if (_paused) {

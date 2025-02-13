@@ -157,10 +157,9 @@ contract LevelReserveLensTest is Test {
         uint256 usdcReserves = lens.getReserves(address(usdc));
 
         uint256 usdcReserveAmount = 19145827151545 + 179169754211;
-        uint256 amountInEigenStrategy = 0;
         uint256 amountInSymbioticStrategy = 10;
 
-        uint256 total = usdcReserveAmount + amountInEigenStrategy + amountInSymbioticStrategy;
+        uint256 total = usdcReserveAmount + amountInSymbioticStrategy;
         uint256 adjustedTotal = lens.safeAdjustForDecimals(total, usdc.decimals(), 18);
 
         assertEq(usdcReserves, adjustedTotal);
@@ -182,10 +181,9 @@ contract LevelReserveLensTest is Test {
         uint256 usdtReserves = lens.getReserves(address(usdt));
 
         uint256 usdtReserveAmount = 5798076589218 + 56667618;
-        uint256 amountInEigenStrategy = 1000000;
         uint256 amountInSymbioticStrategy = 0;
 
-        uint256 total = usdtReserveAmount + amountInEigenStrategy + amountInSymbioticStrategy;
+        uint256 total = usdtReserveAmount + amountInSymbioticStrategy;
         uint256 adjustedTotal = lens.safeAdjustForDecimals(total, usdt.decimals(), 18);
 
         assertEq(usdtReserves, adjustedTotal);
@@ -231,7 +229,7 @@ contract LevelReserveLensTest is Test {
         assertEq(getReservePrice, 1e18);
     }
 
-    function test_getReservePrice_succeedsWhenPriceIsUnderReserves() public {
+    function test_getReservePrice_succeedsWhenPricforsUnderReserves() public {
         vm.rollFork(21718875);
         vm.startPrank(owner);
 
@@ -318,5 +316,10 @@ contract LevelReserveLensTest is Test {
 
         // USDT Price at this block was $1.00009
         assertEq(usdtPrice, 999910);
+    }
+
+    function test_safeAdjustForDecimals__revertsWhenFromGtTo() public {
+        vm.expectRevert();
+        lens.safeAdjustForDecimals(1, 18, 17);
     }
 }

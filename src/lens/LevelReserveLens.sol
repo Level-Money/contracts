@@ -34,13 +34,12 @@ import {ILevelReserveLens} from "../interfaces/lens/ILevelReserveLens.sol";
 contract LevelReserveLens is ILevelReserveLens, Initializable, OwnableUpgradeable, UUPSUpgradeable {
     // Addresses that store lvlUSD reserves
     address public constant levelMintingAddress = 0x8E7046e27D14d09bdacDE9260ff7c8c2be68a41f;
+    // Note: though the bulk of the reserves are stored here, we are not currently depositing into EigenLayer. This contract will be updated to account for EigenLayer deposits before we start depositing.
     address public constant eigenReserveManager = 0x7B2c2C905184CEf1FABe920D4CbEA525acAa6f14;
     address public constant symbioticReserveManager = 0x21C937d436f2D86859ce60311290a8072368932D;
     address public constant karakReserveManager = 0x329F91FE82c1799C3e089FabE9D3A7efDC2D3151;
     address public constant waUsdcSymbioticVault = 0x67F91a36c5287709E68E3420cd17dd5B13c60D6d;
     address public constant waUsdtSymbioticVault = 0x9BF93077Ad7BB7f43E177b6AbBf8Dae914761599;
-    address public constant usdcEigenStrategy = 0x82A2e702C4CeCA35D8c474e218eD6f0852827380;
-    address public constant usdtEigenStrategy = 0x38fb62B973e4515a2A2A8B819a3B2217101Ad691;
 
     address public constant usdcAddress = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address public constant usdtAddress = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
@@ -74,11 +73,11 @@ contract LevelReserveLens is ILevelReserveLens, Initializable, OwnableUpgradeabl
 
         uint256 reserves;
         if (collateral == address(usdc)) {
-            reserves = _getReserves(usdc, waUsdcAddress, usdcEigenStrategy, waUsdcSymbioticVault);
+            reserves = _getReserves(usdc, waUsdcAddress, waUsdcSymbioticVault);
 
             return safeAdjustForDecimals(reserves, usdc.decimals(), LVLUSD_DECIMALS);
         } else if (collateral == address(usdt)) {
-            reserves = _getReserves(usdt, waUsdtAddress, usdtEigenStrategy, waUsdtSymbioticVault);
+            reserves = _getReserves(usdt, waUsdtAddress, waUsdtSymbioticVault);
 
             return safeAdjustForDecimals(reserves, usdt.decimals(), LVLUSD_DECIMALS);
         } else {
@@ -191,20 +190,8 @@ contract LevelReserveLens is ILevelReserveLens, Initializable, OwnableUpgradeabl
     }
 
     /**
-     * @notice Returns the underlying tokens staked in a given Eigen strategy
-     * @dev Note: this function returns everything held in the strategy, which may include deposits from non-Level participants
-     * @param collateral The address of the collateral token
-     * @param strategy The address of the strategy
-     * @return eigenStake The total collateral tokens held by the given Level strategy
-     */
-    function getEigenStake(IERC20Metadata collateral, address strategy) public view returns (uint256) {
-        IERC20Metadata collateralToken = IERC20Metadata(collateral);
-        return collateralToken.balanceOf(strategy);
-    }
-
-    /**
      * @notice Returns the underlying tokens staked in a given Symbiotic vault and burner
-     * @dev Note: this function returns everything held in the strategy, which may include deposits from non-Level participants
+     * @dev Note: as of this implementation, Level is not depositing into EigenLayer. We intend to add accounting for collateral deposited into EigenLayer before we deposit.
      * @param collateral The address of the collateral token
      * @param vault The address of the Symbiotic vault
      * @return symbioticStake The total collateral tokens held by the given vault and vault burner
@@ -222,7 +209,7 @@ contract LevelReserveLens is ILevelReserveLens, Initializable, OwnableUpgradeabl
     }
 
     /**
-     * @notice Adjusts the amount for the difference in decimals. Reverts if the amount would lose precision.
+     * @notice Adjusts the amount for the difference in decimals. Reverts with underflow if fromDecimals is greater than toDecimals (ie the amount would lose precision).
      * @param amount The amount to adjust
      * @param fromDecimals The decimals of the amount
      * @param toDecimals The decimals to adjust to
@@ -233,34 +220,23 @@ contract LevelReserveLens is ILevelReserveLens, Initializable, OwnableUpgradeabl
         pure
         returns (uint256)
     {
-        if (fromDecimals == toDecimals) {
-            return amount;
-        }
-
-        if (fromDecimals > toDecimals) {
-            revert("Cannot lose precision");
-        } else {
-            return amount * (10 ** (toDecimals - fromDecimals));
-        }
+        return amount * (10 ** (toDecimals - fromDecimals));
     }
 
     /**
      * @notice Helper function to get the reserves of the given collateral token.
      * @param collateral The address of the collateral token.
      * @param waCollateralAddress The address of the wrapped Aave token for the collateral.
-     * @param eigenStrategy The address of the Eigen strategy for the collateral.
      * @param symbioticVault The address of the Symbiotic vault for the collateral.
      * @return reserves The lvlUSD reserves for a given collateral token, in the given token's decimals.
      */
     function _getReserves(
         IERC20Metadata collateral,
         address waCollateralAddress,
-        address eigenStrategy,
         address symbioticVault
     ) internal view returns (uint256) {
         IERC20Metadata waCollateral = IERC20Metadata(waCollateralAddress);
 
-        uint256 waCollateralInEigenStrategy = getEigenStake(waCollateral, eigenStrategy);
         uint256 waCollateralInSymbiotic = getSymbioticStake(waCollateral, symbioticVault);
 
         uint256 waCollateralBalance = waCollateral.balanceOf(eigenReserveManager)
@@ -269,7 +245,7 @@ contract LevelReserveLens is ILevelReserveLens, Initializable, OwnableUpgradeabl
             + collateral.balanceOf(symbioticReserveManager) + collateral.balanceOf(karakReserveManager)
             + collateral.balanceOf(levelMintingAddress);
 
-        return waCollateralBalance + collateralBalance + waCollateralInEigenStrategy + waCollateralInSymbiotic;
+        return waCollateralBalance + collateralBalance + waCollateralInSymbiotic;
     }
 
     /// @inheritdoc UUPSUpgradeable

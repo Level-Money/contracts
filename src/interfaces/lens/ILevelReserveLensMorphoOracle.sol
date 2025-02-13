@@ -18,11 +18,11 @@ import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.
  *    :------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
  *    .::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
  *
- * @title ILevelReserveLensChainlinkOracle
+ * @title ILevelReserveLensMorphoOracle
  * @author Level (https://level.money)
  * @notice Interface for a Chainlink-compatible oracle wrapper around LevelReserveLens that provides lvlUSD price data
  */
-interface ILevelReserveLensChainlinkOracle is AggregatorV3Interface {
+interface ILevelReserveLensMorphoOracle is AggregatorV3Interface {
     /**
      * @notice Sets the paused state of the contract
      * @param _paused True to pause, false to unpause
