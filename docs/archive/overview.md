@@ -14,7 +14,7 @@ When funds are deposited into Symbiotic or Karak vaults, they are delegated to n
 - The multisig admin is a centralization vector, we eventually might want to automate the deployment of capital to vaults, or do it via governance. Right now a multisig effectively controls all funds within the reserve manager. The allowlist manager role mitigates this by allowing funds to be sent to certain addresses, however the admin appoints the allowlist manager.
 
 ## Dependencies
-Karak and Symbiotic vaults accept collateral and then delegate the collateral to operators, who are entrusted with the task of securing decentralized secure service (DSS). Usually, when funds are delegated, they generate yield but also risk being slashed if the operators does not behave properly when securing a DSS. Our interactions with these protocols is limited to depositing and withdrawing from vaults. In the future, we will also have to design a way to collect rewards and redistribute them to our users.
+Karak and Symbiotic vaults accept collateral and then delegate the collateral to operators, who are entrusted with the task of securing decentralized secure service (DSS). Usually, when funds are delegated, they generate yield but also risk being slashed if the operators do not behave properly when securing a DSS. Our interactions with these protocols is limited to depositing and withdrawing from vaults. In the future, we will also have to design a way to collect rewards and redistribute them to our users.
 
 ### Karak
 - Karak is a restaking layer that provides security for chains by connecting stakers with operators and networks ([Docs](https://docs.karak.network/))
