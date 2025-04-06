@@ -41,12 +41,12 @@ contract DSTest {
     bool public IS_TEST = true;
     bool public failed;
 
-    address public constant HEVM_ADDRESS =
-    address(bytes20(uint160(uint256(keccak256("hevm cheat code")))));
+    address public constant HEVM_ADDRESS = address(bytes20(uint160(uint256(keccak256("hevm cheat code")))));
 
     modifier mayRevert() {
         _;
     }
+
     modifier testopts(string memory) {
         _;
     }
@@ -85,11 +85,7 @@ contract DSTest {
         }
     }
 
-    function assertEq(
-        address a,
-        address b,
-        string memory err
-    ) public {
+    function assertEq(address a, address b, string memory err) public {
         if (a != b) {
             emit log_named_string("Error", err);
             assertEq(a, b);
@@ -105,11 +101,7 @@ contract DSTest {
         }
     }
 
-    function assertEq(
-        bytes32 a,
-        bytes32 b,
-        string memory err
-    ) public {
+    function assertEq(bytes32 a, bytes32 b, string memory err) public {
         if (a != b) {
             emit log_named_string("Error", err);
             assertEq(a, b);
@@ -120,11 +112,7 @@ contract DSTest {
         assertEq(a, b);
     }
 
-    function assertEq32(
-        bytes32 a,
-        bytes32 b,
-        string memory err
-    ) public {
+    function assertEq32(bytes32 a, bytes32 b, string memory err) public {
         assertEq(a, b, err);
     }
 
@@ -137,11 +125,7 @@ contract DSTest {
         }
     }
 
-    function assertEq(
-        int256 a,
-        int256 b,
-        string memory err
-    ) public {
+    function assertEq(int256 a, int256 b, string memory err) public {
         if (a != b) {
             emit log_named_string("Error", err);
             assertEq(a, b);
@@ -157,22 +141,14 @@ contract DSTest {
         }
     }
 
-    function assertEq(
-        uint256 a,
-        uint256 b,
-        string memory err
-    ) public {
+    function assertEq(uint256 a, uint256 b, string memory err) public {
         if (a != b) {
             emit log_named_string("Error", err);
             assertEq(a, b);
         }
     }
 
-    function assertEqDecimal(
-        int256 a,
-        int256 b,
-        uint256 decimals
-    ) public {
+    function assertEqDecimal(int256 a, int256 b, uint256 decimals) public {
         if (a != b) {
             emit log("Error: a == b not satisfied [decimal int]");
             emit log_named_decimal_int("  Expected", b, decimals);
@@ -181,23 +157,14 @@ contract DSTest {
         }
     }
 
-    function assertEqDecimal(
-        int256 a,
-        int256 b,
-        uint256 decimals,
-        string memory err
-    ) public {
+    function assertEqDecimal(int256 a, int256 b, uint256 decimals, string memory err) public {
         if (a != b) {
             emit log_named_string("Error", err);
             assertEqDecimal(a, b, decimals);
         }
     }
 
-    function assertEqDecimal(
-        uint256 a,
-        uint256 b,
-        uint256 decimals
-    ) public {
+    function assertEqDecimal(uint256 a, uint256 b, uint256 decimals) public {
         if (a != b) {
             emit log("Error: a == b not satisfied [decimal uint]");
             emit log_named_decimal_uint("  Expected", b, decimals);
@@ -206,12 +173,7 @@ contract DSTest {
         }
     }
 
-    function assertEqDecimal(
-        uint256 a,
-        uint256 b,
-        uint256 decimals,
-        string memory err
-    ) public {
+    function assertEqDecimal(uint256 a, uint256 b, uint256 decimals, string memory err) public {
         if (a != b) {
             emit log_named_string("Error", err);
             assertEqDecimal(a, b, decimals);
@@ -227,11 +189,7 @@ contract DSTest {
         }
     }
 
-    function assertGt(
-        uint256 a,
-        uint256 b,
-        string memory err
-    ) public {
+    function assertGt(uint256 a, uint256 b, string memory err) public {
         if (a <= b) {
             emit log_named_string("Error", err);
             assertGt(a, b);
@@ -247,22 +205,14 @@ contract DSTest {
         }
     }
 
-    function assertGt(
-        int256 a,
-        int256 b,
-        string memory err
-    ) public {
+    function assertGt(int256 a, int256 b, string memory err) public {
         if (a <= b) {
             emit log_named_string("Error", err);
             assertGt(a, b);
         }
     }
 
-    function assertGtDecimal(
-        int256 a,
-        int256 b,
-        uint256 decimals
-    ) public {
+    function assertGtDecimal(int256 a, int256 b, uint256 decimals) public {
         if (a <= b) {
             emit log("Error: a > b not satisfied [decimal int]");
             emit log_named_decimal_int("  Value a", a, decimals);
@@ -271,23 +221,14 @@ contract DSTest {
         }
     }
 
-    function assertGtDecimal(
-        int256 a,
-        int256 b,
-        uint256 decimals,
-        string memory err
-    ) public {
+    function assertGtDecimal(int256 a, int256 b, uint256 decimals, string memory err) public {
         if (a <= b) {
             emit log_named_string("Error", err);
             assertGtDecimal(a, b, decimals);
         }
     }
 
-    function assertGtDecimal(
-        uint256 a,
-        uint256 b,
-        uint256 decimals
-    ) public {
+    function assertGtDecimal(uint256 a, uint256 b, uint256 decimals) public {
         if (a <= b) {
             emit log("Error: a > b not satisfied [decimal uint]");
             emit log_named_decimal_uint("  Value a", a, decimals);
@@ -296,12 +237,7 @@ contract DSTest {
         }
     }
 
-    function assertGtDecimal(
-        uint256 a,
-        uint256 b,
-        uint256 decimals,
-        string memory err
-    ) public {
+    function assertGtDecimal(uint256 a, uint256 b, uint256 decimals, string memory err) public {
         if (a <= b) {
             emit log_named_string("Error", err);
             assertGtDecimal(a, b, decimals);
@@ -317,11 +253,7 @@ contract DSTest {
         }
     }
 
-    function assertGe(
-        uint256 a,
-        uint256 b,
-        string memory err
-    ) public {
+    function assertGe(uint256 a, uint256 b, string memory err) public {
         if (a < b) {
             emit log_named_string("Error", err);
             assertGe(a, b);
@@ -337,22 +269,14 @@ contract DSTest {
         }
     }
 
-    function assertGe(
-        int256 a,
-        int256 b,
-        string memory err
-    ) public {
+    function assertGe(int256 a, int256 b, string memory err) public {
         if (a < b) {
             emit log_named_string("Error", err);
             assertGe(a, b);
         }
     }
 
-    function assertGeDecimal(
-        int256 a,
-        int256 b,
-        uint256 decimals
-    ) public {
+    function assertGeDecimal(int256 a, int256 b, uint256 decimals) public {
         if (a < b) {
             emit log("Error: a >= b not satisfied [decimal int]");
             emit log_named_decimal_int("  Value a", a, decimals);
@@ -361,23 +285,14 @@ contract DSTest {
         }
     }
 
-    function assertGeDecimal(
-        int256 a,
-        int256 b,
-        uint256 decimals,
-        string memory err
-    ) public {
+    function assertGeDecimal(int256 a, int256 b, uint256 decimals, string memory err) public {
         if (a < b) {
             emit log_named_string("Error", err);
             assertGeDecimal(a, b, decimals);
         }
     }
 
-    function assertGeDecimal(
-        uint256 a,
-        uint256 b,
-        uint256 decimals
-    ) public {
+    function assertGeDecimal(uint256 a, uint256 b, uint256 decimals) public {
         if (a < b) {
             emit log("Error: a >= b not satisfied [decimal uint]");
             emit log_named_decimal_uint("  Value a", a, decimals);
@@ -386,12 +301,7 @@ contract DSTest {
         }
     }
 
-    function assertGeDecimal(
-        uint256 a,
-        uint256 b,
-        uint256 decimals,
-        string memory err
-    ) public {
+    function assertGeDecimal(uint256 a, uint256 b, uint256 decimals, string memory err) public {
         if (a < b) {
             emit log_named_string("Error", err);
             assertGeDecimal(a, b, decimals);
@@ -407,11 +317,7 @@ contract DSTest {
         }
     }
 
-    function assertLt(
-        uint256 a,
-        uint256 b,
-        string memory err
-    ) public {
+    function assertLt(uint256 a, uint256 b, string memory err) public {
         if (a >= b) {
             emit log_named_string("Error", err);
             assertLt(a, b);
@@ -427,22 +333,14 @@ contract DSTest {
         }
     }
 
-    function assertLt(
-        int256 a,
-        int256 b,
-        string memory err
-    ) public {
+    function assertLt(int256 a, int256 b, string memory err) public {
         if (a >= b) {
             emit log_named_string("Error", err);
             assertLt(a, b);
         }
     }
 
-    function assertLtDecimal(
-        int256 a,
-        int256 b,
-        uint256 decimals
-    ) public {
+    function assertLtDecimal(int256 a, int256 b, uint256 decimals) public {
         if (a >= b) {
             emit log("Error: a < b not satisfied [decimal int]");
             emit log_named_decimal_int("  Value a", a, decimals);
@@ -451,23 +349,14 @@ contract DSTest {
         }
     }
 
-    function assertLtDecimal(
-        int256 a,
-        int256 b,
-        uint256 decimals,
-        string memory err
-    ) public {
+    function assertLtDecimal(int256 a, int256 b, uint256 decimals, string memory err) public {
         if (a >= b) {
             emit log_named_string("Error", err);
             assertLtDecimal(a, b, decimals);
         }
     }
 
-    function assertLtDecimal(
-        uint256 a,
-        uint256 b,
-        uint256 decimals
-    ) public {
+    function assertLtDecimal(uint256 a, uint256 b, uint256 decimals) public {
         if (a >= b) {
             emit log("Error: a < b not satisfied [decimal uint]");
             emit log_named_decimal_uint("  Value a", a, decimals);
@@ -476,12 +365,7 @@ contract DSTest {
         }
     }
 
-    function assertLtDecimal(
-        uint256 a,
-        uint256 b,
-        uint256 decimals,
-        string memory err
-    ) public {
+    function assertLtDecimal(uint256 a, uint256 b, uint256 decimals, string memory err) public {
         if (a >= b) {
             emit log_named_string("Error", err);
             assertLtDecimal(a, b, decimals);
@@ -497,11 +381,7 @@ contract DSTest {
         }
     }
 
-    function assertLe(
-        uint256 a,
-        uint256 b,
-        string memory err
-    ) public {
+    function assertLe(uint256 a, uint256 b, string memory err) public {
         if (a > b) {
             emit log_named_string("Error", err);
             assertLe(a, b);
@@ -517,22 +397,14 @@ contract DSTest {
         }
     }
 
-    function assertLe(
-        int256 a,
-        int256 b,
-        string memory err
-    ) public {
+    function assertLe(int256 a, int256 b, string memory err) public {
         if (a > b) {
             emit log_named_string("Error", err);
             assertLe(a, b);
         }
     }
 
-    function assertLeDecimal(
-        int256 a,
-        int256 b,
-        uint256 decimals
-    ) public {
+    function assertLeDecimal(int256 a, int256 b, uint256 decimals) public {
         if (a > b) {
             emit log("Error: a <= b not satisfied [decimal int]");
             emit log_named_decimal_int("  Value a", a, decimals);
@@ -541,23 +413,14 @@ contract DSTest {
         }
     }
 
-    function assertLeDecimal(
-        int256 a,
-        int256 b,
-        uint256 decimals,
-        string memory err
-    ) public {
+    function assertLeDecimal(int256 a, int256 b, uint256 decimals, string memory err) public {
         if (a > b) {
             emit log_named_string("Error", err);
             assertLeDecimal(a, b, decimals);
         }
     }
 
-    function assertLeDecimal(
-        uint256 a,
-        uint256 b,
-        uint256 decimals
-    ) public {
+    function assertLeDecimal(uint256 a, uint256 b, uint256 decimals) public {
         if (a > b) {
             emit log("Error: a <= b not satisfied [decimal uint]");
             emit log_named_decimal_uint("  Value a", a, decimals);
@@ -566,12 +429,7 @@ contract DSTest {
         }
     }
 
-    function assertLeDecimal(
-        uint256 a,
-        uint256 b,
-        uint256 decimals,
-        string memory err
-    ) public {
+    function assertLeDecimal(uint256 a, uint256 b, uint256 decimals, string memory err) public {
         if (a > b) {
             emit log_named_string("Error", err);
             assertGeDecimal(a, b, decimals);
@@ -587,22 +445,14 @@ contract DSTest {
         }
     }
 
-    function assertEq(
-        string memory a,
-        string memory b,
-        string memory err
-    ) public {
+    function assertEq(string memory a, string memory b, string memory err) public {
         if (keccak256(abi.encodePacked(a)) != keccak256(abi.encodePacked(b))) {
             emit log_named_string("Error", err);
             assertEq(a, b);
         }
     }
 
-    function checkEq0(bytes memory a, bytes memory b)
-    public
-    pure
-    returns (bool ok)
-    {
+    function checkEq0(bytes memory a, bytes memory b) public pure returns (bool ok) {
         ok = true;
         if (a.length == b.length) {
             for (uint256 i = 0; i < a.length; i++) {
@@ -624,11 +474,7 @@ contract DSTest {
         }
     }
 
-    function assertEq0(
-        bytes memory a,
-        bytes memory b,
-        string memory err
-    ) public {
+    function assertEq0(bytes memory a, bytes memory b, string memory err) public {
         if (!checkEq0(a, b)) {
             emit log_named_string("Error", err);
             assertEq0(a, b);
