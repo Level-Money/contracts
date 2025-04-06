@@ -9,15 +9,22 @@ import "forge-std/Vm.sol";
 import {StdUtils} from "forge-std/StdUtils.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {CREATE3} from "@solmate/src/utils/CREATE3.sol";
 
-import {ContractAddresses} from "@level/config/ContractAddresses.sol";
-import {ContractNames} from "@level/config/ContractNames.sol";
-
-contract DeploymentUtils is StdUtils, ContractAddresses, ContractNames {
+contract DeploymentUtils is StdUtils {
     error USER_NOT_OWNER();
     error USER_LACKS_ROLE();
     error ADDRESS_DERIVATION_ERROR();
     error MISSING_CHAIN_ID(string message);
+
+    /**
+     * @notice Emitted on `deployContract` calls.
+     * @param name string name used to derive salt for deployment
+     * @param contractAddress the newly deployed contract address
+     * @param creationCodeHash keccak256 hash of the creation code
+     *        - useful to determine creation code is the same across multiple chains
+     */
+    event ContractDeployed(string name, address contractAddress, bytes32 creationCodeHash);
 
     Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
     address private constant CREATE2_FACTORY = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
@@ -115,6 +122,44 @@ contract DeploymentUtils is StdUtils, ContractAddresses, ContractNames {
         }
     }
 
+    /**
+     * @notice Deploy some contract to a deterministic address.
+     * @param name string used to derive salt for deployment
+     * @dev Should be of form:
+     *      "ContractName Version 0.0"
+     *      Where the numbers after version are VERSION . SUBVERSION
+     * @param creationCode the contract creation code to deploy
+     *        - can be obtained by calling type(contractName).creationCode
+     * @param constructorArgs the contract constructor arguments if any
+     *        - must be of form abi.encode(arg1, arg2, ...)
+     * @param value non zero if constructor needs to be payable
+     */
+    function deployContract(
+        string calldata name,
+        bytes memory creationCode,
+        bytes calldata constructorArgs,
+        uint256 value
+    ) public returns (address) {
+        bytes32 creationCodeHash = keccak256(creationCode);
+
+        if (constructorArgs.length > 0) {
+            // Append constructor args to end of creation code.
+            creationCode = abi.encodePacked(creationCode, constructorArgs);
+        }
+
+        bytes32 salt = convertNameToBytes32(name);
+
+        address contractAddress = CREATE3.deploy(salt, creationCode, value);
+
+        emit ContractDeployed(name, contractAddress, creationCodeHash);
+
+        return contractAddress;
+    }
+
+    function convertNameToBytes32(string memory name) public pure returns (bytes32) {
+        return keccak256(abi.encode(name));
+    }
+
     // Deployment checks //
 
     // Ensures that the given user is the owner of the specified contract
@@ -161,5 +206,5 @@ contract DeploymentUtils is StdUtils, ContractAddresses, ContractNames {
     }
 
     // add this to be excluded from coverage report
-    function test() public {}
+    function test() public virtual {}
 }

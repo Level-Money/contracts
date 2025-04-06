@@ -3,7 +3,7 @@ pragma solidity >=0.8.19;
 
 /* solhint-disable func-name-mixedcase  */
 import "../minting/MintingBaseSetup.sol";
-import "../../utils/WadRayMath.sol";
+import "../../../utils/WadRayMath.sol";
 
 contract LevelYieldManagerTest is MintingBaseSetup {
     function setUp() public override {
