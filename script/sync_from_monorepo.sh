@@ -20,8 +20,9 @@ IGNORED_FILES=(
 
 # Function to show usage
 show_usage() {
-    echo "Usage: $0 [-d] /path/to/monorepo"
-    echo "  -d    Dry run (show which files would be changed without making changes)"
+    echo "Usage: $0 [-d] /path/to/monorepo [commit_hash]"
+    echo "  -d           Dry run (show which files would be changed without making changes)"
+    echo "  commit_hash  Optional: Specific commit hash to sync from (defaults to latest on main branch)"
     exit 1
 }
 
@@ -40,11 +41,18 @@ done
 shift $((OPTIND -1))
 
 # Check if the path to the monorepo is provided
-if [ "$#" -ne 1 ]; then
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
     show_usage
 fi
 
 MONOREPO_PATH="$1"
+COMMIT_HASH=""
+
+# Check if commit hash is provided as second argument
+if [ "$#" -eq 2 ]; then
+    COMMIT_HASH="$2"
+fi
+
 CONTRACTS_PATH="$MONOREPO_PATH/packages/contracts"
 CURRENT_DATE=$(date +"%Y%m%d_%H%M%S")
 NEW_BRANCH="sync_from_monorepo_$CURRENT_DATE"
@@ -113,14 +121,22 @@ perform_sync() {
 
     if [ "$DRY_RUN" = false ]; then
         # Update docs
-	forge doc
+        forge doc
 
         # Stage all changes (including deletions)
         git add -A
 
         # Commit the changes
         commit_msg="Sync changes from monorepo - $CURRENT_DATE"
-        commit_msg+="\n\nSynchronized with monorepo, including removal of files/directories"
+        
+        # Add commit hash information if available
+        if [ -n "$COMMIT_HASH" ]; then
+            commit_msg+="\n\nSynchronized with monorepo at commit $COMMIT_HASH"
+        else
+            commit_msg+="\n\nSynchronized with latest monorepo main branch"
+        fi
+        
+        commit_msg+=", including removal of files/directories"
         commit_msg+=" that no longer exist in the monorepo's contracts directory."
         
         git commit -m "$commit_msg"
@@ -139,10 +155,25 @@ if [ "$DRY_RUN" = false ]; then
     git checkout -b "$NEW_BRANCH"
 fi
 
-# Go to the monorepo and ensure we're on the main branch with the latest changes
+# Go to the monorepo and ensure we have the right commit
 cd "$MONOREPO_PATH"
-git checkout main
-git pull origin main
+
+if [ -n "$COMMIT_HASH" ]; then
+    # Check if the commit hash exists
+    if ! git cat-file -e "$COMMIT_HASH" 2>/dev/null; then
+        echo "Error: Commit hash $COMMIT_HASH does not exist in the monorepo"
+        exit 1
+    fi
+    
+    # Checkout the specific commit
+    git checkout "$COMMIT_HASH"
+    echo "Using monorepo at specific commit: $COMMIT_HASH"
+else
+    # No commit hash provided, use latest main
+    git checkout main
+    git pull origin main
+    echo "Using latest commit from monorepo main branch"
+fi
 
 # Go back to the contracts repo
 cd -
