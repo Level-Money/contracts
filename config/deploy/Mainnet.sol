@@ -3,7 +3,6 @@ pragma solidity >=0.8.19;
 
 import {BaseConfig} from "@level/config/deploy/BaseConfig.sol";
 
-import {RolesAuthority, Authority} from "@solmate/src/auth/authorities/RolesAuthority.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {BoringVault} from "@level/src/v2/usd/BoringVault.sol";
 import {VaultManager} from "@level/src/v2/usd/VaultManager.sol";
@@ -19,6 +18,7 @@ import {AggregatorV3Interface} from "@level/src/v2/interfaces/AggregatorV3Interf
 import {IMulticall3} from "forge-std/interfaces/IMulticall3.sol";
 import {RewardsManager} from "@level/src/v2/usd/RewardsManager.sol";
 import {PauserGuard} from "@level/src/v2/common/guard/PauserGuard.sol";
+import {StrictRolesAuthority} from "@level/src/v2/auth/StrictRolesAuthority.sol";
 
 contract Mainnet is BaseConfig {
     uint256 public constant chainId = 1;
@@ -51,7 +51,7 @@ contract Mainnet is BaseConfig {
                 hexagateGatekeepers: hexagateGatekeepers
             }),
             levelContracts: LevelContracts({
-                rolesAuthority: RolesAuthority(address(0)),
+                rolesAuthority: StrictRolesAuthority(address(0)),
                 levelMintingV2: LevelMintingV2(address(0)),
                 boringVault: BoringVault(payable(address(0))),
                 vaultManager: VaultManager(address(0)),
