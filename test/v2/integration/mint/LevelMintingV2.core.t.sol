@@ -8,8 +8,9 @@ import {LevelMintingV2} from "@level/src/v2/LevelMintingV2.sol";
 import {
     ILevelMintingV2,
     ILevelMintingV2Errors,
-    ILevelMintingV2Structs
-} from "@level/src/v2/interfaces/ILevelMintingV2.sol";
+    ILevelMintingV2Structs,
+    ILevelMintingV2Events
+} from "@level/src/v2/interfaces/level/ILevelMintingV2.sol";
 import {Utils} from "@level/test/utils/Utils.sol";
 import {Configurable} from "@level/config/Configurable.sol";
 import {DeployLevel} from "@level/script/v2/DeployLevel.s.sol";
@@ -17,15 +18,18 @@ import {ERC20} from "@solmate/src/tokens/ERC20.sol";
 import {MockOracle} from "@level/test/v2/mocks/MockOracle.sol";
 import {SafeTransferLib} from "@solmate/src/utils/SafeTransferLib.sol";
 import {lvlUSD} from "@level/src/v1/lvlUSD.sol";
+import {MathLib} from "@level/src/v2/common/libraries/MathLib.sol";
 
 contract LevelMintingV2CoreTests is Utils, Configurable {
     using SafeTransferLib for ERC20;
+    using MathLib for uint256;
 
     Vm.Wallet private deployer;
     Vm.Wallet private normalUser;
     Vm.Wallet private denylistedUser;
     Vm.Wallet private alice;
     Vm.Wallet private bob;
+    Vm.Wallet private pauser;
 
     address public MAINNET_DAI = 0x6b175474e89094c44dA98b95B7002f2956889026;
 
@@ -47,6 +51,8 @@ contract LevelMintingV2CoreTests is Utils, Configurable {
         vm.label(alice.addr, "alice");
         bob = vm.createWallet("bob");
         vm.label(bob.addr, "bob");
+        pauser = vm.createWallet("pauser");
+        vm.label(pauser.addr, "pauser");
 
         DeployLevel deployScript = new DeployLevel();
 
@@ -66,14 +72,15 @@ contract LevelMintingV2CoreTests is Utils, Configurable {
 
         mockOracle = new MockOracle(1e8, 8);
 
-        address[] memory targets = new address[](5);
+        address[] memory targets = new address[](6);
         targets[0] = address(config.levelContracts.levelMintingV2);
         targets[1] = address(config.levelContracts.levelMintingV2);
         targets[2] = address(config.levelContracts.rolesAuthority);
         targets[3] = address(config.levelContracts.rolesAuthority);
         targets[4] = address(config.levelContracts.rolesAuthority);
+        targets[5] = address(config.levelContracts.rolesAuthority);
 
-        bytes[] memory payloads = new bytes[](5);
+        bytes[] memory payloads = new bytes[](6);
         payloads[0] = abi.encodeWithSignature(
             "addOracle(address,address,bool)", address(config.tokens.usdc), address(mockOracle), false
         );
@@ -85,7 +92,8 @@ contract LevelMintingV2CoreTests is Utils, Configurable {
         payloads[3] =
             abi.encodeWithSignature("setUserRole(address,uint8,bool)", address(alice.addr), REDEEMER_ROLE, true);
         payloads[4] = abi.encodeWithSignature("setUserRole(address,uint8,bool)", address(bob.addr), REDEEMER_ROLE, true);
-
+        payloads[5] =
+            abi.encodeWithSignature("setUserRole(address,uint8,bool)", address(pauser.addr), PAUSER_ROLE, true);
         _scheduleAndExecuteAdminActionBatch(
             config.users.admin, address(config.levelContracts.adminTimelock), targets, payloads
         );
@@ -142,6 +150,73 @@ contract LevelMintingV2CoreTests is Utils, Configurable {
         assertEq(config.tokens.lvlUsd.balanceOf(normalUser.addr), mintAmount);
         assertApproxEqAbs(
             config.tokens.aUsdc.balanceOf(address(config.levelContracts.boringVault)), collateralAmount, 1
+        );
+    }
+
+    function test_mint_when_vault_is_paused() public {
+        // Pause VaultManager
+        vm.prank(pauser.addr);
+        config.levelContracts.pauserGuard.pauseGroup(keccak256("VAULT_MANAGER_PAUSE"));
+
+        // Check all 4 functions are paused
+        assertEq(
+            config.levelContracts.pauserGuard.isPaused(
+                address(config.levelContracts.vaultManager), config.levelContracts.vaultManager.deposit.selector
+            ),
+            true,
+            "deposit is not paused"
+        );
+        assertEq(
+            config.levelContracts.pauserGuard.isPaused(
+                address(config.levelContracts.vaultManager), config.levelContracts.vaultManager.withdraw.selector
+            ),
+            true,
+            "withdraw is not paused"
+        );
+        assertEq(
+            config.levelContracts.pauserGuard.isPaused(
+                address(config.levelContracts.vaultManager), config.levelContracts.vaultManager.depositDefault.selector
+            ),
+            true,
+            "depositDefault is not paused"
+        );
+        assertEq(
+            config.levelContracts.pauserGuard.isPaused(
+                address(config.levelContracts.vaultManager), config.levelContracts.vaultManager.withdrawDefault.selector
+            ),
+            true,
+            "withdrawDefault is not paused"
+        );
+
+        // Mint
+        ILevelMintingV2Structs.Order memory order_ =
+            mint_setup_inffApprovals(normalUser.addr, normalUser.addr, address(config.tokens.usdc), 1e18, 1e6);
+
+        // Check if DepositDefaultFailed event is emitted
+        vm.expectEmit(true, true, true, false);
+        emit ILevelMintingV2Events.DepositDefaultFailed(normalUser.addr, address(config.tokens.usdc), 1e6);
+
+        vm.startPrank(normalUser.addr);
+        levelMinting.mint(order_);
+
+        assertEq(config.tokens.lvlUsd.balanceOf(normalUser.addr), 1e18);
+        assertApproxEqAbs(config.tokens.usdc.balanceOf(address(config.levelContracts.boringVault)), 1e6, 1);
+
+        // Test initiateRedeem when vault is paused
+        vm.expectEmit(true, true, true, false);
+        emit ILevelMintingV2Events.WithdrawDefaultFailed(normalUser.addr, address(config.tokens.usdc), 1e6);
+
+        (, uint256 collateralAmountOnInitiate) = levelMinting.initiateRedeem(address(config.tokens.usdc), 1e18, 1e6);
+
+        assertEq(
+            config.tokens.usdc.balanceOf(address(levelMinting.silo())),
+            collateralAmountOnInitiate,
+            "Silo USDC balance is wrong"
+        );
+        assertEq(
+            levelMinting.pendingRedemption(normalUser.addr, address(config.tokens.usdc)),
+            collateralAmountOnInitiate,
+            "Pending redemption is wrong"
         );
     }
 
@@ -280,6 +355,7 @@ contract LevelMintingV2CoreTests is Utils, Configurable {
 
         address usdcMinter = normalUser.addr;
         address usdtMinter = alice.addr;
+
         address allCollateralMinter = bob.addr;
 
         ILevelMintingV2Structs.Order memory order_USDC =
@@ -359,34 +435,48 @@ contract LevelMintingV2CoreTests is Utils, Configurable {
             levelMinting.initiateRedeem(address(config.tokens.usdt), lvlUsdToRedeemForAllCollateralMinter, minUsdt);
         vm.stopPrank();
 
+        console2.log("usdcBalance after initiate redeem", config.tokens.usdc.balanceOf(usdcMinter));
+        console2.log("usdtBalance after initiate redeem", config.tokens.usdt.balanceOf(usdtMinter));
+
         assertEq(
             levelMinting.pendingRedemption(usdcMinter, address(config.tokens.usdc)),
             usdcAmountOnInitiate,
-            "Pending redemption is wrong"
+            "Pending redemption after initiate redeem is wrong"
         );
         assertEq(
             levelMinting.pendingRedemption(usdtMinter, address(config.tokens.usdt)),
             usdtAmountOnInitiate,
-            "Pending redemption is wrong"
+            "Pending redemption after initiate redeem is wrong"
         );
 
         assertEq(
             levelMinting.pendingRedemption(allCollateralMinter, address(config.tokens.usdc)),
             allCollateralAmountOnInitiate_USDC,
-            "Pending redemption is wrong"
+            "Pending redemption after initiate redeem is wrong"
         );
         assertEq(
             levelMinting.pendingRedemption(allCollateralMinter, address(config.tokens.usdt)),
             allCollateralAmountOnInitiate_USDT,
-            "Pending redemption is wrong"
+            "Pending redemption after initiate redeem is wrong"
         );
 
         vm.warp(block.timestamp + 5 minutes);
         vm.prank(usdcMinter);
-        uint256 usdcAmountOnComplete = levelMinting.completeRedeem(address(config.tokens.usdc), normalUser.addr);
+        uint256 usdcAmountOnComplete = levelMinting.completeRedeem(address(config.tokens.usdc), usdcMinter);
 
         vm.prank(usdtMinter);
-        uint256 usdtAmountOnComplete = levelMinting.completeRedeem(address(config.tokens.usdt), normalUser.addr);
+        uint256 usdtAmountOnComplete = levelMinting.completeRedeem(address(config.tokens.usdt), usdtMinter);
+
+        assertEq(
+            levelMinting.pendingRedemption(usdcMinter, address(config.tokens.usdc)),
+            0,
+            "Pending redemption after complete redeem is wrong"
+        );
+        assertEq(
+            levelMinting.pendingRedemption(usdtMinter, address(config.tokens.usdt)),
+            0,
+            "Pending redemption after complete redeem is wrong"
+        );
 
         assertEq(
             config.tokens.lvlUsd.balanceOf(usdcMinter),
@@ -405,12 +495,11 @@ contract LevelMintingV2CoreTests is Utils, Configurable {
             "LVLUSD balance is wrong after redeem"
         );
 
-        // TODO: reenable
-        // assertEq(
-        //     config.tokens.usdt.balanceOf(usdtMinter),
-        //     INITIAL_BALANCE - toMint + usdtAmountOnComplete,
-        //     "USDT balance is wrong after redeem"
-        // );
+        assertEq(
+            config.tokens.usdt.balanceOf(usdtMinter),
+            INITIAL_BALANCE - toMint + usdtAmountOnComplete,
+            "USDT balance is wrong after redeem"
+        );
 
         assertEq(
             levelMinting.pendingRedemption(allCollateralMinter, address(config.tokens.usdc)),

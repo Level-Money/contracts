@@ -55,14 +55,21 @@ contract Utils is Test {
         vm.selectFork(forkId);
     }
 
-    function _scheduleAdminAction(address admin, address _timelock, address target, bytes memory data) internal {
+    function _scheduleAdminAction(address admin, address _timelock, address target, bytes memory data)
+        internal
+        returns (bytes32)
+    {
         vm.startPrank(admin);
 
         TimelockController timelock = TimelockController(payable(_timelock));
 
         timelock.schedule(target, 0, data, bytes32(0), 0, 5 days);
 
+        bytes32 id = timelock.hashOperation(target, 0, data, bytes32(0), 0);
+
         vm.stopPrank();
+
+        return id;
     }
 
     function _executeAdminAction(address admin, address _timelock, address target, bytes memory data) internal {
@@ -129,7 +136,7 @@ contract Utils is Test {
 
     /// Useful function to check balance of tokens that don't conform
     /// to the ERC20 standard
-    function checkBalance(address token, address account) external returns (uint256) {
+    function checkBalance(address token, address account) external view returns (uint256) {
         // The function selector for balanceOf(address)
         bytes4 selector = bytes4(keccak256("balanceOf(address)"));
 

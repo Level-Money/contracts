@@ -34,6 +34,9 @@ interface ILevelMintingV2Events {
     /// @notice Event emitted when the max redeem per block is changed
     event MaxRedeemPerBlockChanged(uint256 indexed oldMaxRedeemPerBlock, uint256 indexed newMaxRedeemPerBlock);
 
+    /// @notice Event emitted when the base collateral is added
+    event BaseCollateralUpdated(address indexed asset, bool isBaseCollateral);
+
     /// @notice Event emitted when a supported asset is added
     event AssetAdded(address indexed asset);
 
@@ -55,12 +58,16 @@ interface ILevelMintingV2Events {
     event HeartBeatSet(address collateral, uint256 heartBeat);
 
     event OracleAdded(address collateral, address oracle);
+    event OracleRemoved(address collateral);
 
     event VaultManagerSet(address vault, address oldVaultManager);
 
     event MintRedeemDisabled();
 
-    event WithdrawalSucceeded(address user, address asset, uint256 collateralAmount);
+    event DepositDefaultSucceeded(address user, address collateral, uint256 amount);
+    event DepositDefaultFailed(address user, address collateral, uint256 amount);
+
+    event WithdrawDefaultSucceeded(address user, address asset, uint256 collateralAmount);
     event WithdrawDefaultFailed(address user, address asset, uint256 collateralAmount);
 }
 
@@ -80,6 +87,8 @@ interface ILevelMintingV2Errors {
     error MinimumCollateralAmountNotMet();
     error HeartBeatNotSet();
     error ExceedsMaxBlockLimit();
+    error InvalidCollateral();
+    error RedemptionAssetMustBeBaseCollateral();
 }
 
 interface ILevelMintingV2 is ILevelMintingV2Events, ILevelMintingV2Errors, ILevelMintingV2Structs {
@@ -90,4 +99,18 @@ interface ILevelMintingV2 is ILevelMintingV2Events, ILevelMintingV2Errors, ILeve
         returns (uint256, uint256);
 
     function completeRedeem(address asset, address beneficiary) external returns (uint256);
+
+    function setVaultManager(address _vaultManager) external;
+    function setMaxMintPerBlock(uint256 _maxMintPerBlock) external;
+    function setMaxRedeemPerBlock(uint256 _maxRedeemPerBlock) external;
+    function setCooldownDuration(uint256 newduration) external;
+    function disableMintRedeem() external;
+    function addMintableAsset(address asset) external;
+    function removeMintableAsset(address asset) external;
+    function addRedeemableAsset(address asset) external;
+    function removeRedeemableAsset(address asset) external;
+    function setBaseCollateral(address asset, bool isBase) external;
+    function addOracle(address collateral, address oracle, bool _isLevelOracle) external;
+    function removeOracle(address collateral) external;
+    function setHeartBeat(address collateral, uint256 heartBeat) external;
 }

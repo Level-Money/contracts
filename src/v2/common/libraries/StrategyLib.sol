@@ -30,8 +30,6 @@ struct StrategyConfig {
 library StrategyLib {
     using MathLib for uint256;
 
-    function getId() public view returns (bytes32 id) {}
-
     function getAssets(StrategyConfig[] memory configs, address vault) internal view returns (uint256 assets_) {
         for (uint256 i = 0; i < configs.length; i++) {
             assets_ += getAssets(configs[i], vault);
@@ -58,10 +56,4 @@ library StrategyLib {
 
         return assets_;
     }
-
-    function getWithdrawableAssets()
-        internal
-        view
-        returns (StrategyConfig memory config, uint256 withdrawableAssets_)
-    {}
 }

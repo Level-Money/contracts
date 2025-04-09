@@ -4,9 +4,7 @@ pragma solidity ^0.8.0;
 import {AggregatorV3Interface} from "@level/src/v2/interfaces/AggregatorV3Interface.sol";
 import {IERC4626Oracle} from "@level/src/v2/interfaces/level/IERC4626Oracle.sol";
 
-import {console2} from "forge-std/console2.sol";
 /// @title OracleLib
-
 library OracleLib {
     function getPriceAndDecimals(address oracle, uint256 heartBeat)
         internal

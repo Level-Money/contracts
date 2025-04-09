@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
-import {ILevelMintingV2} from "@level/src/v2/interfaces/ILevelMintingV2.sol";
+import {ILevelMintingV2} from "@level/src/v2/interfaces/level/ILevelMintingV2.sol";
 import {ERC20} from "@solmate/src/tokens/ERC20.sol";
 import {VaultManager} from "@level/src/v2/usd/VaultManager.sol";
 import {Silo} from "@level/src/v2/usd/Silo.sol";
-import {IlvlUSD} from "@level/src/v2/interfaces/IlvlUSD.sol";
+import {IlvlUSD} from "@level/src/v2/interfaces/level/IlvlUSD.sol";
 
 abstract contract LevelMintingV2Storage is ILevelMintingV2 {
     /* --------------- GLOBAL VARIABLES --------------- */
@@ -38,6 +38,9 @@ abstract contract LevelMintingV2Storage is ILevelMintingV2 {
     /// @notice lvlusd stablecoin
     IlvlUSD public constant lvlusd = IlvlUSD(0x7C1156E515aA1A2E851674120074968C905aAF37);
     uint8 public constant LVLUSD_DECIMAL = 18;
+
+    // asset => isBaseCollateral
+    mapping(address => bool) public isBaseCollateral;
 
     constructor() {}
 

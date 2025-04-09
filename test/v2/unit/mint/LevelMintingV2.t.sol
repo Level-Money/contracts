@@ -5,8 +5,7 @@ import {stdStorage, StdStorage, Test, Vm} from "forge-std/Test.sol";
 import {console2} from "forge-std/console2.sol";
 
 import {LevelMintingV2} from "@level/src/v2/LevelMintingV2.sol";
-import {ILevelMintingV2} from "@level/src/v2/interfaces/ILevelMintingV2.sol";
-import {ILevelMintingErrors} from "@level/test/v2/helpers/ILevelMintingErrors.sol";
+import {ILevelMintingV2, ILevelMintingV2Structs} from "@level/src/v2/interfaces/level/ILevelMintingV2.sol";
 import {Utils} from "@level/test/utils/Utils.sol";
 import {Configurable} from "@level/config/Configurable.sol";
 import {DeployLevel} from "@level/script/v2/DeployLevel.s.sol";
@@ -23,9 +22,12 @@ import {AggregatorV3Interface} from "@level/src/v2/interfaces/AggregatorV3Interf
 
 import {ERC4626DelayedOracle} from "@level/src/v2/oracles/ERC4626DelayedOracle.sol";
 import {StrategyCategory, StrategyConfig} from "@level/src/v2/common/libraries/StrategyLib.sol";
+import {Silo} from "@level/src/v2/usd/Silo.sol";
+import {MockVaultManager} from "@level/test/v2/mocks/MockVaultManager.sol";
 
 contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
     using SafeTransferLib for ERC20;
+    using MathLib for uint256;
 
     Vm.Wallet private deployer;
     Vm.Wallet private normalUser;
@@ -142,7 +144,7 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
 
     function test_removeRedeemableAsset_succeeds() public {
         vm.startPrank(config.users.admin);
-        levelMinting.removeRedeemableAssets(address(mockUsdcERC4626));
+        levelMinting.removeRedeemableAsset(address(mockUsdcERC4626));
         vm.stopPrank();
 
         assertEq(levelMinting.redeemableAssets(address(mockUsdcERC4626)), false);
@@ -151,7 +153,7 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
     function test_removeRedeemableAsset_failsIfNotAdmin() public {
         vm.startPrank(normalUser.addr);
         vm.expectRevert("UNAUTHORIZED");
-        levelMinting.removeRedeemableAssets(address(mockUsdcERC4626));
+        levelMinting.removeRedeemableAsset(address(mockUsdcERC4626));
         vm.stopPrank();
     }
 
@@ -233,5 +235,83 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
             address(levelMinting),
             abi.encodeWithSignature("addRedeemableAsset(address)", address(mockUsdcERC4626))
         );
+    }
+
+    function test_silo_cannotBeCalledByNormalUser() public {
+        vm.startPrank(normalUser.addr);
+
+        Silo silo = levelMinting.silo();
+        vm.expectRevert();
+        silo.withdraw(normalUser.addr, address(config.tokens.usdc), 100);
+        vm.stopPrank();
+    }
+
+    function test_depositDefaultFailure_doesNotBlockMint() public {
+        deal(address(config.tokens.usdc), normalUser.addr, 100);
+
+        MockVaultManager mockVaultManager = new MockVaultManager(address(config.levelContracts.boringVault));
+        _scheduleAndExecuteAdminAction(
+            config.users.admin,
+            address(config.levelContracts.adminTimelock),
+            address(levelMinting),
+            abi.encodeWithSignature("setVaultManager(address)", address(mockVaultManager))
+        );
+
+        mockVaultManager.setShouldDepositDefaultRevert(true);
+
+        vm.startPrank(normalUser.addr);
+        config.tokens.usdc.approve(address(mockVaultManager.vault()), 100);
+        levelMinting.mint(
+            ILevelMintingV2Structs.Order({
+                beneficiary: normalUser.addr,
+                collateral_asset: address(config.tokens.usdc),
+                collateral_amount: 100,
+                lvlusd_amount: 0
+            })
+        );
+
+        /// Mint should succeed despite depositDefault reverting
+        assertEq(
+            config.tokens.lvlUsd.balanceOf(normalUser.addr),
+            MathLib.convertDecimalsDown(100, config.tokens.usdc.decimals(), config.tokens.lvlUsd.decimals())
+        );
+        assertEq(config.tokens.usdc.balanceOf(address(config.levelContracts.boringVault)), 100);
+    }
+
+    function test_withdrawDefaultFailure_doesNotBlockRedemption() public {
+        uint256 collateralAmount = 100;
+        deal(address(config.tokens.usdc), normalUser.addr, collateralAmount);
+
+        MockVaultManager mockVaultManager = new MockVaultManager(address(config.levelContracts.boringVault));
+        _scheduleAndExecuteAdminAction(
+            config.users.admin,
+            address(config.levelContracts.adminTimelock),
+            address(levelMinting),
+            abi.encodeWithSignature("setVaultManager(address)", address(mockVaultManager))
+        );
+
+        mockVaultManager.setShouldDepositDefaultRevert(true);
+
+        vm.startPrank(normalUser.addr);
+        config.tokens.usdc.approve(address(mockVaultManager.vault()), collateralAmount);
+        levelMinting.mint(
+            ILevelMintingV2Structs.Order({
+                beneficiary: normalUser.addr,
+                collateral_asset: address(config.tokens.usdc),
+                collateral_amount: collateralAmount,
+                lvlusd_amount: 0
+            })
+        );
+
+        uint256 lvlUsdAmount =
+            collateralAmount.convertDecimalsDown(config.tokens.usdc.decimals(), config.tokens.lvlUsd.decimals());
+
+        mockVaultManager.setShouldWithdrawDefaultRevert(true);
+
+        config.tokens.lvlUsd.approve(address(levelMinting), lvlUsdAmount);
+        levelMinting.initiateRedeem(address(config.tokens.usdc), lvlUsdAmount, 0);
+
+        /// Redemptions should still succeed despite withdrawDefault reverting
+        assertEq(config.tokens.lvlUsd.balanceOf(normalUser.addr), 0);
     }
 }

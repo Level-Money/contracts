@@ -544,7 +544,7 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         assertApproxEqRel(
             asset.balanceOf(address(config.levelContracts.boringVault)),
             INITIAL_BALANCE - deposit + withdrawal,
-            0.0001e18,
+            0.000001e18,
             "Wrong amount of underlying"
         );
 

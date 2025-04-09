@@ -17,6 +17,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AggregatorV3Interface} from "@level/src/v2/interfaces/AggregatorV3Interface.sol";
 import {VaultLib} from "@level/src/v2/common/libraries/VaultLib.sol";
 import {BoringVault} from "@level/src/v2/usd/BoringVault.sol";
+import {IRewardsManagerErrors} from "@level/src/v2/interfaces/level/IRewardsManager.sol";
 
 contract RewardsManagerMainnetTests is Utils, Configurable {
     using SafeTransferLib for ERC20;
@@ -86,11 +87,12 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         vaultManager = config.levelContracts.vaultManager;
     }
 
-    function test_rewardYield_noYield_succeeds() public {
+    function test_rewardYield_noYield_reverts() public {
         vm.startPrank(strategist.addr);
 
         uint256 treasuryUsdcBalanceBefore = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
 
+        vm.expectRevert(IRewardsManagerErrors.NotEnoughYield.selector);
         rewardsManager.reward(assets);
 
         uint256 treasuryUsdcBalanceAfter = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
