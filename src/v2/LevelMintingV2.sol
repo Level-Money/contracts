@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.24;
+pragma solidity 0.8.28;
 
 import {UUPSUpgradeable} from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
@@ -8,16 +8,13 @@ import {AuthUpgradeable} from "@level/src/v2/auth/AuthUpgradeable.sol";
 import {VaultManager} from "@level/src/v2/usd/VaultManager.sol";
 import {Silo} from "@level/src/v2/usd/Silo.sol";
 import {MathLib} from "@level/src/v2/common/libraries/MathLib.sol";
-import {IlvlUSD} from "@level/src/v2/interfaces/IlvlUSD.sol";
-import {AggregatorV3Interface} from "@level/src/v2/interfaces/AggregatorV3Interface.sol";
-import {console2} from "forge-std/console2.sol";
-import {IERC4626Oracle} from "@level/src/v2/interfaces/level/IERC4626Oracle.sol";
 import {OracleLib} from "@level/src/v2/common/libraries/OracleLib.sol";
 import {LevelMintingV2Storage} from "@level/src/v2/LevelMintingV2Storage.sol";
 import {PauserGuarded} from "@level/src/v2/common/guard/PauserGuarded.sol";
 
 contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable, AuthUpgradeable, PauserGuarded {
     using MathLib for uint256;
+    using OracleLib for address;
 
     /* --------------- INITIALIZE --------------- */
 
@@ -56,22 +53,16 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
         silo = new Silo(address(this));
     }
 
-    /* --------------- EXTERNAL --------------- */
-
+    /* --------------- External --------------- */
     function mint(Order calldata order) external requiresAuth notPaused returns (uint256 lvlUsdMinted) {
         if (lvlusd.denylisted(msg.sender)) revert DenyListed();
         verifyOrder(order);
 
-        address underlyingAsset = vaultManager.getAssetFor(order.collateral_asset);
-        if (underlyingAsset == address(0)) revert UnsupportedAsset();
-
         if (isLevelOracle[order.collateral_asset]) {
-            bool hasUpdated = OracleLib._tryUpdateOracle(oracles[order.collateral_asset]);
+            oracles[order.collateral_asset]._tryUpdateOracle();
         }
 
-        uint256 underlyingAmount = computeUnderlying(order.collateral_asset, underlyingAsset, order.collateral_amount);
-
-        lvlUsdMinted = computeMint(underlyingAsset, underlyingAmount);
+        lvlUsdMinted = computeMint(order.collateral_asset, order.collateral_amount);
 
         mintedPerBlock[block.number] += lvlUsdMinted;
 
@@ -86,8 +77,13 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
             lvlUsdMinted
         );
 
-        if (vaultManager.getDefaultStrategies(order.collateral_asset).length > 0) {
-            vaultManager.depositDefault(order.collateral_asset, order.collateral_amount);
+        // Don't block mints if deposit default fails
+        // If the collateral asset is a receipt token, the underlying call to `vaultManager._deposit`
+        // will throw an error, which is caught in the try catch.
+        try vaultManager.depositDefault(order.collateral_asset, order.collateral_amount) {
+            emit DepositDefaultSucceeded(msg.sender, order.collateral_asset, order.collateral_amount);
+        } catch {
+            emit DepositDefaultFailed(msg.sender, order.collateral_asset, order.collateral_amount);
         }
 
         lvlusd.mint(order.beneficiary, lvlUsdMinted);
@@ -95,6 +91,7 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
         emit Mint(msg.sender, order.beneficiary, order.collateral_asset, order.collateral_amount, order.lvlusd_amount);
     }
 
+    // Redemptions must only occur in base assets
     function initiateRedeem(address asset, uint256 lvlUsdAmount, uint256 expectedAmount)
         external
         requiresAuth
@@ -102,6 +99,7 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
         returns (uint256, uint256)
     {
         if (!redeemableAssets[asset]) revert UnsupportedAsset();
+        if (!isBaseCollateral[asset]) revert RedemptionAssetMustBeBaseCollateral();
         if (lvlUsdAmount == 0) revert InvalidAmount();
 
         uint256 collateralAmount = computeRedeem(asset, lvlUsdAmount);
@@ -115,8 +113,9 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
 
         lvlusd.burnFrom(msg.sender, lvlUsdAmount);
 
+        // Don't block redemptions if withdraw default fails
         try vaultManager.withdrawDefault(asset, collateralAmount) {
-            emit WithdrawalSucceeded(msg.sender, asset, collateralAmount);
+            emit WithdrawDefaultSucceeded(msg.sender, asset, collateralAmount);
         } catch {
             emit WithdrawDefaultFailed(msg.sender, asset, collateralAmount);
         }
@@ -130,7 +129,6 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
         return (lvlUsdAmount, collateralAmount);
     }
 
-    // note ABI changed
     function completeRedeem(address asset, address beneficiary) external notPaused returns (uint256 collateralAmount) {
         if (!redeemableAssets[asset]) revert UnsupportedAsset();
         if (userCooldown[msg.sender][asset] + cooldownDuration > block.timestamp) revert StillInCooldown();
@@ -156,23 +154,50 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
         if (!mintableAssets[order.collateral_asset]) revert UnsupportedAsset();
         if (order.beneficiary == address(0)) revert InvalidAmount();
         if (order.collateral_amount == 0) revert InvalidAmount();
+
+        if (oracles[order.collateral_asset] == address(0)) revert UnsupportedAsset();
     }
 
-    function computeMint(address asset, uint256 collateralAmount) public view returns (uint256 lvlusdAmount) {
-        (int256 price, uint256 decimals) = getPriceAndDecimals(asset);
+    /// This function could take in either a base collateral (ie USDC/USDT) or a receipt token (ie Morpho vault share, aUSDC/T)
+    /// If we receive a receipt token, we need to first convert the receipt token to the amount of underlying it can be redeemd for
+    /// before applying the underlying's USD price and calculating the lvlUSD amount to mint
+    function computeMint(address collateralAsset, uint256 collateralAmount)
+        public
+        view
+        returns (uint256 lvlusdAmount)
+    {
+        address underlyingAsset;
 
-        if (price == 0) {
+        ERC20 collateralToken = ERC20(collateralAsset);
+        uint256 numerator = 10 ** LVLUSD_DECIMAL;
+        uint256 denominator = 10 ** collateralToken.decimals();
+
+        if (isBaseCollateral[collateralAsset]) {
+            underlyingAsset = collateralAsset;
+        } else if (oracles[collateralAsset] != address(0)) {
+            underlyingAsset = vaultManager.getUnderlyingAssetFor(collateralAsset);
+
+            (int256 collateralOraclePrice, uint256 collateralOracleDecimals) = getPriceAndDecimals(collateralAsset);
+
+            numerator *= uint256(collateralOraclePrice);
+            denominator *= 10 ** collateralOracleDecimals;
+        } else {
+            revert UnsupportedAsset();
+        }
+
+        (int256 underlyingPrice, uint256 underlyingPriceDecimals) = getPriceAndDecimals(underlyingAsset);
+        if (underlyingPrice == 0) {
             revert OraclePriceIsZero();
         }
 
-        uint8 asset_decimals = ERC20(asset).decimals();
-
-        if (uint256(price) < 10 ** decimals) {
-            uint256 adjustedCollateralAmount = collateralAmount.mulDivDown(uint256(price), 10 ** decimals);
-            return adjustedCollateralAmount.convertDecimalsDown(asset_decimals, LVLUSD_DECIMAL);
-        } else {
-            return collateralAmount.convertDecimalsDown(asset_decimals, LVLUSD_DECIMAL);
+        // If stablecoin is under peg, we first multiply the collateral amount by the price before converting to lvlusd amount to mint
+        // This helps ensure that lvlUSD is sufficiently collateralized in the event of sharp price movements down
+        if (uint256(underlyingPrice) < 10 ** underlyingPriceDecimals) {
+            numerator *= uint256(underlyingPrice);
+            denominator *= 10 ** underlyingPriceDecimals;
         }
+
+        return collateralAmount.mulDivDown(numerator, denominator);
     }
 
     function computeRedeem(address asset, uint256 lvlusdAmount) public view returns (uint256 collateralAmount) {
@@ -183,37 +208,13 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
 
         uint8 asset_decimals = ERC20(asset).decimals();
 
+        // If stablecoin is over peg, we first divide the collateral amount by the price before converting to lvlusd
+        // This helps ensure that lvlUSD is sufficiently collateralized in the event of sharp upward price movements
         if (uint256(price) > 10 ** decimals) {
             uint256 lvlUsdAdjustedForCollateralPrice = lvlusdAmount.mulDivDown(10 ** decimals, uint256(price));
             return lvlUsdAdjustedForCollateralPrice.convertDecimalsDown(LVLUSD_DECIMAL, asset_decimals);
         } else {
             return lvlusdAmount.convertDecimalsDown(LVLUSD_DECIMAL, asset_decimals);
-        }
-    }
-
-    // TODO: revisit and cleanup
-    function computeUnderlying(address collateral, address underlying, uint256 collateralAmount)
-        public
-        view
-        returns (uint256 underlyingAmount)
-    {
-        if (isBaseCollateral(collateral)) {
-            return collateralAmount;
-        } else if (isReceiptToken(collateral)) {
-            ERC20 collateralToken = ERC20(collateral);
-            ERC20 underlyingToken = ERC20(underlying);
-
-            uint256 collateralAmountWei = collateralAmount.convertDecimalsDown(collateralToken.decimals(), 18);
-            (int256 collateralPrice, uint256 decimals) = getPriceAndDecimals(collateral);
-
-            uint256 adjustedCollateralAmountWei =
-                collateralAmountWei.mulDivDown(uint256(collateralPrice), 10 ** decimals);
-
-            uint256 underlyingAmount_ = adjustedCollateralAmountWei.convertDecimalsDown(18, underlyingToken.decimals());
-
-            return underlyingAmount_;
-        } else {
-            revert("Invalid collateral");
         }
     }
 
@@ -225,15 +226,7 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
         uint256 heartBeat = heartbeats[collateralToken];
         if (heartBeat == 0) revert HeartBeatNotSet();
 
-        return OracleLib.getPriceAndDecimals(oracle, heartBeat);
-    }
-
-    function isBaseCollateral(address collateral) public view returns (bool) {
-        return vaultManager.isBaseCollateral(collateral);
-    }
-
-    function isReceiptToken(address collateral) public view returns (bool) {
-        return !isBaseCollateral(collateral) && oracles[collateral] != address(0);
+        return oracle.getPriceAndDecimals(heartBeat);
     }
 
     /* --------------- SETTERS --------------- */
@@ -258,23 +251,17 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
         emit MintRedeemDisabled();
     }
 
-    /// @notice Sets the max mintPerBlock limit
-    function _setMaxMintPerBlock(uint256 _maxMintPerBlock) internal {
-        uint256 oldMaxMintPerBlock = maxMintPerBlock;
-        maxMintPerBlock = _maxMintPerBlock;
-        emit MaxMintPerBlockChanged(oldMaxMintPerBlock, maxMintPerBlock);
-    }
+    function setBaseCollateral(address asset, bool isBase) public requiresAuth {
+        if (asset == address(0)) revert InvalidAddress();
+        isBaseCollateral[asset] = isBase;
 
-    /// @notice Sets the max redeemPerBlock limit
-    function _setMaxRedeemPerBlock(uint256 _maxRedeemPerBlock) internal {
-        uint256 oldMaxRedeemPerBlock = maxRedeemPerBlock;
-        maxRedeemPerBlock = _maxRedeemPerBlock;
-        emit MaxRedeemPerBlockChanged(oldMaxRedeemPerBlock, maxRedeemPerBlock);
+        emit BaseCollateralUpdated(asset, isBase);
     }
 
     /// @notice Adds an asset to the supported assets list.
     /// Callable by ADMIN_ROLE (admin timelock)
     function addMintableAsset(address asset) public requiresAuth {
+        if (asset == address(0)) revert InvalidAddress();
         mintableAssets[asset] = true;
         emit AssetAdded(asset);
     }
@@ -282,6 +269,7 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
     /// @notice Adds an asset to the redeemable assets list.
     /// Callable by ADMIN_ROLE (admin timelock)
     function addRedeemableAsset(address asset) public requiresAuth {
+        if (asset == address(0)) revert InvalidAddress();
         redeemableAssets[asset] = true;
         emit RedeemableAssetAdded(asset);
     }
@@ -295,16 +283,23 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
 
     /// @notice Removes an asset from the redeemable assets list
     // @notice Callable by ADMIN_MULTISIG_ROLE
-    function removeRedeemableAssets(address asset) external requiresAuth {
+    function removeRedeemableAsset(address asset) external requiresAuth {
         redeemableAssets[asset] = false;
         emit RedeemableAssetRemoved(asset);
     }
 
     function addOracle(address collateral, address oracle, bool _isLevelOracle) public requiresAuth {
-        if (oracle == address(0)) revert InvalidAddress();
+        if (collateral == address(0) || oracle == address(0)) revert InvalidAddress();
         oracles[collateral] = oracle;
         isLevelOracle[collateral] = _isLevelOracle;
         emit OracleAdded(collateral, oracle);
+    }
+
+    /// @notice Callable by ADMIN_ROLE (admin timelock)
+    function removeOracle(address collateral) public requiresAuth {
+        oracles[collateral] = address(0);
+        isLevelOracle[collateral] = false;
+        emit OracleRemoved(collateral);
     }
 
     function setHeartBeat(address collateral, uint256 heartBeat) public requiresAuth {
@@ -318,13 +313,26 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
         emit CooldownDurationSet(newduration);
     }
 
-    function setVaultManager(VaultManager _vault) external requiresAuth {
+    function setVaultManager(address _vaultManager) external requiresAuth {
         address oldVaultManager = address(vaultManager);
-        vaultManager = _vault;
-        emit VaultManagerSet(address(_vault), oldVaultManager);
+        vaultManager = VaultManager(_vaultManager);
+        emit VaultManagerSet(_vaultManager, oldVaultManager);
     }
 
     /* --------------- INTERNAL ----------- */
+    /// @notice Sets the max mintPerBlock limit
+    function _setMaxMintPerBlock(uint256 _maxMintPerBlock) internal {
+        uint256 oldMaxMintPerBlock = maxMintPerBlock;
+        maxMintPerBlock = _maxMintPerBlock;
+        emit MaxMintPerBlockChanged(oldMaxMintPerBlock, maxMintPerBlock);
+    }
+
+    /// @notice Sets the max redeemPerBlock limit
+    function _setMaxRedeemPerBlock(uint256 _maxRedeemPerBlock) internal {
+        uint256 oldMaxRedeemPerBlock = maxRedeemPerBlock;
+        maxRedeemPerBlock = _maxRedeemPerBlock;
+        emit MaxRedeemPerBlockChanged(oldMaxRedeemPerBlock, maxRedeemPerBlock);
+    }
 
     /* --------------- UUPS --------------- */
 

@@ -38,7 +38,7 @@ library VaultLib {
         return totalForAsset;
     }
 
-    function _withdrawBatch(BoringVault vault, StrategyConfig[] memory strategies, address asset, uint256 amount)
+    function _withdrawBatch(BoringVault vault, StrategyConfig[] memory strategies, uint256 amount)
         internal
         returns (uint256 withdrawn)
     {

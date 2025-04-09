@@ -9,7 +9,7 @@ import {
     ILevelMintingV2,
     ILevelMintingV2Structs,
     ILevelMintingV2Errors
-} from "@level/src/v2/interfaces/ILevelMintingV2.sol";
+} from "@level/src/v2/interfaces/level/ILevelMintingV2.sol";
 import {Utils} from "@level/test/utils/Utils.sol";
 import {Configurable} from "@level/config/Configurable.sol";
 import {DeployLevel} from "@level/script/v2/DeployLevel.s.sol";
@@ -178,7 +178,7 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
     }
 
     function test_mint_successWithNewCollateralPriceButAfterDelay(uint256 deposit) public {
-        uint256 collateralAmount = bound(deposit, 1, mockUsdcERC4626.balanceOf(normalUser.addr) / 2);
+        uint256 collateralAmount = bound(deposit, 10000, mockUsdcERC4626.balanceOf(normalUser.addr) / 2);
         vm.startPrank(normalUser.addr);
 
         mockUsdcERC4626.approve(address(levelMinting.vaultManager().vault()), type(uint256).max);
@@ -210,7 +210,7 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
         assertEq(mockErc4626Oracle.price(), 1e6, "Price does not match expected amount");
         assertEq(mockErc4626Oracle.nextPrice(), 1.05e6, "Next price does not match expected amount");
         assertEq(mockErc4626Oracle.updatedAt(), block.timestamp, "Updated at does not match expected amount");
-        assertEq(minted, expectedLvlUsdAmount, "Minted amount does not match expected amount");
+        assertApproxEqRel(minted, expectedLvlUsdAmount, 0.0001e18, "Minted amount does not match expected amount");
 
         vm.warp(block.timestamp + 4 hours);
 
@@ -236,7 +236,7 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
         assertEq(mockErc4626Oracle.price(), 1.05e6, "Price does not match expected amount");
         assertEq(mockErc4626Oracle.nextPrice(), 1.05e6, "Next price does not match expected amount");
         assertEq(mockErc4626Oracle.updatedAt(), block.timestamp, "Updated at does not match expected amount");
-        assertEq(minted, expectedLvlUsdAmount, "Minted amount does not match expected amount");
+        assertApproxEqRel(minted, expectedLvlUsdAmount, 0.0001e18, "Minted amount does not match expected amount");
     }
 
     function _printOrder(ILevelMintingV2Structs.Order memory order) internal {

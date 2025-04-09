@@ -29,7 +29,7 @@ contract MockTarget is PauserGuarded {
     }
 }
 
-contract PauserGuardTest is Test {
+contract PauserGuardUnitTests is Test {
     // Contract instances
     PauserGuard public pauserGuard;
     MockTarget public mockTarget;

@@ -6,7 +6,6 @@ import {IERC4626Oracle} from "@level/src/v2/interfaces/level/IERC4626Oracle.sol"
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 import {MathLib} from "@level/src/v2/common/libraries/MathLib.sol";
-import {console2} from "forge-std/console2.sol";
 
 // Adapted from https://github.com/Steakhouse-Financial/delayed-oracle/blob/main/src/DelayedERC4626Oracle.sol
 // Records the price of ERC4626 vault and returns the cached price

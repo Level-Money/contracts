@@ -9,7 +9,7 @@ import {
     ILevelMintingV2,
     ILevelMintingV2Structs,
     ILevelMintingV2Errors
-} from "@level/src/v2/interfaces/ILevelMintingV2.sol";
+} from "@level/src/v2/interfaces/level/ILevelMintingV2.sol";
 import {Utils} from "@level/test/utils/Utils.sol";
 import {Configurable} from "@level/config/Configurable.sol";
 import {DeployLevel} from "@level/script/v2/DeployLevel.s.sol";
@@ -227,8 +227,7 @@ contract LevelMintingV2ReceiptTests is Utils, Configurable {
 
         uint256 adjustedExpectedMinted = expectedMinted.mulDivDown(uint256(underlyingPrice), 10 ** underlyingDecimals);
 
-        // TODO: tighten this slippage
-        assertApproxEqRel(minted, adjustedExpectedMinted, 0.001e18, "Minted amount does not match expected amount");
+        assertApproxEqRel(minted, adjustedExpectedMinted, 0.000001e18, "Minted amount does not match expected amount");
 
         vm.stopPrank();
     }

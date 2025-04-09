@@ -36,6 +36,59 @@ contract VerifyDeployment is Utils, Configurable {
         assertEq(config.levelContracts.pauserGuard.owner(), address(config.levelContracts.adminTimelock));
     }
 
+    function test__timelockOnlyOwnsItself() public {
+        assertTrue(
+            config.levelContracts.adminTimelock.hasRole(
+                config.levelContracts.adminTimelock.DEFAULT_ADMIN_ROLE(), address(config.levelContracts.adminTimelock)
+            )
+        );
+
+        assertFalse(
+            config.levelContracts.adminTimelock.hasRole(
+                config.levelContracts.adminTimelock.DEFAULT_ADMIN_ROLE(), address(config.users.deployer)
+            )
+        );
+
+        assertFalse(
+            config.levelContracts.adminTimelock.hasRole(
+                config.levelContracts.adminTimelock.DEFAULT_ADMIN_ROLE(), address(config.users.admin)
+            )
+        );
+    }
+
+    function test__adminCanProposeAndCancel() public {
+        bytes32 id = _scheduleAdminAction(
+            config.users.admin,
+            address(config.levelContracts.adminTimelock),
+            address(config.levelContracts.adminTimelock),
+            abi.encodeWithSignature("updateDelay(uint256)", 1)
+        );
+
+        assertTrue(config.levelContracts.adminTimelock.isOperationPending(id));
+
+        vm.startPrank(config.users.admin);
+        config.levelContracts.adminTimelock.cancel(id);
+        vm.stopPrank();
+
+        assertFalse(config.levelContracts.adminTimelock.isOperationPending(id));
+    }
+
+    function test__onlyTimelockCanUpdateDelay() public {
+        vm.prank(config.users.admin);
+
+        vm.expectRevert();
+        config.levelContracts.adminTimelock.updateDelay(1);
+
+        _scheduleAndExecuteAdminAction(
+            config.users.admin,
+            address(config.levelContracts.adminTimelock),
+            address(config.levelContracts.adminTimelock),
+            abi.encodeWithSignature("updateDelay(uint256)", 1)
+        );
+
+        assertEq(config.levelContracts.adminTimelock.getMinDelay(), 1);
+    }
+
     function test__allContractsHaveCorrectAuthority() public {
         // Only owner should be able to call RolesAuthority functions
         assertEq(address(config.levelContracts.rolesAuthority.authority()), address(0));
@@ -78,80 +131,59 @@ contract VerifyDeployment is Utils, Configurable {
     }
 
     function test__vaultManager__hasCorrectRoles() public {
-        assertEq(
-            config.levelContracts.rolesAuthority.doesUserHaveRole(
-                address(config.levelContracts.vaultManager), VAULT_MANAGER_ROLE
-            ),
-            true
-        );
-        assertEq(
-            config.levelContracts.rolesAuthority.doesUserHaveRole(
-                address(config.levelContracts.levelMintingV2), VAULT_MINTER_ROLE
-            ),
-            true
-        );
-        assertEq(
-            config.levelContracts.rolesAuthority.doesUserHaveRole(
-                address(config.levelContracts.levelMintingV2), VAULT_REDEEMER_ROLE
-            ),
-            true
-        );
+        _doesUserHaveRole(address(config.levelContracts.vaultManager), VAULT_MANAGER_ROLE);
+
+        _doesUserHaveRole(config.users.operator, STRATEGIST_ROLE);
+    }
+
+    function test__levelMintingV2__hasCorrectRoles() public {
+        _doesUserHaveRole(address(config.levelContracts.levelMintingV2), VAULT_MINTER_ROLE);
+        _doesUserHaveRole(address(config.levelContracts.levelMintingV2), VAULT_REDEEMER_ROLE);
+    }
+
+    function test__rewardsManager__hasCorrectRoles() public {
+        _doesUserHaveRole(address(config.levelContracts.rewardsManager), VAULT_MANAGER_ROLE);
+        _doesUserHaveRole(address(config.levelContracts.rewardsManager), VAULT_REDEEMER_ROLE);
+
+        _doesUserHaveRole(config.users.operator, REWARDER_ROLE);
     }
 
     function test__pauserGuard__hasCorrectRoles() public {
         // Check if addresses have the correct roles
-        assertEq(config.levelContracts.rolesAuthority.doesUserHaveRole(address(config.users.admin), PAUSER_ROLE), true);
-        assertEq(
-            config.levelContracts.rolesAuthority.doesUserHaveRole(address(config.users.operator), PAUSER_ROLE), true
-        );
-        assertEq(
-            config.levelContracts.rolesAuthority.doesUserHaveRole(
-                address(config.users.hexagateGatekeepers[0]), PAUSER_ROLE
-            ),
-            true
-        );
-        assertEq(
-            config.levelContracts.rolesAuthority.doesUserHaveRole(
-                address(config.users.hexagateGatekeepers[1]), PAUSER_ROLE
-            ),
-            true
-        );
-        assertEq(
-            config.levelContracts.rolesAuthority.doesUserHaveRole(address(config.users.admin), UNPAUSER_ROLE), true
-        );
+        _doesUserHaveRole(address(config.users.admin), PAUSER_ROLE);
+        _doesUserHaveRole(address(config.users.operator), PAUSER_ROLE);
+        _doesUserHaveRole(address(config.users.hexagateGatekeepers[0]), PAUSER_ROLE);
+        _doesUserHaveRole(address(config.users.hexagateGatekeepers[1]), PAUSER_ROLE);
+        _doesUserHaveRole(address(config.users.admin), UNPAUSER_ROLE);
 
         // Check if roles have been set correctly
-        assertEq(
-            config.levelContracts.rolesAuthority.doesRoleHaveCapability(
-                PAUSER_ROLE,
-                address(config.levelContracts.pauserGuard),
-                bytes4(abi.encodeWithSignature("pauseGroup(bytes32)"))
-            ),
-            true
+        _doesRoleHaveCapability(
+            address(config.levelContracts.pauserGuard),
+            PAUSER_ROLE,
+            bytes4(abi.encodeWithSignature("pauseGroup(bytes32)"))
         );
-        assertEq(
-            config.levelContracts.rolesAuthority.doesRoleHaveCapability(
-                UNPAUSER_ROLE,
-                address(config.levelContracts.pauserGuard),
-                bytes4(abi.encodeWithSignature("unpauseGroup(bytes32)"))
-            ),
-            true
+        _doesRoleHaveCapability(
+            address(config.levelContracts.pauserGuard),
+            UNPAUSER_ROLE,
+            bytes4(abi.encodeWithSignature("unpauseGroup(bytes32)"))
         );
-        assertEq(
-            config.levelContracts.rolesAuthority.doesRoleHaveCapability(
-                PAUSER_ROLE,
-                address(config.levelContracts.pauserGuard),
-                bytes4(abi.encodeWithSignature("pauseSelector(address,bytes4)"))
-            ),
-            true
+        _doesRoleHaveCapability(
+            address(config.levelContracts.pauserGuard),
+            PAUSER_ROLE,
+            bytes4(abi.encodeWithSignature("pauseSelector(address,bytes4)"))
         );
-        assertEq(
-            config.levelContracts.rolesAuthority.doesRoleHaveCapability(
-                UNPAUSER_ROLE,
-                address(config.levelContracts.pauserGuard),
-                bytes4(abi.encodeWithSignature("unpauseSelector(address,bytes4)"))
-            ),
-            true
+        _doesRoleHaveCapability(
+            address(config.levelContracts.pauserGuard),
+            UNPAUSER_ROLE,
+            bytes4(abi.encodeWithSignature("unpauseSelector(address,bytes4)"))
         );
+    }
+
+    function _doesUserHaveRole(address user, uint8 role) internal {
+        assertEq(config.levelContracts.rolesAuthority.doesUserHaveRole(user, role), true);
+    }
+
+    function _doesRoleHaveCapability(address contractAddress, uint8 role, bytes4 capability) internal {
+        assertEq(config.levelContracts.rolesAuthority.doesRoleHaveCapability(role, contractAddress, capability), true);
     }
 }

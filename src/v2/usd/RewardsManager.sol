@@ -9,8 +9,8 @@ import {MathLib} from "@level/src/v2/common/libraries/MathLib.sol";
 import {BoringVault} from "@level/src/v2/usd/BoringVault.sol";
 import {VaultLib} from "@level/src/v2/common/libraries/VaultLib.sol";
 import {StrategyConfig} from "@level/src/v2/common/libraries/StrategyLib.sol";
-import {console2} from "forge-std/console2.sol";
 import {RewardsManagerStorage} from "@level/src/v2/usd/RewardsManagerStorage.sol";
+import {IRewardsManager} from "@level/src/v2/interfaces/level/IRewardsManager.sol";
 
 contract RewardsManager is RewardsManagerStorage, Initializable, UUPSUpgradeable, AuthUpgradeable {
     using VaultLib for BoringVault;
@@ -26,33 +26,56 @@ contract RewardsManager is RewardsManagerStorage, Initializable, UUPSUpgradeable
         __Auth_init(admin_, address(0));
     }
 
-    /// Only callable by admin timelock
-    function setVault(address vault_) external requiresAuth {
-        vault = BoringVault(payable(vault_));
-        // emit VaultAddressChanged();
-    }
-
-    /// Only callable by admin timelock
-    function setTreasury(address treasury_) external requiresAuth {
-        treasury = treasury_;
-    }
-
-    // Fetches the accrued yield across all assets and sends it to the rewarder contract
-    // Callable by HARVESTER_ROLE. LevelMinting should have this role
+    // ----- External --------
+    /// @inheritdoc IRewardsManager
     function reward(address[] calldata assets) external requiresAuth {
         uint256 accrued = getAccruedYield(assets);
         address redemptionAsset = assets[0];
-        if (accrued > 0) {
-            uint256 accruedAsset = accrued.convertDecimalsDown(vault.decimals(), ERC20(redemptionAsset).decimals());
 
-            uint256 withdrawn = vault._withdrawBatch(allStrategies[redemptionAsset], redemptionAsset, accruedAsset);
-
-            vault.exit(treasury, ERC20(redemptionAsset), accruedAsset, address(vault), 0);
+        if (accrued == 0) {
+            revert NotEnoughYield();
         }
-        // emit RewardsExecuted();
+
+        uint256 accruedAssets = accrued.convertDecimalsDown(vault.decimals(), ERC20(redemptionAsset).decimals());
+
+        vault._withdrawBatch(allStrategies[redemptionAsset], accruedAssets);
+
+        vault.exit(treasury, ERC20(redemptionAsset), accruedAssets, address(vault), 0);
+
+        emit Rewarded(redemptionAsset, treasury, accruedAssets);
     }
 
-    // Gets the amount of excess yield accrued to this contract, in the vault share's decimals
+    //------- Setters ---------
+
+    /// @inheritdoc IRewardsManager
+    function setVault(address vault_) external requiresAuth {
+        address from = address(vault);
+        vault = BoringVault(payable(vault_));
+        emit VaultUpdated(from, vault_);
+    }
+
+    /// @inheritdoc IRewardsManager
+    function setTreasury(address treasury_) external requiresAuth {
+        address from = address(treasury);
+        treasury = treasury_;
+        emit TreasuryUpdated(from, treasury_);
+    }
+
+    /// @inheritdoc IRewardsManager
+    function setAllStrategies(address asset, StrategyConfig[] memory strategies) external requiresAuth {
+        for (uint256 i = 0; i < strategies.length; i++) {
+            if (address(strategies[i].baseCollateral) != asset) {
+                revert InvalidStrategy();
+            }
+        }
+        allStrategies[asset] = strategies;
+
+        emit StrategiesUpdated(asset, strategies);
+    }
+
+    //------- View functions ---------
+
+    /// @inheritdoc IRewardsManager
     function getAccruedYield(address[] calldata assets) public view returns (uint256 accrued) {
         uint256 total;
 
@@ -63,7 +86,7 @@ contract RewardsManager is RewardsManagerStorage, Initializable, UUPSUpgradeable
 
             uint256 totalForAsset = vault._getTotalAssets(strategies, asset);
 
-            total += totalForAsset.mulDivDown(10 ** vault.decimals(), 10 ** ERC20(asset).decimals());
+            total += totalForAsset.convertDecimalsDown(ERC20(asset).decimals(), vault.decimals());
         }
 
         uint256 vaultShares = vault.balanceOf(address(vault));
@@ -72,18 +95,10 @@ contract RewardsManager is RewardsManagerStorage, Initializable, UUPSUpgradeable
         return accrued;
     }
 
-    function setAllStrategies(address asset, StrategyConfig[] memory strategies) external requiresAuth {
-        for (uint256 i = 0; i < strategies.length; i++) {
-            if (address(strategies[i].baseCollateral) != asset) {
-                revert("Strategy must match asset");
-            }
-        }
-        allStrategies[asset] = strategies;
-    }
-
     function getAllStrategies(address asset) external view returns (StrategyConfig[] memory) {
         return allStrategies[asset];
     }
 
+    // -------- Upgradeable --------
     function _authorizeUpgrade(address newImplementation) internal override requiresAuth {}
 }

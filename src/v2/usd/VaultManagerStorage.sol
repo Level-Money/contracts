@@ -7,14 +7,10 @@ import {LevelMintingV2} from "@level/src/v2/LevelMintingV2.sol";
 import {IVaultManager} from "@level/src/v2/interfaces/level/IVaultManager.sol";
 
 abstract contract VaultManagerStorage is IVaultManager {
-    LevelMintingV2 public levelMinting;
     BoringVault public vault;
 
     // asset => strategy addresses
     mapping(address => address[]) public defaultStrategies;
-
-    // asset => isBaseCollateral
-    mapping(address => bool) public isBaseCollateral;
 
     // asset => strategy => StrategyType
     mapping(address => mapping(address => StrategyConfig)) public assetToStrategy;

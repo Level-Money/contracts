@@ -82,13 +82,12 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         deployAdminTimelock();
         deployRolesAuthority();
         deployBoringVault();
+        deployPauserGuard();
         deployVaultManager();
         deployRewardsManager();
-        deployPauserGuard();
         deployLevelMintingV2();
         deployERC4626OracleFactory();
-
-        config.levelContracts.rolesAuthority.setUserRole(config.users.admin, DEPLOYER_ROLE, true);
+        configurePauseGroups();
 
         AaveTokenOracle aUsdcOracle = new AaveTokenOracle(address(config.tokens.usdc));
         vm.label(address(aUsdcOracle), "AaveUsdcTokenOracle");
@@ -245,7 +244,6 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         _setRoleIfNotExists(address(config.users.operator), STRATEGIST_ROLE);
 
         config.levelContracts.vaultManager.setVault(address(config.levelContracts.boringVault));
-        config.levelContracts.vaultManager.setMinting(address(config.levelContracts.levelMintingV2));
 
         // --------------- Setup PauserGuard
         _setRoleCapabilityIfNotExists(
@@ -277,10 +275,6 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         _setRoleIfNotExists(config.users.admin, UNPAUSER_ROLE);
         _setRoleIfNotExists(config.users.hexagateGatekeepers[0], PAUSER_ROLE);
         _setRoleIfNotExists(config.users.hexagateGatekeepers[1], PAUSER_ROLE);
-
-        // ------------ Add base collateral
-        config.levelContracts.vaultManager.addBaseCollateral(address(config.tokens.usdc));
-        config.levelContracts.vaultManager.addBaseCollateral(address(config.tokens.usdt));
 
         //------------- Add Aave as a strategy
         config.levelContracts.vaultManager.addAssetStrategy(
@@ -390,12 +384,19 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         _setRoleCapabilityIfNotExists(
             ADMIN_MULTISIG_ROLE,
             address(config.levelContracts.levelMintingV2),
-            bytes4(abi.encodeWithSignature("removeRedeemableAssets(address)"))
+            bytes4(abi.encodeWithSignature("removeRedeemableAsset(address)"))
         );
 
         _setRoleIfNotExists(config.users.admin, REDEEMER_ROLE);
         _setRoleIfNotExists(config.users.admin, GATEKEEPER_ROLE);
         _setRoleIfNotExists(config.users.admin, ADMIN_MULTISIG_ROLE);
+
+        _setRoleIfNotExists(config.users.operator, REDEEMER_ROLE);
+        _setRoleIfNotExists(config.users.operator, GATEKEEPER_ROLE);
+
+        // ------------ Add base collateral
+        config.levelContracts.levelMintingV2.setBaseCollateral(address(config.tokens.usdc), true);
+        config.levelContracts.levelMintingV2.setBaseCollateral(address(config.tokens.usdt), true);
 
         _addExistingRedeemers();
 
@@ -487,7 +488,13 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             revert("RolesAuthority must be deployed first");
         }
 
-        bytes memory constructorArgs = abi.encodeWithSignature("initialize(address)", deployerWallet.addr);
+        if (address(config.levelContracts.pauserGuard) == address(0)) {
+            revert("PauserGuard must be deployed first");
+        }
+
+        bytes memory constructorArgs = abi.encodeWithSignature(
+            "initialize(address,address)", deployerWallet.addr, address(config.levelContracts.pauserGuard)
+        );
 
         VaultManager _vaultManager = new VaultManager(address(config.levelContracts.boringVault));
         ERC1967Proxy _vaultManagerProxy = new ERC1967Proxy(address(_vaultManager), constructorArgs);
@@ -611,8 +618,8 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         _levelMintingV2.addOracle(address(config.tokens.usdc), address(config.oracles.usdc), false);
         _levelMintingV2.addOracle(address(config.tokens.usdt), address(config.oracles.usdt), false);
 
-        _levelMintingV2.setHeartBeat(address(config.tokens.usdc), 4 hours);
-        _levelMintingV2.setHeartBeat(address(config.tokens.usdt), 4 hours);
+        _levelMintingV2.setHeartBeat(address(config.tokens.usdc), 1 days);
+        _levelMintingV2.setHeartBeat(address(config.tokens.usdt), 1 days);
 
         config.levelContracts.levelMintingV2 = _levelMintingV2;
 
@@ -638,10 +645,26 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
 
         vm.label(address(config.levelContracts.pauserGuard), LevelPauserGuardName);
 
+        return config.levelContracts.pauserGuard;
+    }
+
+    function configurePauseGroups() public {
+        if (address(config.levelContracts.pauserGuard) == address(0)) {
+            revert("PauserGuard must be deployed first");
+        }
+
+        if (address(config.levelContracts.levelMintingV2) == address(0)) {
+            revert("LevelMintingV2 must be deployed first");
+        }
+
+        if (address(config.levelContracts.vaultManager) == address(0)) {
+            revert("VaultManager must be deployed first");
+        }
+
         // Configure emergency pause group for LevelMintingV2
-        PauserGuard.FunctionSig[] memory emergencyPauseGroup = new PauserGuard.FunctionSig[](4);
+        PauserGuard.FunctionSig[] memory emergencyPauseGroup = new PauserGuard.FunctionSig[](3);
         emergencyPauseGroup[0] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("mint(address,uint256)")),
+            selector: bytes4(abi.encodeWithSignature("mint((address,address,uint256,uint256))")),
             target: address(config.levelContracts.levelMintingV2)
         });
         emergencyPauseGroup[1] = PauserGuard.FunctionSig({
@@ -649,51 +672,45 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             target: address(config.levelContracts.levelMintingV2)
         });
         emergencyPauseGroup[2] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("instantRedeem(address,uint256,address)")),
-            target: address(config.levelContracts.levelMintingV2)
-        });
-        emergencyPauseGroup[3] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("completeRedeem(address,uint256)")),
+            selector: bytes4(abi.encodeWithSignature("completeRedeem(address,address)")),
             target: address(config.levelContracts.levelMintingV2)
         });
 
         config.levelContracts.pauserGuard.configureGroup(keccak256("EMERGENCY_PAUSE"), emergencyPauseGroup);
 
-        // configure mint group pause
-        PauserGuard.FunctionSig[] memory mintGroupPause = new PauserGuard.FunctionSig[](2);
-        mintGroupPause[0] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("mint(address,uint256)")),
+        // Configure redeem pause group for LevelMintingV2
+        PauserGuard.FunctionSig[] memory redeemPauseGroup = new PauserGuard.FunctionSig[](2);
+        redeemPauseGroup[0] = PauserGuard.FunctionSig({
+            selector: bytes4(abi.encodeWithSignature("completeRedeem(address,address)")),
             target: address(config.levelContracts.levelMintingV2)
         });
-        mintGroupPause[1] = PauserGuard.FunctionSig({
+        redeemPauseGroup[1] = PauserGuard.FunctionSig({
             selector: bytes4(abi.encodeWithSignature("initiateRedeem(address,uint256,uint256)")),
             target: address(config.levelContracts.levelMintingV2)
         });
 
-        config.levelContracts.pauserGuard.configureGroup(keccak256("MINT_GROUP_PAUSE"), mintGroupPause);
+        config.levelContracts.pauserGuard.configureGroup(keccak256("REDEEM_PAUSE"), redeemPauseGroup);
 
         // Configure emergency pause group for VaultManager
         PauserGuard.FunctionSig[] memory vaultManagerPauseGroup = new PauserGuard.FunctionSig[](4);
         vaultManagerPauseGroup[0] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("deposit(address,address,address,uint256)")),
+            selector: bytes4(abi.encodeWithSignature("deposit(address,address,uint256)")),
             target: address(config.levelContracts.vaultManager)
         });
         vaultManagerPauseGroup[1] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("withdraw(address,address,address,uint256)")),
+            selector: bytes4(abi.encodeWithSignature("withdraw(address,address,uint256)")),
             target: address(config.levelContracts.vaultManager)
         });
         vaultManagerPauseGroup[2] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("depositDefault(address,address,uint256)")),
+            selector: bytes4(abi.encodeWithSignature("depositDefault(address,uint256)")),
             target: address(config.levelContracts.vaultManager)
         });
         vaultManagerPauseGroup[3] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("withdrawDefault(address,address,uint256)")),
+            selector: bytes4(abi.encodeWithSignature("withdrawDefault(address,uint256)")),
             target: address(config.levelContracts.vaultManager)
         });
 
         config.levelContracts.pauserGuard.configureGroup(keccak256("VAULT_MANAGER_PAUSE"), vaultManagerPauseGroup);
-
-        return config.levelContracts.pauserGuard;
     }
 
     function _setRoleIfNotExists(address user, uint8 role) internal {
@@ -709,7 +726,9 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
     }
 
     function _addExistingRedeemers() internal {
-        address[16] memory redeemers = [
+        address[18] memory redeemers = [
+            0xABFD9948933b975Ee9a668a57C776eCf73F6D840,
+            0xf641388a346976215B20cE3d5d3edCaBC8B9b98a,
             0xe9AF0428143E4509df4379Bd10C4850b223F2EcB,
             0xa0D26cD3Dfbe4d8edf9f95BD9129D5f733A9D9a7,
             0x5788817BcF6482da4E434e1CEF68E6f85a690b58,
@@ -771,7 +790,7 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         }
     }
 
-    function onDeploy() public {
+    function onDeploy() public view {
         _printDeployedContracts(chainId, LevelTimelockName, address(config.levelContracts.adminTimelock));
         _printDeployedContracts(
             chainId, LevelUsdReserveRolesAuthorityName, address(config.levelContracts.rolesAuthority)
