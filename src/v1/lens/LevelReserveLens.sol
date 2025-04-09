@@ -233,6 +233,7 @@ contract LevelReserveLens is ILevelReserveLens, Initializable, OwnableUpgradeabl
     function _getReserves(IERC20Metadata collateral, address waCollateralAddress, address symbioticVault)
         internal
         view
+        virtual
         returns (uint256)
     {
         IERC20Metadata waCollateral = IERC20Metadata(waCollateralAddress);

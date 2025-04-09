@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.21;
+pragma solidity 0.8.28;
 
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
@@ -78,6 +78,7 @@ contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder {
         external
         requiresAuth
     {
+        require(address(asset).code.length != 0, "Token does not exist");
         // Transfer assets in
         if (assetAmount > 0) asset.safeTransferFrom(from, address(this), assetAmount);
 
@@ -98,6 +99,8 @@ contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder {
         external
         requiresAuth
     {
+        require(address(asset).code.length != 0, "Token does not exist");
+
         // Burn shares.
         _burn(from, shareAmount);
 
@@ -132,6 +135,13 @@ contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder {
     function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
         _callBeforeTransfer(from, to);
         return super.transferFrom(from, to, amount);
+    }
+
+    //============================== APPROVAL ===============================
+
+    function increaseAllowance(address token, address spender, uint256 amount) external requiresAuth {
+        require(token.code.length != 0, "Token does not exist");
+        ERC20(token).safeApprove(spender, amount); //TODO replace with forceapprove due to reset to 0 allowance change requirement
     }
 
     //============================== RECEIVE ===============================
