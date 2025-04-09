@@ -251,7 +251,7 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
         emit MintRedeemDisabled();
     }
 
-    function setBaseCollateral(address asset, bool isBase) public requiresAuth {
+    function setBaseCollateral(address asset, bool isBase) external requiresAuth {
         if (asset == address(0)) revert InvalidAddress();
         isBaseCollateral[asset] = isBase;
 

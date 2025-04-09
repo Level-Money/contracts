@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.20;
 
-import {RolesAuthority, Authority} from "@solmate/src/auth/authorities/RolesAuthority.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {BoringVault} from "@level/src/v2/usd/BoringVault.sol";
 import {VaultManager} from "@level/src/v2/usd/VaultManager.sol";
@@ -22,6 +21,7 @@ import {IERC4626Oracle} from "@level/src/v2/interfaces/level/IERC4626Oracle.sol"
 import {AggregatorV3Interface} from "@level/src/v2/interfaces/AggregatorV3Interface.sol";
 import {IMulticall3} from "forge-std/interfaces/IMulticall3.sol";
 import {PauserGuard} from "@level/src/v2/common/guard/PauserGuard.sol";
+import {StrictRolesAuthority} from "@level/src/v2/auth/StrictRolesAuthority.sol";
 
 contract BaseConfig {
     using stdJson for string;
@@ -54,7 +54,7 @@ contract BaseConfig {
     }
 
     struct LevelContracts {
-        RolesAuthority rolesAuthority;
+        StrictRolesAuthority rolesAuthority;
         LevelMintingV2 levelMintingV2;
         BoringVault boringVault;
         VaultManager vaultManager;
