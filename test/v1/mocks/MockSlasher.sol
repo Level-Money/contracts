@@ -9,7 +9,7 @@ contract MockSlasher {
     function burn(uint256 _amount, lvlUSD _lvlUSD) public {
         _lvlUSD.burn(_amount);
     }
-    // add this to be excluded from coverage report
 
+    // add this to be excluded from coverage report
     function test() public {}
 }

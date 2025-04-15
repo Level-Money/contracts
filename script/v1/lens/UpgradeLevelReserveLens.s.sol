@@ -24,7 +24,7 @@ contract UpgradeLevelReserveLens is Script, DeploymentUtils, ContractAddresses {
     function run() public virtual {
         console.log("Begin");
         uint256 deployerPrivateKey = vm.envUint("MAINNET_PRIVATE_KEY");
-        // upgrade(deployerPrivateKey);
+        upgrade(deployerPrivateKey);
     }
 
     function upgrade(uint256 deployerPrivateKey) public {

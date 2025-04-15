@@ -205,7 +205,7 @@ contract ContractAddresses is IContractAddresses {
         }
     }
 
-        //-------------------- MainnetAddresses from BoringVault -----------------------------------------------
+    //-------------------- MainnetAddresses from BoringVault -----------------------------------------------
     // Liquid Ecosystem
     address public deployerAddress = 0x0DB6aC124cD58C3661Ba4083A8be350482F4F50C;
     address public dev0Address = MAINNET_LEVEL_DEPLOYER;
