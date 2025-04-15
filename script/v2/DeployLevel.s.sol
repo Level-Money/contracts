@@ -89,8 +89,8 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         // Deploy
         deployAdminTimelock();
         deployRolesAuthority();
-        deployBoringVault();
         deployPauserGuard();
+        deployBoringVault();
         deployVaultManager();
         deployRewardsManager();
         deployLevelMintingV2();
@@ -115,7 +115,8 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             receiptToken: config.tokens.aUsdc,
             oracle: AggregatorV3Interface(address(aUsdcOracle)),
             depositContract: address(config.periphery.aaveV3),
-            withdrawContract: address(config.periphery.aaveV3)
+            withdrawContract: address(config.periphery.aaveV3),
+            heartbeat: 1 days
         });
 
         aUsdtConfig = StrategyConfig({
@@ -124,7 +125,8 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             receiptToken: config.tokens.aUsdt,
             oracle: AggregatorV3Interface(address(aUsdtOracle)),
             depositContract: address(config.periphery.aaveV3),
-            withdrawContract: address(config.periphery.aaveV3)
+            withdrawContract: address(config.periphery.aaveV3),
+            heartbeat: 1 days
         });
 
         steakhouseUsdcConfig = StrategyConfig({
@@ -133,7 +135,8 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             receiptToken: ERC20(address(config.morphoVaults.steakhouseUsdc.vault)),
             oracle: config.morphoVaults.steakhouseUsdc.oracle,
             depositContract: address(config.morphoVaults.steakhouseUsdc.vault),
-            withdrawContract: address(config.morphoVaults.steakhouseUsdc.vault)
+            withdrawContract: address(config.morphoVaults.steakhouseUsdc.vault),
+            heartbeat: 1 days
         });
 
         StrategyConfig[] memory usdcConfigs = new StrategyConfig[](2);
@@ -173,6 +176,16 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             VAULT_MANAGER_ROLE,
             address(config.levelContracts.boringVault),
             bytes4(abi.encodeWithSignature("increaseAllowance(address,address,uint256)"))
+        );
+        _setRoleCapabilityIfNotExists(
+            VAULT_MANAGER_ROLE,
+            address(config.levelContracts.boringVault),
+            bytes4(abi.encodeWithSignature("setBeforeTransferHook(address)"))
+        );
+        _setRoleCapabilityIfNotExists(
+            GATEKEEPER_ROLE,
+            address(config.levelContracts.vaultManager),
+            bytes4(abi.encodeWithSignature("removeAssetStrategy(address,address)"))
         );
 
         _setRoleIfNotExists(address(config.levelContracts.vaultManager), VAULT_MANAGER_ROLE);
@@ -232,6 +245,30 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             UNPAUSER_ROLE,
             address(config.levelContracts.pauserGuard),
             bytes4(abi.encodeWithSignature("unpauseSelector(address,bytes4)"))
+        );
+
+        _setRoleCapabilityIfNotExists(
+            ADMIN_MULTISIG_ROLE,
+            address(config.levelContracts.levelMintingV2),
+            bytes4(abi.encodeWithSignature("setGuard(address)"))
+        );
+
+        _setRoleCapabilityIfNotExists(
+            ADMIN_MULTISIG_ROLE,
+            address(config.levelContracts.vaultManager),
+            bytes4(abi.encodeWithSignature("setGuard(address)"))
+        );
+
+        _setRoleCapabilityIfNotExists(
+            ADMIN_MULTISIG_ROLE,
+            address(config.levelContracts.boringVault),
+            bytes4(abi.encodeWithSignature("setGuard(address)"))
+        );
+
+        _setRoleCapabilityIfNotExists(
+            ADMIN_MULTISIG_ROLE,
+            address(config.levelContracts.rewardsManager),
+            bytes4(abi.encodeWithSignature("setGuard(address)"))
         );
 
         _setRoleIfNotExists(config.users.admin, PAUSER_ROLE);
@@ -322,6 +359,17 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             bytes4(abi.encodeWithSignature("removeRedeemableAsset(address)"))
         );
 
+        // ------------ Setup StrictRolesAuthority
+        _setRoleCapabilityIfNotExists(
+            ADMIN_MULTISIG_ROLE,
+            address(config.levelContracts.rolesAuthority),
+            bytes4(abi.encodeWithSignature("removeUserRole(address,uint8)"))
+        );
+        config.levelContracts.rolesAuthority.setRoleRemovable(PAUSER_ROLE, true);
+        config.levelContracts.rolesAuthority.setRoleRemovable(GATEKEEPER_ROLE, true);
+        config.levelContracts.rolesAuthority.setRoleRemovable(REDEEMER_ROLE, true);
+        config.levelContracts.rolesAuthority.setRoleRemovable(MINTER_ROLE, true);
+
         _setRoleIfNotExists(config.users.admin, REDEEMER_ROLE);
         _setRoleIfNotExists(config.users.admin, GATEKEEPER_ROLE);
         _setRoleIfNotExists(config.users.admin, ADMIN_MULTISIG_ROLE);
@@ -365,7 +413,8 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             receiptToken: ERC20(address(config.morphoVaults.steakhouseUsdt.vault)),
             oracle: config.morphoVaults.steakhouseUsdt.oracle,
             depositContract: address(config.morphoVaults.steakhouseUsdt.vault),
-            withdrawContract: address(config.morphoVaults.steakhouseUsdt.vault)
+            withdrawContract: address(config.morphoVaults.steakhouseUsdt.vault),
+            heartbeat: 1 days
         });
 
         re7UsdcConfig = StrategyConfig({
@@ -374,7 +423,8 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             receiptToken: ERC20(address(config.morphoVaults.re7Usdc.vault)),
             oracle: config.morphoVaults.re7Usdc.oracle,
             depositContract: address(config.morphoVaults.re7Usdc.vault),
-            withdrawContract: address(config.morphoVaults.re7Usdc.vault)
+            withdrawContract: address(config.morphoVaults.re7Usdc.vault),
+            heartbeat: 1 days
         });
 
         steakhouseUsdtLiteConfig = StrategyConfig({
@@ -383,7 +433,8 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             receiptToken: ERC20(address(config.morphoVaults.steakhouseUsdtLite.vault)),
             oracle: config.morphoVaults.steakhouseUsdtLite.oracle,
             depositContract: address(config.morphoVaults.steakhouseUsdtLite.vault),
-            withdrawContract: address(config.morphoVaults.steakhouseUsdtLite.vault)
+            withdrawContract: address(config.morphoVaults.steakhouseUsdtLite.vault),
+            heartbeat: 1 days
         });
 
         StrategyConfig[] memory usdcConfigs = new StrategyConfig[](3);
@@ -454,6 +505,9 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
 
         vm.label(address(config.levelContracts.rolesAuthority), LevelUsdReserveRolesAuthorityName);
 
+        // Need to set the authority of the roles authority to itself
+        config.levelContracts.rolesAuthority.setAuthority(config.levelContracts.rolesAuthority);
+
         return config.levelContracts.rolesAuthority;
     }
 
@@ -492,11 +546,17 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             revert("RolesAuthority must be deployed first");
         }
 
+        if (address(config.levelContracts.pauserGuard) == address(0)) {
+            revert("PauserGuard must be deployed first");
+        }
+
         bytes memory creationCode;
         bytes memory constructorArgs;
 
         creationCode = type(BoringVault).creationCode;
-        constructorArgs = abi.encode(deployerWallet.addr, "Level Vault Shares", "lvlVault", 18);
+        constructorArgs = abi.encode(
+            deployerWallet.addr, "Level Vault Shares", "lvlVault", 18, address(config.levelContracts.pauserGuard)
+        );
         BoringVault _boringVault =
             BoringVault(payable(this.deployContract(LevelUsdReserveName, creationCode, constructorArgs, 0)));
 
@@ -553,8 +613,15 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             revert("RolesAuthority must be deployed first");
         }
 
+        if (address(config.levelContracts.pauserGuard) == address(0)) {
+            revert("PauserGuard must be deployed first");
+        }
+
         bytes memory constructorArgs = abi.encodeWithSignature(
-            "initialize(address,address)", deployerWallet.addr, address(config.levelContracts.boringVault)
+            "initialize(address,address,address)",
+            deployerWallet.addr,
+            address(config.levelContracts.boringVault),
+            address(config.levelContracts.pauserGuard)
         );
         RewardsManager _rewardsManager = new RewardsManager();
         ERC1967Proxy _rewardsManagerProxy = new ERC1967Proxy(address(_rewardsManager), constructorArgs);
@@ -694,6 +761,12 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             revert("VaultManager must be deployed first");
         }
 
+        if (address(config.levelContracts.boringVault) == address(0)) {
+            revert("BoringVault must be deployed first");
+        }
+
+        // =============================== LEVEL MINTING V2 ===============================
+
         // Configure emergency pause group for LevelMintingV2
         PauserGuard.FunctionSig[] memory emergencyPauseGroup = new PauserGuard.FunctionSig[](3);
         emergencyPauseGroup[0] = PauserGuard.FunctionSig({
@@ -724,6 +797,8 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
 
         config.levelContracts.pauserGuard.configureGroup(keccak256("REDEEM_PAUSE"), redeemPauseGroup);
 
+        // =============================== VAULT MANAGER ===============================
+
         // Configure emergency pause group for VaultManager
         PauserGuard.FunctionSig[] memory vaultManagerPauseGroup = new PauserGuard.FunctionSig[](4);
         vaultManagerPauseGroup[0] = PauserGuard.FunctionSig({
@@ -744,6 +819,58 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         });
 
         config.levelContracts.pauserGuard.configureGroup(keccak256("VAULT_MANAGER_PAUSE"), vaultManagerPauseGroup);
+
+        // =============================== BORING VAULT ===============================
+
+        PauserGuard.FunctionSig[] memory boringVaultPauseGroup = new PauserGuard.FunctionSig[](6);
+        boringVaultPauseGroup[0] = PauserGuard.FunctionSig({
+            selector: bytes4(abi.encodeWithSignature("manage(address,bytes,uint256)")),
+            target: address(config.levelContracts.boringVault)
+        });
+        boringVaultPauseGroup[1] = PauserGuard.FunctionSig({
+            selector: bytes4(abi.encodeWithSignature("manage(address[],bytes[],uint256[])")),
+            target: address(config.levelContracts.boringVault)
+        });
+        boringVaultPauseGroup[2] = PauserGuard.FunctionSig({
+            selector: bytes4(abi.encodeWithSignature("enter(address,address,uint256,address,uint256)")),
+            target: address(config.levelContracts.boringVault)
+        });
+        boringVaultPauseGroup[3] = PauserGuard.FunctionSig({
+            selector: bytes4(abi.encodeWithSignature("exit(address,address,uint256,address,uint256)")),
+            target: address(config.levelContracts.boringVault)
+        });
+        boringVaultPauseGroup[4] = PauserGuard.FunctionSig({
+            selector: bytes4(abi.encodeWithSignature("increaseAllowance(address,address,uint256)")),
+            target: address(config.levelContracts.boringVault)
+        });
+        boringVaultPauseGroup[5] = PauserGuard.FunctionSig({
+            selector: bytes4(abi.encodeWithSignature("setBeforeTransferHook(address)")),
+            target: address(config.levelContracts.boringVault)
+        });
+
+        config.levelContracts.pauserGuard.configureGroup(keccak256("BORING_VAULT_PAUSE"), boringVaultPauseGroup);
+
+        // =============================== REWARDS MANAGER ===============================
+
+        PauserGuard.FunctionSig[] memory rewardsManagerPauseGroup = new PauserGuard.FunctionSig[](4);
+        rewardsManagerPauseGroup[0] = PauserGuard.FunctionSig({
+            selector: bytes4(abi.encodeWithSignature("reward(address[])")),
+            target: address(config.levelContracts.rewardsManager)
+        });
+        rewardsManagerPauseGroup[1] = PauserGuard.FunctionSig({
+            selector: bytes4(abi.encodeWithSignature("setVault(address)")),
+            target: address(config.levelContracts.rewardsManager)
+        });
+        rewardsManagerPauseGroup[2] = PauserGuard.FunctionSig({
+            selector: bytes4(abi.encodeWithSignature("setTreasury(address)")),
+            target: address(config.levelContracts.rewardsManager)
+        });
+        rewardsManagerPauseGroup[3] = PauserGuard.FunctionSig({
+            selector: bytes4(abi.encodeWithSignature("setAllStrategies(address,StrategyConfig[])")),
+            target: address(config.levelContracts.rewardsManager)
+        });
+
+        config.levelContracts.pauserGuard.configureGroup(keccak256("REWARDS_MANAGER_PAUSE"), rewardsManagerPauseGroup);
     }
 
     function _setRoleIfNotExists(address user, uint8 role) internal {

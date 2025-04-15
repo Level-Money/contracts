@@ -8,12 +8,13 @@ import {FixedPointMathLib} from "@solmate/src/utils/FixedPointMathLib.sol";
 import {SafeTransferLib} from "@solmate/src/utils/SafeTransferLib.sol";
 import {ERC20} from "@solmate/src/tokens/ERC20.sol";
 import {Auth, Authority} from "@solmate/src/auth/Auth.sol";
+import {PauserGuarded} from "@level/src/v2/common/guard/PauserGuarded.sol";
 
 interface BeforeTransferHook {
     function beforeTransfer(address from, address to, address operator) external view;
 }
 
-contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder {
+contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder, PauserGuarded {
     using Address for address;
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
@@ -29,13 +30,16 @@ contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder {
 
     event Enter(address indexed from, address indexed asset, uint256 amount, address indexed to, uint256 shares);
     event Exit(address indexed to, address indexed asset, uint256 amount, address indexed from, uint256 shares);
+    event EthRecovered(address indexed to, uint256 amount);
 
     //============================== CONSTRUCTOR ===============================
 
-    constructor(address _owner, string memory _name, string memory _symbol, uint8 _decimals)
+    constructor(address _owner, string memory _name, string memory _symbol, uint8 _decimals, address _guard)
         ERC20(_name, _symbol, _decimals)
         Auth(_owner, Authority(address(0)))
-    {}
+    {
+        __PauserGuarded_init(_guard);
+    }
 
     //============================== MANAGE ===============================
 
@@ -45,6 +49,7 @@ contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder {
      */
     function manage(address target, bytes calldata data, uint256 value)
         external
+        notPaused
         requiresAuth
         returns (bytes memory result)
     {
@@ -57,6 +62,7 @@ contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder {
      */
     function manage(address[] calldata targets, bytes[] calldata data, uint256[] calldata values)
         external
+        notPaused
         requiresAuth
         returns (bytes[] memory results)
     {
@@ -76,6 +82,7 @@ contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder {
      */
     function enter(address from, ERC20 asset, uint256 assetAmount, address to, uint256 shareAmount)
         external
+        notPaused
         requiresAuth
     {
         require(address(asset).code.length != 0, "Token does not exist");
@@ -97,6 +104,7 @@ contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder {
      */
     function exit(address to, ERC20 asset, uint256 assetAmount, address from, uint256 shareAmount)
         external
+        notPaused
         requiresAuth
     {
         require(address(asset).code.length != 0, "Token does not exist");
@@ -116,7 +124,7 @@ contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder {
      * @notice If set to zero address, the share locker logic is disabled.
      * @dev Callable by OWNER_ROLE.
      */
-    function setBeforeTransferHook(address _hook) external requiresAuth {
+    function setBeforeTransferHook(address _hook) external notPaused requiresAuth {
         hook = BeforeTransferHook(_hook);
     }
 
@@ -139,9 +147,23 @@ contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder {
 
     //============================== APPROVAL ===============================
 
-    function increaseAllowance(address token, address spender, uint256 amount) external requiresAuth {
+    function increaseAllowance(address token, address spender, uint256 amount) external notPaused requiresAuth {
         require(token.code.length != 0, "Token does not exist");
         ERC20(token).safeApprove(spender, amount); //TODO replace with forceapprove due to reset to 0 allowance change requirement
+    }
+
+    //============================== OWNER ===============================
+
+    function recoverEth(uint256 amount) external requiresAuth {
+        require(address(this).balance >= amount, "Insufficient ETH balance");
+        SafeTransferLib.safeTransferETH(msg.sender, amount);
+        emit EthRecovered(msg.sender, amount);
+    }
+
+    //============================== PAUSER ===============================
+
+    function setGuard(address _guard) external requiresAuth {
+        _setGuard(_guard);
     }
 
     //============================== RECEIVE ===============================

@@ -22,6 +22,8 @@ import {AggregatorV3Interface} from "@level/src/v2/interfaces/AggregatorV3Interf
 import {IMulticall3} from "forge-std/interfaces/IMulticall3.sol";
 import {PauserGuard} from "@level/src/v2/common/guard/PauserGuard.sol";
 import {StrictRolesAuthority} from "@level/src/v2/auth/StrictRolesAuthority.sol";
+import {LevelReserveLens} from "@level/src/v2/lens/LevelReserveLens.sol";
+import {LevelReserveLensMorphoOracle} from "@level/src/v1/lens/LevelReserveLensMorphoOracle.sol";
 
 contract BaseConfig {
     using stdJson for string;
@@ -62,6 +64,7 @@ contract BaseConfig {
         TimelockController adminTimelock;
         ERC4626OracleFactory erc4626OracleFactory;
         PauserGuard pauserGuard;
+        LevelReserveLens levelReserveLens;
     }
 
     struct MorphoVaults {
@@ -84,6 +87,7 @@ contract BaseConfig {
     struct PeripheryContracts {
         IPool aaveV3;
         IMulticall3 multicall3;
+        LevelReserveLensMorphoOracle levelReserveLensMorphoOracle;
     }
 
     struct Oracles {

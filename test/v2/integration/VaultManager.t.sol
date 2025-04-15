@@ -79,7 +79,8 @@ contract VaultManagerMainnetTests is Utils, Configurable {
                 ERC20 receiptToken,
                 AggregatorV3Interface oracle,
                 address depositContract,
-                address withdrawContract
+                address withdrawContract,
+                uint256 heartbeat
             ) = vaultManager.assetToStrategy(address(config.tokens.usdc), usdcStrategyAddresses[i]);
 
             usdcStrategies[i] = StrategyConfig({
@@ -88,7 +89,8 @@ contract VaultManagerMainnetTests is Utils, Configurable {
                 receiptToken: receiptToken,
                 oracle: oracle,
                 depositContract: depositContract,
-                withdrawContract: withdrawContract
+                withdrawContract: withdrawContract,
+                heartbeat: heartbeat
             });
         }
 
@@ -99,7 +101,8 @@ contract VaultManagerMainnetTests is Utils, Configurable {
                 ERC20 receiptToken,
                 AggregatorV3Interface oracle,
                 address depositContract,
-                address withdrawContract
+                address withdrawContract,
+                uint256 heartbeat
             ) = vaultManager.assetToStrategy(address(config.tokens.usdt), usdtStrategyAddresses[i]);
 
             usdtStrategies[i] = StrategyConfig({
@@ -108,7 +111,8 @@ contract VaultManagerMainnetTests is Utils, Configurable {
                 receiptToken: receiptToken,
                 oracle: oracle,
                 depositContract: depositContract,
-                withdrawContract: withdrawContract
+                withdrawContract: withdrawContract,
+                heartbeat: heartbeat
             });
         }
     }
@@ -439,7 +443,8 @@ contract VaultManagerMainnetTests is Utils, Configurable {
             ERC20 receiptToken,
             AggregatorV3Interface oracle,
             address depositContract,
-            address withdrawContract
+            address withdrawContract,
+            uint256 heartbeat
         ) = vaultManager.assetToStrategy(asset, strategy);
 
         StrategyConfig memory config = StrategyConfig({
@@ -448,7 +453,8 @@ contract VaultManagerMainnetTests is Utils, Configurable {
             receiptToken: receiptToken,
             oracle: oracle,
             depositContract: depositContract,
-            withdrawContract: withdrawContract
+            withdrawContract: withdrawContract,
+            heartbeat: heartbeat
         });
 
         return StrategyLib.getAssets(config, address(vaultManager.vault()));

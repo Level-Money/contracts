@@ -203,4 +203,21 @@ contract BoringVaultAclUnitTests is Utils, Configurable {
         vault.exit(address(config.levelContracts.adminTimelock), config.tokens.usdc, 1e6, address(vault), 1e6);
         vm.stopPrank();
     }
+
+    function test_setGuard_succeedsOnlyAdmin() public {
+        // Generate a new address and label it
+        Vm.Wallet memory newGuard = vm.createWallet("newGuard");
+        vm.label(newGuard.addr, "New Guard");
+
+        vm.startPrank(normal.addr);
+        vm.expectRevert("UNAUTHORIZED");
+        vault.setGuard(newGuard.addr);
+        vm.stopPrank();
+
+        vm.startPrank(config.users.admin);
+        vault.setGuard(newGuard.addr);
+        vm.stopPrank();
+
+        assertEq(address(vault.guard()), newGuard.addr);
+    }
 }

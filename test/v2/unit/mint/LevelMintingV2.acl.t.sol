@@ -267,4 +267,21 @@ contract LevelMintingV2AclUnitTests is Utils, Configurable {
         levelMinting.setVaultManager(address(config.levelContracts.vaultManager));
         vm.stopPrank();
     }
+
+    function test__setGuard_succeedsOnlyAdmin() public {
+        // Generate a new address and label it
+        Vm.Wallet memory newGuard = vm.createWallet("newGuard");
+        vm.label(newGuard.addr, "New Guard");
+
+        vm.startPrank(normal.addr);
+        vm.expectRevert("UNAUTHORIZED");
+        levelMinting.setGuard(newGuard.addr);
+        vm.stopPrank();
+
+        vm.startPrank(config.users.admin);
+        levelMinting.setGuard(newGuard.addr);
+        vm.stopPrank();
+
+        assertEq(address(levelMinting.guard()), newGuard.addr);
+    }
 }

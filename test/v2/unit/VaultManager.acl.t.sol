@@ -76,7 +76,8 @@ contract VaultManagerAclUnitTests is Utils, Configurable {
             receiptToken: ERC20(DAI),
             oracle: AggregatorV3Interface(DAI),
             depositContract: address(DAI),
-            withdrawContract: address(DAI)
+            withdrawContract: address(DAI),
+            heartbeat: 1 days
         });
     }
 
@@ -224,8 +225,17 @@ contract VaultManagerAclUnitTests is Utils, Configurable {
         vm.stopPrank();
     }
 
-    function test_removeAssetStrategy_revertsIfNotTimelock() public {
+    function test_removeAssetStrategy_succeedsIfGatekeeper() public {
+        vm.prank(address(config.levelContracts.adminTimelock));
+        vaultManager.addAssetStrategy(address(config.tokens.usdc), address(DAI), strategyConfig);
+
         vm.startPrank(config.users.admin);
+        vaultManager.removeAssetStrategy(address(config.tokens.usdc), address(DAI));
+        vm.stopPrank();
+    }
+
+    function test_removeAssetStrategy_revertsIfNotAuthorized() public {
+        vm.startPrank(normal.addr);
         vm.expectRevert("UNAUTHORIZED");
         vaultManager.removeAssetStrategy(address(config.tokens.usdc), address(DAI));
         vm.stopPrank();
@@ -271,5 +281,22 @@ contract VaultManagerAclUnitTests is Utils, Configurable {
         vm.expectRevert(IVaultManagerErrors.InvalidStrategy.selector);
         vaultManager.setDefaultStrategies(address(config.tokens.usdc), strategies);
         vm.stopPrank();
+    }
+
+    function test_setGuard_succeedsOnlyAdmin() public {
+        // Generate a new address and label it
+        Vm.Wallet memory newGuard = vm.createWallet("newGuard");
+        vm.label(newGuard.addr, "New Guard");
+
+        vm.startPrank(normal.addr);
+        vm.expectRevert("UNAUTHORIZED");
+        vaultManager.setGuard(newGuard.addr);
+        vm.stopPrank();
+
+        vm.startPrank(config.users.admin);
+        vaultManager.setGuard(newGuard.addr);
+        vm.stopPrank();
+
+        assertEq(address(vaultManager.guard()), newGuard.addr);
     }
 }

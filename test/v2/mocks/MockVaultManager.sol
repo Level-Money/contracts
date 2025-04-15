@@ -19,16 +19,16 @@ contract MockVaultManager {
         shouldWithdrawDefaultRevert = _shouldWithdrawDefaultRevert;
     }
 
-    function depositDefault(address, /* asset */ uint256 /* amount */ ) public view returns (uint256) {
+    function depositDefault(address, /* asset */ uint256 amount) public view returns (uint256) {
         if (shouldDepositDefaultRevert) revert("MockVaultManager: depositDefault revert");
 
-        return 0;
+        return amount;
     }
 
-    function withdrawDefault(address, /* asset */ uint256 /* amount */ ) public view returns (uint256) {
+    function withdrawDefault(address, /* asset */ uint256 amount) public view returns (uint256) {
         if (shouldWithdrawDefaultRevert) revert("MockVaultManager: withdrawDefault revert");
 
-        return 0;
+        return amount;
     }
 
     // add this to be excluded from coverage report
