@@ -107,7 +107,8 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
                 receiptToken: ERC20(address(mockUsdcERC4626)),
                 oracle: AggregatorV3Interface(address(mockErc4626Oracle)),
                 depositContract: address(mockUsdcERC4626),
-                withdrawContract: address(mockUsdcERC4626)
+                withdrawContract: address(mockUsdcERC4626),
+                heartbeat: 1 days
             })
         );
         payloads[7] = abi.encodeWithSignature(

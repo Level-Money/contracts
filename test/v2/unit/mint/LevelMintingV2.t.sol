@@ -106,7 +106,8 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
                 receiptToken: ERC20(address(mockUsdcERC4626)),
                 oracle: AggregatorV3Interface(address(mockErc4626Oracle)),
                 depositContract: address(mockUsdcERC4626),
-                withdrawContract: address(mockUsdcERC4626)
+                withdrawContract: address(mockUsdcERC4626),
+                heartbeat: 1 days
             })
         );
         payloads[7] = abi.encodeWithSignature(
@@ -278,7 +279,7 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
         assertEq(config.tokens.usdc.balanceOf(address(config.levelContracts.boringVault)), 100);
     }
 
-    function test_withdrawDefaultFailure_doesNotBlockRedemption() public {
+    function test_mint_vaultManagerFailureDoesNotBlockMints() public {
         uint256 collateralAmount = 100;
         deal(address(config.tokens.usdc), normalUser.addr, collateralAmount);
 
@@ -306,6 +307,9 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
         uint256 lvlUsdAmount =
             collateralAmount.convertDecimalsDown(config.tokens.usdc.decimals(), config.tokens.lvlUsd.decimals());
 
+        // Since deposit default reverted, the collateral was not deployed
+        // Since there's enough undeployed collateral to meet redemptions, we should
+        // still be able to redeem even if withdrawDefault reverts
         mockVaultManager.setShouldWithdrawDefaultRevert(true);
 
         config.tokens.lvlUsd.approve(address(levelMinting), lvlUsdAmount);
@@ -313,5 +317,122 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
 
         /// Redemptions should still succeed despite withdrawDefault reverting
         assertEq(config.tokens.lvlUsd.balanceOf(normalUser.addr), 0);
+    }
+
+    function test_redeem_vaultManagerFailureDoesntBlockFailureWithEnoughCollateral() public {
+        uint256 collateralAmount = 100;
+        uint256 sharesAmount = collateralAmount.convertDecimalsDown(
+            config.tokens.usdc.decimals(), config.levelContracts.boringVault.decimals()
+        );
+        uint256 lvlUsdAmount =
+            collateralAmount.convertDecimalsDown(config.tokens.usdc.decimals(), config.tokens.lvlUsd.decimals());
+
+        vm.startPrank(normalUser.addr);
+
+        deal(address(config.tokens.usdc), address(config.levelContracts.boringVault), collateralAmount);
+        deal(address(config.levelContracts.boringVault), address(config.levelContracts.boringVault), sharesAmount);
+        deal(address(config.tokens.lvlUsd), normalUser.addr, lvlUsdAmount);
+
+        vm.stopPrank();
+
+        MockVaultManager mockVaultManager = new MockVaultManager(address(config.levelContracts.boringVault));
+        _scheduleAndExecuteAdminAction(
+            config.users.admin,
+            address(config.levelContracts.adminTimelock),
+            address(levelMinting),
+            abi.encodeWithSignature("setVaultManager(address)", address(mockVaultManager))
+        );
+
+        vm.startPrank(normalUser.addr);
+        mockVaultManager.setShouldWithdrawDefaultRevert(true);
+
+        config.tokens.lvlUsd.approve(address(levelMinting), lvlUsdAmount);
+
+        levelMinting.initiateRedeem(address(config.tokens.usdc), lvlUsdAmount, 0);
+
+        // Redemptions should succeed
+        assertEq(config.tokens.lvlUsd.balanceOf(normalUser.addr), 0);
+    }
+
+    function test_redeem_vaultManagerFailureBlocksRedemptions() public {
+        uint256 collateralAmount = 100;
+        uint256 lvlUsdAmount =
+            collateralAmount.convertDecimalsDown(config.tokens.usdc.decimals(), config.tokens.lvlUsd.decimals());
+
+        vm.startPrank(normalUser.addr);
+
+        deal(address(config.tokens.lvlUsd), normalUser.addr, lvlUsdAmount);
+        vm.stopPrank();
+
+        MockVaultManager mockVaultManager = new MockVaultManager(address(config.levelContracts.boringVault));
+        _scheduleAndExecuteAdminAction(
+            config.users.admin,
+            address(config.levelContracts.adminTimelock),
+            address(levelMinting),
+            abi.encodeWithSignature("setVaultManager(address)", address(mockVaultManager))
+        );
+
+        vm.startPrank(normalUser.addr);
+        mockVaultManager.setShouldWithdrawDefaultRevert(true);
+
+        config.tokens.lvlUsd.approve(address(levelMinting), lvlUsdAmount);
+
+        vm.expectRevert("MockVaultManager: withdrawDefault revert");
+        levelMinting.initiateRedeem(address(config.tokens.usdc), lvlUsdAmount, 0);
+
+        // Redemptions should not succeed
+        assertEq(config.tokens.lvlUsd.balanceOf(normalUser.addr), lvlUsdAmount);
+    }
+
+    function test_completeRedeem_succeedsEvenIfRedemptionAssetIsRemoved() public {
+        uint256 collateralAmount = 100;
+        uint256 sharesAmount = collateralAmount.convertDecimalsDown(
+            config.tokens.usdc.decimals(), config.levelContracts.boringVault.decimals()
+        );
+        uint256 lvlUsdAmount =
+            collateralAmount.convertDecimalsDown(config.tokens.usdc.decimals(), config.tokens.lvlUsd.decimals());
+
+        vm.startPrank(normalUser.addr);
+
+        deal(address(config.tokens.usdc), address(config.levelContracts.boringVault), collateralAmount);
+        deal(address(config.levelContracts.boringVault), address(config.levelContracts.boringVault), sharesAmount);
+        deal(address(config.tokens.lvlUsd), normalUser.addr, lvlUsdAmount);
+
+        vm.stopPrank();
+
+        MockVaultManager mockVaultManager = new MockVaultManager(address(config.levelContracts.boringVault));
+        _scheduleAndExecuteAdminAction(
+            config.users.admin,
+            address(config.levelContracts.adminTimelock),
+            address(levelMinting),
+            abi.encodeWithSignature("setVaultManager(address)", address(mockVaultManager))
+        );
+
+        vm.startPrank(normalUser.addr);
+        mockVaultManager.setShouldWithdrawDefaultRevert(true);
+
+        config.tokens.lvlUsd.approve(address(levelMinting), lvlUsdAmount);
+        (, uint256 pendingRedemptionAmount) = levelMinting.initiateRedeem(address(config.tokens.usdc), lvlUsdAmount, 0);
+
+        // Initiate redeem should succeed
+        assertEq(config.tokens.lvlUsd.balanceOf(normalUser.addr), 0);
+        assertEq(levelMinting.pendingRedemption(normalUser.addr, address(config.tokens.usdc)), pendingRedemptionAmount);
+
+        vm.stopPrank();
+
+        _scheduleAndExecuteAdminAction(
+            config.users.admin,
+            address(config.levelContracts.adminTimelock),
+            address(levelMinting),
+            abi.encodeWithSignature("removeRedeemableAsset(address)", address(config.tokens.usdc))
+        );
+
+        vm.warp(block.timestamp + 1 days);
+
+        vm.startPrank(normalUser.addr);
+        // Complete redeem should succeed
+        uint256 redeemedAmount = levelMinting.completeRedeem(address(config.tokens.usdc), normalUser.addr);
+
+        assertEq(config.tokens.usdc.balanceOf(normalUser.addr), redeemedAmount);
     }
 }

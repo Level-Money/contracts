@@ -2,7 +2,7 @@
 src = "src"
 out = "out"
 libs = ["lib"]
-auto_detect_solc = true
+# auto_detect_solc = true
 ignored_warnings_from = ["test", "node_modules", "lib"]
 evm_version = "cancun"
 ffi = true
@@ -11,6 +11,11 @@ build_info = true
 extra_output = ["storageLayout"]
 via_ir = true
 no-match-path = "**/v1/*"
+solc = "0.8.28"
+bytecode_hash = "none"
+cbor_metadata = false
+always_use_create_2_factory = true
+auto_detect_remappings = false
 
 [fuzz]
 max_test_rejects = 6553600
@@ -18,6 +23,7 @@ max_test_rejects = 6553600
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 
 [rpc_endpoints]
+anvil = "http://127.0.0.1:8545"
 mainnet = "https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
 sepolia = "https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
 holesky = "https://eth-holesky.g.alchemy.com/v2/${ALCHEMY_API_KEY}"

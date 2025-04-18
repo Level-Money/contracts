@@ -7,6 +7,7 @@ import {ContractNames} from "@level/config/ContractNames.sol";
 import {BaseConfig} from "@level/config/deploy/BaseConfig.sol";
 
 import {Mainnet} from "@level/config/deploy/Mainnet.sol";
+import {Sepolia} from "@level/config/deploy/Sepolia.sol";
 import {CommonBase} from "forge-std/Base.sol";
 import {console2} from "forge-std/console2.sol";
 
@@ -25,6 +26,11 @@ contract Configurable is Roles, ContractNames, CommonBase {
             Mainnet mainnetConfig = new Mainnet();
 
             config = mainnetConfig.initialize();
+        } else if (_chainId == 11155111) {
+            activated = true;
+            Sepolia sepoliaConfig = new Sepolia();
+
+            config = sepoliaConfig.initialize();
         } else {
             revert("Invalid chainId");
         }

@@ -11,8 +11,13 @@ import {VaultLib} from "@level/src/v2/common/libraries/VaultLib.sol";
 import {StrategyConfig} from "@level/src/v2/common/libraries/StrategyLib.sol";
 import {RewardsManagerStorage} from "@level/src/v2/usd/RewardsManagerStorage.sol";
 import {IRewardsManager} from "@level/src/v2/interfaces/level/IRewardsManager.sol";
+import {PauserGuarded} from "@level/src/v2/common/guard/PauserGuarded.sol";
 
-contract RewardsManager is RewardsManagerStorage, Initializable, UUPSUpgradeable, AuthUpgradeable {
+/// @title RewardsManager
+/// @notice Contract for managing rewards distribution across strategies
+/// @dev Inherits error and event interfaces from IRewardsManagerErrors and IRewardsManagerEvents
+/// @dev Inherits interface from IRewardsManager
+contract RewardsManager is RewardsManagerStorage, Initializable, UUPSUpgradeable, AuthUpgradeable, PauserGuarded {
     using VaultLib for BoringVault;
     using MathLib for uint256;
 
@@ -20,15 +25,16 @@ contract RewardsManager is RewardsManagerStorage, Initializable, UUPSUpgradeable
         _disableInitializers();
     }
 
-    function initialize(address admin_, address vault_) external initializer {
+    function initialize(address admin_, address vault_, address guard_) external initializer {
         vault = BoringVault(payable(vault_));
         __UUPSUpgradeable_init();
         __Auth_init(admin_, address(0));
+        __PauserGuarded_init(guard_);
     }
 
     // ----- External --------
     /// @inheritdoc IRewardsManager
-    function reward(address[] calldata assets) external requiresAuth {
+    function reward(address[] calldata assets) external notPaused requiresAuth {
         uint256 accrued = getAccruedYield(assets);
         address redemptionAsset = assets[0];
 
@@ -48,21 +54,21 @@ contract RewardsManager is RewardsManagerStorage, Initializable, UUPSUpgradeable
     //------- Setters ---------
 
     /// @inheritdoc IRewardsManager
-    function setVault(address vault_) external requiresAuth {
+    function setVault(address vault_) external notPaused requiresAuth {
         address from = address(vault);
         vault = BoringVault(payable(vault_));
         emit VaultUpdated(from, vault_);
     }
 
     /// @inheritdoc IRewardsManager
-    function setTreasury(address treasury_) external requiresAuth {
+    function setTreasury(address treasury_) external notPaused requiresAuth {
         address from = address(treasury);
         treasury = treasury_;
         emit TreasuryUpdated(from, treasury_);
     }
 
     /// @inheritdoc IRewardsManager
-    function setAllStrategies(address asset, StrategyConfig[] memory strategies) external requiresAuth {
+    function setAllStrategies(address asset, StrategyConfig[] memory strategies) external notPaused requiresAuth {
         for (uint256 i = 0; i < strategies.length; i++) {
             if (address(strategies[i].baseCollateral) != asset) {
                 revert InvalidStrategy();
@@ -95,10 +101,24 @@ contract RewardsManager is RewardsManagerStorage, Initializable, UUPSUpgradeable
         return accrued;
     }
 
+    /// @inheritdoc IRewardsManager
     function getAllStrategies(address asset) external view returns (StrategyConfig[] memory) {
         return allStrategies[asset];
     }
 
+    /// Returns the total assets in the vault for a given asset, to the asset's precision
+    function getTotalAssets(address asset) external view returns (uint256 assets) {
+        StrategyConfig[] memory strategies = allStrategies[asset];
+
+        assets = vault._getTotalAssets(strategies, asset);
+
+        return assets;
+    }
+
     // -------- Upgradeable --------
     function _authorizeUpgrade(address newImplementation) internal override requiresAuth {}
+
+    function setGuard(address guard_) external requiresAuth {
+        _setGuard(guard_);
+    }
 }

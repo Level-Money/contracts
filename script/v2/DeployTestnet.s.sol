@@ -32,25 +32,20 @@ import {AggregatorV3Interface} from "@level/src/v2/interfaces/AggregatorV3Interf
 import {ERC20} from "@solmate/src/tokens/ERC20.sol";
 import {PauserGuard} from "@level/src/v2/common/guard/PauserGuard.sol";
 import {StrictRolesAuthority} from "@level/src/v2/auth/StrictRolesAuthority.sol";
+import {ILevelMintingV2Structs} from "@level/src/v2/interfaces/level/ILevelMintingV2.sol";
 
 /**
  * Kitchen sink deployment script; deploy the entire protocol in one go.
  * Used for testing + development.
  *
- * source .env && forge script script/v2/DeployLevel.s.sol:DeployLevel --slow --broadcast --etherscan-api-key $ETHERSCAN_API_KEY --verify
- * @dev Optionally can change `--with-gas-price` to something more reasonable
+ * source .env && forge script script/v2/DeployTestnet.s.sol:DeployTestnet  --slow --broadcast --etherscan-api-key $ETHERSCAN_API_KEY --verify
  */
-contract DeployLevel is Configurable, DeploymentUtils, Script {
+contract DeployTestnet is Configurable, DeploymentUtils, Script {
     uint256 public chainId;
 
     Vm.Wallet public deployerWallet;
 
-    StrategyConfig public aUsdcConfig;
-    StrategyConfig public aUsdtConfig;
     StrategyConfig public steakhouseUsdcConfig;
-    StrategyConfig public steakhouseUsdtConfig;
-    StrategyConfig public re7UsdcConfig;
-    StrategyConfig public steakhouseUsdtLiteConfig;
 
     function setUp() external {
         uint256 _chainId = vm.envUint("CHAIN_ID");
@@ -78,29 +73,21 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         deployerWallet.privateKey = _privateKey;
         deployerWallet.addr = vm.addr(_privateKey);
 
-        vm.label(msg.sender, "Deployer EOA");
+        vm.label(deployerWallet.addr, "Deployer EOA");
     }
 
     function run() external returns (BaseConfig.Config memory) {
-        console2.log(string.concat("Deployer EOA: ", vm.toString(deployerWallet.addr)));
-
         return _run();
     }
 
-    modifier asDeployer() {
+    function _run() internal returns (BaseConfig.Config memory) {
+        console2.log(string.concat("Deployer EOA: ", vm.toString(deployerWallet.addr)));
         if (deployerWallet.privateKey != 0) {
             vm.startBroadcast(deployerWallet.privateKey);
         } else {
             vm.startBroadcast();
         }
 
-        _;
-
-        vm.stopBroadcast();
-    }
-
-    function _run() internal asDeployer returns (BaseConfig.Config memory) {
-        // Deploy
         deployAdminTimelock();
         deployRolesAuthority();
         deployPauserGuard();
@@ -111,37 +98,11 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         deployERC4626OracleFactory();
         configurePauseGroups();
 
-        AaveTokenOracle aUsdcOracle = new AaveTokenOracle(address(config.tokens.usdc));
-        vm.label(address(aUsdcOracle), "AaveUsdcTokenOracle");
-
-        AaveTokenOracle aUsdtOracle = new AaveTokenOracle(address(config.tokens.usdt));
-        vm.label(address(aUsdtOracle), "AaveUsdtTokenOracle");
-
         // Deploy oracles
         if (address(config.morphoVaults.steakhouseUsdc.oracle) == address(0)) {
             config.morphoVaults.steakhouseUsdc.oracle =
                 deployERC4626Oracle(config.morphoVaults.steakhouseUsdc.vault, 4 hours);
         }
-
-        aUsdcConfig = StrategyConfig({
-            category: StrategyCategory.AAVEV3,
-            baseCollateral: config.tokens.usdc,
-            receiptToken: config.tokens.aUsdc,
-            oracle: AggregatorV3Interface(address(aUsdcOracle)),
-            depositContract: address(config.periphery.aaveV3),
-            withdrawContract: address(config.periphery.aaveV3),
-            heartbeat: 1 days
-        });
-
-        aUsdtConfig = StrategyConfig({
-            category: StrategyCategory.AAVEV3,
-            baseCollateral: config.tokens.usdt,
-            receiptToken: config.tokens.aUsdt,
-            oracle: AggregatorV3Interface(address(aUsdtOracle)),
-            depositContract: address(config.periphery.aaveV3),
-            withdrawContract: address(config.periphery.aaveV3),
-            heartbeat: 1 days
-        });
 
         steakhouseUsdcConfig = StrategyConfig({
             category: StrategyCategory.MORPHO,
@@ -150,15 +111,11 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             oracle: config.morphoVaults.steakhouseUsdc.oracle,
             depositContract: address(config.morphoVaults.steakhouseUsdc.vault),
             withdrawContract: address(config.morphoVaults.steakhouseUsdc.vault),
-            heartbeat: 1 days
+            heartbeat: 12 hours
         });
 
-        StrategyConfig[] memory usdcConfigs = new StrategyConfig[](2);
-        usdcConfigs[0] = aUsdcConfig;
-        usdcConfigs[1] = steakhouseUsdcConfig;
-
-        StrategyConfig[] memory usdtConfigs = new StrategyConfig[](1);
-        usdtConfigs[0] = aUsdtConfig;
+        StrategyConfig[] memory usdcConfigs = new StrategyConfig[](1);
+        usdcConfigs[0] = steakhouseUsdcConfig;
 
         //------------------ Setup BoringVault
         _setRoleCapabilityIfNotExists(
@@ -190,16 +147,6 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             VAULT_MANAGER_ROLE,
             address(config.levelContracts.boringVault),
             bytes4(abi.encodeWithSignature("increaseAllowance(address,address,uint256)"))
-        );
-        _setRoleCapabilityIfNotExists(
-            VAULT_MANAGER_ROLE,
-            address(config.levelContracts.boringVault),
-            bytes4(abi.encodeWithSignature("setBeforeTransferHook(address)"))
-        );
-        _setRoleCapabilityIfNotExists(
-            GATEKEEPER_ROLE,
-            address(config.levelContracts.vaultManager),
-            bytes4(abi.encodeWithSignature("removeAssetStrategy(address,address)"))
         );
 
         _setRoleIfNotExists(address(config.levelContracts.vaultManager), VAULT_MANAGER_ROLE);
@@ -261,44 +208,10 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             bytes4(abi.encodeWithSignature("unpauseSelector(address,bytes4)"))
         );
 
-        _setRoleCapabilityIfNotExists(
-            ADMIN_MULTISIG_ROLE,
-            address(config.levelContracts.levelMintingV2),
-            bytes4(abi.encodeWithSignature("setGuard(address)"))
-        );
-
-        _setRoleCapabilityIfNotExists(
-            ADMIN_MULTISIG_ROLE,
-            address(config.levelContracts.vaultManager),
-            bytes4(abi.encodeWithSignature("setGuard(address)"))
-        );
-
-        _setRoleCapabilityIfNotExists(
-            ADMIN_MULTISIG_ROLE,
-            address(config.levelContracts.boringVault),
-            bytes4(abi.encodeWithSignature("setGuard(address)"))
-        );
-
-        _setRoleCapabilityIfNotExists(
-            ADMIN_MULTISIG_ROLE,
-            address(config.levelContracts.rewardsManager),
-            bytes4(abi.encodeWithSignature("setGuard(address)"))
-        );
-
         _setRoleIfNotExists(config.users.admin, PAUSER_ROLE);
         _setRoleIfNotExists(config.users.operator, PAUSER_ROLE);
         _setRoleIfNotExists(config.users.admin, UNPAUSER_ROLE);
         _setRoleIfNotExists(config.users.hexagateGatekeepers[0], PAUSER_ROLE);
-        _setRoleIfNotExists(config.users.hexagateGatekeepers[1], PAUSER_ROLE);
-
-        //------------- Add Aave as a strategy
-        config.levelContracts.vaultManager.addAssetStrategy(
-            address(config.tokens.usdc), address(config.periphery.aaveV3), aUsdcConfig
-        );
-
-        config.levelContracts.vaultManager.addAssetStrategy(
-            address(config.tokens.usdt), address(config.periphery.aaveV3), aUsdtConfig
-        );
 
         //--------------- Add Morpho as strategies
         if (address(config.morphoVaults.steakhouseUsdc.vault) == address(0)) {
@@ -309,16 +222,11 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             );
         }
 
-        // Add Aave as a default strategy
-        address[] memory usdcDefaultStrategies = new address[](2);
-        usdcDefaultStrategies[0] = address(config.periphery.aaveV3);
-        usdcDefaultStrategies[1] = address(config.morphoVaults.steakhouseUsdc.vault);
-
-        address[] memory usdtDefaultStrategies = new address[](1);
-        usdtDefaultStrategies[0] = address(config.periphery.aaveV3);
+        // Add Steakhouse as a default strategy
+        address[] memory usdcDefaultStrategies = new address[](1);
+        usdcDefaultStrategies[0] = address(config.morphoVaults.steakhouseUsdc.vault);
 
         config.levelContracts.vaultManager.setDefaultStrategies(address(config.tokens.usdc), usdcDefaultStrategies);
-        config.levelContracts.vaultManager.setDefaultStrategies(address(config.tokens.usdt), usdtDefaultStrategies);
 
         // ---------- Setup RewardsManager
         _setRoleCapabilityIfNotExists(
@@ -333,9 +241,9 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         config.levelContracts.rewardsManager.setTreasury(config.users.protocolTreasury);
 
         config.levelContracts.rewardsManager.setAllStrategies(address(config.tokens.usdc), usdcConfigs);
-        config.levelContracts.rewardsManager.setAllStrategies(address(config.tokens.usdt), usdtConfigs);
 
         // ---------- Setup LevelMintingV2
+
         config.levelContracts.rolesAuthority.setPublicCapability(
             address(config.levelContracts.levelMintingV2),
             bytes4(config.levelContracts.levelMintingV2.mint.selector),
@@ -373,17 +281,6 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             bytes4(abi.encodeWithSignature("removeRedeemableAsset(address)"))
         );
 
-        // ------------ Setup StrictRolesAuthority
-        _setRoleCapabilityIfNotExists(
-            ADMIN_MULTISIG_ROLE,
-            address(config.levelContracts.rolesAuthority),
-            bytes4(abi.encodeWithSignature("removeUserRole(address,uint8)"))
-        );
-        config.levelContracts.rolesAuthority.setRoleRemovable(PAUSER_ROLE, true);
-        config.levelContracts.rolesAuthority.setRoleRemovable(GATEKEEPER_ROLE, true);
-        config.levelContracts.rolesAuthority.setRoleRemovable(REDEEMER_ROLE, true);
-        config.levelContracts.rolesAuthority.setRoleRemovable(MINTER_ROLE, true);
-
         _setRoleIfNotExists(config.users.admin, REDEEMER_ROLE);
         _setRoleIfNotExists(config.users.admin, GATEKEEPER_ROLE);
         _setRoleIfNotExists(config.users.admin, ADMIN_MULTISIG_ROLE);
@@ -391,115 +288,21 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         _setRoleIfNotExists(config.users.operator, REDEEMER_ROLE);
         _setRoleIfNotExists(config.users.operator, GATEKEEPER_ROLE);
 
+        config.levelContracts.levelMintingV2.addMintableAsset(address(config.tokens.usdc));
+        config.levelContracts.levelMintingV2.addRedeemableAsset(address(config.tokens.usdc));
+        config.levelContracts.levelMintingV2.addOracle(address(config.tokens.usdc), address(config.oracles.usdc), false);
+
+        config.levelContracts.levelMintingV2.setHeartBeat(address(config.tokens.usdc), 1 days);
+
         // ------------ Add base collateral
         config.levelContracts.levelMintingV2.setBaseCollateral(address(config.tokens.usdc), true);
-        config.levelContracts.levelMintingV2.setBaseCollateral(address(config.tokens.usdt), true);
 
-        _addExistingRedeemers();
+        // _cleanUp();
 
-        // TODO: Remove before deployment
-        setupMorphoVaultsForTests();
-
-        cleanUp();
+        _print();
+        vm.stopBroadcast();
 
         return config;
-    }
-
-    function setupMorphoVaultsForTests() public {
-        if (address(config.morphoVaults.re7Usdc.oracle) == address(0)) {
-            config.morphoVaults.re7Usdc.oracle = deployERC4626Oracle(config.morphoVaults.re7Usdc.vault, 4 hours);
-        }
-
-        if (address(config.morphoVaults.steakhouseUsdt.oracle) == address(0)) {
-            config.morphoVaults.steakhouseUsdt.oracle =
-                deployERC4626Oracle(config.morphoVaults.steakhouseUsdt.vault, 4 hours);
-        }
-
-        if (address(config.morphoVaults.steakhouseUsdtLite.oracle) == address(0)) {
-            config.morphoVaults.steakhouseUsdtLite.oracle =
-                deployERC4626Oracle(config.morphoVaults.steakhouseUsdtLite.vault, 4 hours);
-        }
-
-        steakhouseUsdtConfig = StrategyConfig({
-            category: StrategyCategory.MORPHO,
-            baseCollateral: config.tokens.usdt,
-            receiptToken: ERC20(address(config.morphoVaults.steakhouseUsdt.vault)),
-            oracle: config.morphoVaults.steakhouseUsdt.oracle,
-            depositContract: address(config.morphoVaults.steakhouseUsdt.vault),
-            withdrawContract: address(config.morphoVaults.steakhouseUsdt.vault),
-            heartbeat: 1 days
-        });
-
-        re7UsdcConfig = StrategyConfig({
-            category: StrategyCategory.MORPHO,
-            baseCollateral: config.tokens.usdc,
-            receiptToken: ERC20(address(config.morphoVaults.re7Usdc.vault)),
-            oracle: config.morphoVaults.re7Usdc.oracle,
-            depositContract: address(config.morphoVaults.re7Usdc.vault),
-            withdrawContract: address(config.morphoVaults.re7Usdc.vault),
-            heartbeat: 1 days
-        });
-
-        steakhouseUsdtLiteConfig = StrategyConfig({
-            category: StrategyCategory.MORPHO,
-            baseCollateral: config.tokens.usdt,
-            receiptToken: ERC20(address(config.morphoVaults.steakhouseUsdtLite.vault)),
-            oracle: config.morphoVaults.steakhouseUsdtLite.oracle,
-            depositContract: address(config.morphoVaults.steakhouseUsdtLite.vault),
-            withdrawContract: address(config.morphoVaults.steakhouseUsdtLite.vault),
-            heartbeat: 1 days
-        });
-
-        StrategyConfig[] memory usdcConfigs = new StrategyConfig[](3);
-        usdcConfigs[0] = aUsdcConfig;
-        usdcConfigs[1] = steakhouseUsdcConfig;
-        usdcConfigs[2] = re7UsdcConfig;
-
-        StrategyConfig[] memory usdtConfigs = new StrategyConfig[](3);
-        usdtConfigs[0] = aUsdtConfig;
-        usdtConfigs[1] = steakhouseUsdtConfig;
-        usdtConfigs[2] = steakhouseUsdtLiteConfig;
-
-        //--------------- Add test Morpho vaults as strategies
-        if (address(config.morphoVaults.steakhouseUsdt.vault) == address(0)) {
-            revert("Steakhouse USDT vaults not deployed");
-        } else {
-            config.levelContracts.vaultManager.addAssetStrategy(
-                address(config.tokens.usdt), address(config.morphoVaults.steakhouseUsdt.vault), steakhouseUsdtConfig
-            );
-        }
-
-        if (address(config.morphoVaults.re7Usdc.vault) == address(0)) {
-            revert("Re7 USDC vaults not deployed");
-        } else {
-            config.levelContracts.vaultManager.addAssetStrategy(
-                address(config.tokens.usdc), address(config.morphoVaults.re7Usdc.vault), re7UsdcConfig
-            );
-        }
-
-        if (address(config.morphoVaults.steakhouseUsdtLite.vault) == address(0)) {
-            revert("Steakhouse USDT Lite vaults not deployed");
-        } else {
-            config.levelContracts.vaultManager.addAssetStrategy(
-                address(config.tokens.usdt),
-                address(config.morphoVaults.steakhouseUsdtLite.vault),
-                steakhouseUsdtLiteConfig
-            );
-        }
-
-        // Add Aave as a default strategy
-        address[] memory usdcDefaultStrategies = new address[](3);
-        usdcDefaultStrategies[0] = address(config.periphery.aaveV3);
-        usdcDefaultStrategies[1] = address(config.morphoVaults.steakhouseUsdc.vault);
-        usdcDefaultStrategies[2] = address(config.morphoVaults.re7Usdc.vault);
-
-        address[] memory usdtDefaultStrategies = new address[](3);
-        usdtDefaultStrategies[0] = address(config.periphery.aaveV3);
-        usdtDefaultStrategies[1] = address(config.morphoVaults.steakhouseUsdt.vault);
-        usdtDefaultStrategies[2] = address(config.morphoVaults.steakhouseUsdtLite.vault);
-
-        config.levelContracts.vaultManager.setDefaultStrategies(address(config.tokens.usdc), usdcDefaultStrategies);
-        config.levelContracts.vaultManager.setDefaultStrategies(address(config.tokens.usdt), usdtDefaultStrategies);
     }
 
     function deployRolesAuthority() public returns (StrictRolesAuthority) {
@@ -512,9 +315,6 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         }(deployerWallet.addr, Authority(address(0)));
 
         vm.label(address(config.levelContracts.rolesAuthority), LevelUsdReserveRolesAuthorityName);
-
-        // Need to set the authority of the roles authority to itself
-        config.levelContracts.rolesAuthority.setAuthority(config.levelContracts.rolesAuthority);
 
         return config.levelContracts.rolesAuthority;
     }
@@ -641,6 +441,8 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             return config.levelContracts.erc4626OracleFactory;
         }
 
+        bytes memory creationCode;
+
         ERC4626OracleFactory _erc4626OracleFactory =
             new ERC4626OracleFactory{salt: convertNameToBytes32(LevelERC4626OracleFactoryName)}();
 
@@ -703,20 +505,6 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
 
         vm.label(address(_levelMintingV2.silo()), "LevelMintingV2Silo");
 
-        _levelMintingV2.addMintableAsset(address(config.tokens.usdc));
-        _levelMintingV2.addMintableAsset(address(config.tokens.usdt));
-
-        _levelMintingV2.addRedeemableAsset(address(config.tokens.usdc));
-        _levelMintingV2.addRedeemableAsset(address(config.tokens.usdt));
-
-        _levelMintingV2.addOracle(address(config.tokens.usdc), address(config.oracles.usdc), false);
-        _levelMintingV2.addOracle(address(config.tokens.usdt), address(config.oracles.usdt), false);
-
-        _levelMintingV2.setCooldownDuration(5 minutes);
-
-        _levelMintingV2.setHeartBeat(address(config.tokens.usdc), 1 days);
-        _levelMintingV2.setHeartBeat(address(config.tokens.usdt), 1 days);
-
         config.levelContracts.levelMintingV2 = _levelMintingV2;
 
         return _levelMintingV2;
@@ -753,12 +541,6 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             revert("VaultManager must be deployed first");
         }
 
-        if (address(config.levelContracts.boringVault) == address(0)) {
-            revert("BoringVault must be deployed first");
-        }
-
-        // =============================== LEVEL MINTING V2 ===============================
-
         // Configure emergency pause group for LevelMintingV2
         PauserGuard.FunctionSig[] memory emergencyPauseGroup = new PauserGuard.FunctionSig[](3);
         emergencyPauseGroup[0] = PauserGuard.FunctionSig({
@@ -789,8 +571,6 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
 
         config.levelContracts.pauserGuard.configureGroup(keccak256("REDEEM_PAUSE"), redeemPauseGroup);
 
-        // =============================== VAULT MANAGER ===============================
-
         // Configure emergency pause group for VaultManager
         PauserGuard.FunctionSig[] memory vaultManagerPauseGroup = new PauserGuard.FunctionSig[](4);
         vaultManagerPauseGroup[0] = PauserGuard.FunctionSig({
@@ -811,58 +591,6 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         });
 
         config.levelContracts.pauserGuard.configureGroup(keccak256("VAULT_MANAGER_PAUSE"), vaultManagerPauseGroup);
-
-        // =============================== BORING VAULT ===============================
-
-        PauserGuard.FunctionSig[] memory boringVaultPauseGroup = new PauserGuard.FunctionSig[](6);
-        boringVaultPauseGroup[0] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("manage(address,bytes,uint256)")),
-            target: address(config.levelContracts.boringVault)
-        });
-        boringVaultPauseGroup[1] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("manage(address[],bytes[],uint256[])")),
-            target: address(config.levelContracts.boringVault)
-        });
-        boringVaultPauseGroup[2] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("enter(address,address,uint256,address,uint256)")),
-            target: address(config.levelContracts.boringVault)
-        });
-        boringVaultPauseGroup[3] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("exit(address,address,uint256,address,uint256)")),
-            target: address(config.levelContracts.boringVault)
-        });
-        boringVaultPauseGroup[4] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("increaseAllowance(address,address,uint256)")),
-            target: address(config.levelContracts.boringVault)
-        });
-        boringVaultPauseGroup[5] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("setBeforeTransferHook(address)")),
-            target: address(config.levelContracts.boringVault)
-        });
-
-        config.levelContracts.pauserGuard.configureGroup(keccak256("BORING_VAULT_PAUSE"), boringVaultPauseGroup);
-
-        // =============================== REWARDS MANAGER ===============================
-
-        PauserGuard.FunctionSig[] memory rewardsManagerPauseGroup = new PauserGuard.FunctionSig[](4);
-        rewardsManagerPauseGroup[0] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("reward(address[])")),
-            target: address(config.levelContracts.rewardsManager)
-        });
-        rewardsManagerPauseGroup[1] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("setVault(address)")),
-            target: address(config.levelContracts.rewardsManager)
-        });
-        rewardsManagerPauseGroup[2] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("setTreasury(address)")),
-            target: address(config.levelContracts.rewardsManager)
-        });
-        rewardsManagerPauseGroup[3] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("setAllStrategies(address,StrategyConfig[])")),
-            target: address(config.levelContracts.rewardsManager)
-        });
-
-        config.levelContracts.pauserGuard.configureGroup(keccak256("REWARDS_MANAGER_PAUSE"), rewardsManagerPauseGroup);
     }
 
     function _setRoleIfNotExists(address user, uint8 role) internal {
@@ -877,72 +605,26 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         }
     }
 
-    function _addExistingRedeemers() internal {
-        address[18] memory redeemers = [
-            0xABFD9948933b975Ee9a668a57C776eCf73F6D840,
-            0xf641388a346976215B20cE3d5d3edCaBC8B9b98a,
-            0xe9AF0428143E4509df4379Bd10C4850b223F2EcB,
-            0xa0D26cD3Dfbe4d8edf9f95BD9129D5f733A9D9a7,
-            0x5788817BcF6482da4E434e1CEF68E6f85a690b58,
-            0x6fA5d361Ab8165347F636217001E22a7cEF09B48,
-            0x3D3eb99C278C7A50d8cf5fE7eBF0AD69066Fb7d1,
-            0xa58627a29bb59743cE1D781B1072c59bb1dda86d,
-            0xE0b7DEab801D864650DEc58CbD1b3c441D058C79,
-            0xaebb8FDBD5E52F99630cEBB80D0a1c19892EB4C2,
-            0x562BCF627F8dD07E0bC71f82f6fCB60737f87E07,
-            0x3be3A8613dC18554a73773a5Bfb8E9819d360Dc0,
-            0x5bB2719f3282EC4EA21DC2D8d790c9eA6581F3D7,
-            0x48035c02b450d24D8d8953Bc1A0B6C53571bA665,
-            0xd7583E3CF08bbcaB66F1242195227bBf9F865Fda,
-            0xbc0f3B23930fff9f4894914bD745ABAbA9588265,
-            0x79B94C17d8178689Df8d10754d7e4A1Bb3D49bc1,
-            0x7FE4b2632f5AE6d930677D662AF26Bc0a06672b3
-        ];
+    function _cleanUp() internal {
+        config.tokens.usdc.approve(address(config.levelContracts.boringVault), 100);
+        config.levelContracts.levelMintingV2.mint(
+            ILevelMintingV2Structs.Order({
+                beneficiary: msg.sender,
+                collateral_asset: address(config.tokens.usdc),
+                collateral_amount: 2,
+                lvlusd_amount: 0
+            })
+        );
 
-        for (uint256 i = 0; i < redeemers.length; i++) {
-            _setRoleIfNotExists(redeemers[i], REDEEMER_ROLE);
-        }
+        console2.log("LvlUSD balance: %s", config.tokens.lvlUsd.balanceOf(msg.sender));
+
+        config.tokens.lvlUsd.approve(address(config.levelContracts.levelMintingV2), 0.0001e18);
+        config.levelContracts.levelMintingV2.initiateRedeem(address(config.tokens.usdc), 0.000001e18, 0);
+
+        console2.log("Minted %s lvlUSD", config.tokens.lvlUsd.balanceOf(msg.sender));
     }
 
-    function cleanUp() public {
-        // Set the timelock as the admin of all contracts
-
-        if (config.levelContracts.rolesAuthority.owner() == deployerWallet.addr) {
-            config.levelContracts.rolesAuthority.transferOwnership(address(config.levelContracts.adminTimelock));
-        }
-
-        if (config.levelContracts.boringVault.owner() == deployerWallet.addr) {
-            config.levelContracts.boringVault.transferOwnership(address(config.levelContracts.adminTimelock));
-        }
-
-        if (config.levelContracts.vaultManager.owner() == deployerWallet.addr) {
-            config.levelContracts.vaultManager.transferOwnership(address(config.levelContracts.adminTimelock));
-        }
-
-        if (config.levelContracts.rewardsManager.owner() == deployerWallet.addr) {
-            config.levelContracts.rewardsManager.transferOwnership(address(config.levelContracts.adminTimelock));
-        }
-
-        if (config.levelContracts.levelMintingV2.owner() == deployerWallet.addr) {
-            config.levelContracts.levelMintingV2.transferOwnership(address(config.levelContracts.adminTimelock));
-        }
-
-        if (config.levelContracts.pauserGuard.owner() == deployerWallet.addr) {
-            config.levelContracts.pauserGuard.transferOwnership(address(config.levelContracts.adminTimelock));
-        }
-
-        if (
-            config.levelContracts.adminTimelock.hasRole(
-                config.levelContracts.adminTimelock.DEFAULT_ADMIN_ROLE(), deployerWallet.addr
-            )
-        ) {
-            config.levelContracts.adminTimelock.renounceRole(
-                config.levelContracts.adminTimelock.DEFAULT_ADMIN_ROLE(), deployerWallet.addr
-            );
-        }
-    }
-
-    function onDeploy() public view {
+    function _print() internal view {
         _printDeployedContracts(chainId, LevelTimelockName, address(config.levelContracts.adminTimelock));
         _printDeployedContracts(
             chainId, LevelUsdReserveRolesAuthorityName, address(config.levelContracts.rolesAuthority)

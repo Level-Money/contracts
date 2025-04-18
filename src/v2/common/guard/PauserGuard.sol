@@ -82,7 +82,7 @@ contract PauserGuard is Auth {
 
     /**
      * @notice Unpauses a specific function selector
-     * @dev Only callable by authorized addresses (must have PAUSER_ROLE)
+     * @dev Only callable by authorized addresses (must have UNPAUSER_ROLE)
      * @param selector The function selector to unpause
      * @dev Throws if the selector is not currently paused
      */
@@ -122,7 +122,7 @@ contract PauserGuard is Auth {
 
     /**
      * @notice Unpauses all functions in a configured group
-     * @dev Only callable by authorized addresses (must have PAUSER_ROLE)
+     * @dev Only callable by authorized addresses (must have UNPAUSER_ROLE)
      * @param group The keccak256 hash of the group identifier
      * @dev Emits events only for selectors that were actually unpaused
      */

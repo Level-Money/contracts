@@ -10,9 +10,11 @@ import {VaultLib} from "@level/src/v2/common/libraries/VaultLib.sol";
 import {VaultManagerStorage} from "@level/src/v2/usd/VaultManagerStorage.sol";
 import {PauserGuarded} from "@level/src/v2/common/guard/PauserGuarded.sol";
 import {IVaultManager} from "@level/src/v2/interfaces/level/IVaultManager.sol";
+import {OracleLib} from "@level/src/v2/common/libraries/OracleLib.sol";
 
 contract VaultManager is VaultManagerStorage, Initializable, UUPSUpgradeable, AuthUpgradeable, PauserGuarded {
     using VaultLib for BoringVault;
+    using OracleLib for address;
 
     constructor(address vault_) VaultManagerStorage(vault_) {
         _disableInitializers();
@@ -26,6 +28,7 @@ contract VaultManager is VaultManagerStorage, Initializable, UUPSUpgradeable, Au
 
     // ------- External ------------
     /// @inheritdoc IVaultManager
+    /// @dev only callable by STRATEGIST_ROLE
     function deposit(address asset, address strategy, uint256 amount)
         external
         requiresAuth
@@ -36,6 +39,7 @@ contract VaultManager is VaultManagerStorage, Initializable, UUPSUpgradeable, Au
     }
 
     /// @inheritdoc IVaultManager
+    /// @dev only callable by STRATEGIST_ROLE
     function withdraw(address asset, address strategy, uint256 amount)
         external
         requiresAuth
@@ -46,6 +50,7 @@ contract VaultManager is VaultManagerStorage, Initializable, UUPSUpgradeable, Au
     }
 
     /// @inheritdoc IVaultManager
+    /// @dev only callable by STRATEGIST_ROLE
     function depositDefault(address asset, uint256 amount)
         external
         requiresAuth
@@ -56,6 +61,7 @@ contract VaultManager is VaultManagerStorage, Initializable, UUPSUpgradeable, Au
     }
 
     /// @inheritdoc IVaultManager
+    /// @dev only callable by STRATEGIST_ROLE
     function withdrawDefault(address asset, uint256 amount)
         external
         requiresAuth
@@ -71,6 +77,10 @@ contract VaultManager is VaultManagerStorage, Initializable, UUPSUpgradeable, Au
         return vault._withdrawBatch(strategies, amount);
     }
 
+    function setGuard(address _guard) external requiresAuth {
+        _setGuard(_guard);
+    }
+
     // ------- Setters -------------
 
     /// @inheritdoc IVaultManager
@@ -82,7 +92,7 @@ contract VaultManager is VaultManagerStorage, Initializable, UUPSUpgradeable, Au
     }
 
     /// @inheritdoc IVaultManager
-    // Only callable by the owner (admin timelock)
+    /// @notice Only callable by the owner (admin timelock)
     function addAssetStrategy(address _asset, address _strategy, StrategyConfig calldata _config)
         external
         requiresAuth
@@ -116,6 +126,7 @@ contract VaultManager is VaultManagerStorage, Initializable, UUPSUpgradeable, Au
     }
 
     /// @inheritdoc IVaultManager
+    /// @notice Only callable by the owner (admin timelock)
     function setDefaultStrategies(address _asset, address[] calldata strategies) external requiresAuth {
         if (strategies.length == 0) {
             revert NoStrategiesProvided();
@@ -133,8 +144,11 @@ contract VaultManager is VaultManagerStorage, Initializable, UUPSUpgradeable, Au
     }
 
     // ------- Internal ------------
-    // Deposit asset into the vault. Shares should be minted 1:1 with the underlying, and shares should be stored in the vault.
-    // Only callable by DEPOSIT_ROLE. LevelMinting should have this role
+    /// @notice Internal function to deposit an asset into the vault
+    /// @param asset The address of the asset to deposit
+    /// @param strategy The strategy configuration
+    /// @param amount The amount of the asset to deposit
+    /// @return deposited The actual amount deposited
     function _deposit(address asset, address strategy, uint256 amount) internal returns (uint256 deposited) {
         if (strategy == address(0)) {
             return 0;
@@ -146,13 +160,19 @@ contract VaultManager is VaultManagerStorage, Initializable, UUPSUpgradeable, Au
             revert InvalidStrategy();
         }
 
+        // Try to update oracle before deposit
+        address(config.oracle)._tryUpdateOracle();
+
         deposited = vault._deposit(config, amount);
         emit Deposit(asset, config, deposited);
         return deposited;
     }
 
-    // Withdraw asset from the vault. Shares should be burned 1:1 with the underlying, and shares should be taken from the vault.
-    // Only callable by WITHDRAW_ROLE. LevelMinting should have this role
+    /// @notice Internal function to withdraw an asset from the vault
+    /// @param asset The address of the asset to withdraw
+    /// @param strategy The strategy configuration
+    /// @param amount The amount of the asset to withdraw
+    /// @return withdrawn The actual amount withdrawn
     function _withdraw(address asset, address strategy, uint256 amount) internal returns (uint256 withdrawn) {
         if (strategy == address(0)) {
             return 0;
@@ -162,6 +182,9 @@ contract VaultManager is VaultManagerStorage, Initializable, UUPSUpgradeable, Au
         if (config.category == StrategyCategory.UNDEFINED) {
             revert InvalidStrategy();
         }
+
+        // Try to update oracle before withdraw
+        address(config.oracle)._tryUpdateOracle();
 
         withdrawn = vault._withdraw(config, amount);
         emit Withdraw(asset, config, withdrawn);

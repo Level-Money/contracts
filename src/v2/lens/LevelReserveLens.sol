@@ -11,7 +11,7 @@ import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.
 import {ILevelMinting} from "@level/src/v1/interfaces/ILevelMinting.sol";
 import {IVault} from "@level/src/v1/interfaces/ISymbioticVault.sol";
 import {AggregatorV3Interface} from "@level/src/v1/interfaces/AggregatorV3Interface.sol";
-import {VaultManager} from "@level/src/v2/usd/VaultManager.sol";
+import {RewardsManager} from "@level/src/v2/usd/RewardsManager.sol";
 import {LevelReserveLens as LevelReserveLensV1} from "@level/src/v1/lens/LevelReserveLens.sol";
 
 /**
@@ -35,7 +35,7 @@ import {LevelReserveLens as LevelReserveLensV1} from "@level/src/v1/lens/LevelRe
  */
 contract LevelReserveLens is Initializable, OwnableUpgradeable, UUPSUpgradeable, LevelReserveLensV1 {
     // TODO: update when rewards manager is deployed
-    address public constant rewardsManager = address(0);
+    address public constant rewardsManager = 0x9f7757b909E99987C44C34Cf084fb7B51B1999Bb;
 
     /**
      * @notice Helper function to get the reserves of the given collateral token.
@@ -52,9 +52,10 @@ contract LevelReserveLens is Initializable, OwnableUpgradeable, UUPSUpgradeable,
     {
         uint256 v1Reserves = super._getReserves(collateral, waCollateralAddress, symbioticVault);
 
-        // uint256 boringVaultValue = VaultManager(vaultManager).getTotalAssets(address(collateral));
-        uint256 boringVaultValue = 0;
-
-        return v1Reserves + boringVaultValue;
+        try RewardsManager(rewardsManager).getTotalAssets(address(collateral)) returns (uint256 boringVaultValue) {
+            return v1Reserves + boringVaultValue;
+        } catch {
+            return v1Reserves;
+        }
     }
 }

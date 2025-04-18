@@ -10,7 +10,7 @@ import {Utils} from "@level/test/utils/Utils.sol";
 import {lvlUSD} from "@level/src/v1/lvlUSD.sol";
 import {Authority} from "@solmate/src/auth/Auth.sol";
 
-contract LevelMintingV2AclUnitTests is Utils, Configurable {
+contract AuthUpgradeableACLTests is Utils, Configurable {
     Vm.Wallet private deployer;
     Vm.Wallet private normal;
     Vm.Wallet private redeemer;

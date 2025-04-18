@@ -25,6 +25,7 @@ struct StrategyConfig {
     AggregatorV3Interface oracle; // The oracle that provides the price of each receipt token, denominated by the asset
     address depositContract;
     address withdrawContract;
+    uint256 heartbeat;
 }
 
 library StrategyLib {
@@ -50,7 +51,8 @@ library StrategyLib {
         uint256 sharesToAssetDecimals =
             shares.mulDivDown(10 ** ERC20(address(config.baseCollateral)).decimals(), 10 ** receiptToken.decimals());
 
-        (int256 assetsForOneShare, uint256 decimals) = OracleLib.getPriceAndDecimals(address(config.oracle), 0);
+        (int256 assetsForOneShare, uint256 decimals) =
+            OracleLib.getPriceAndDecimals(address(config.oracle), config.heartbeat);
 
         assets_ = uint256(assetsForOneShare).mulDivDown(sharesToAssetDecimals, 10 ** decimals);
 
