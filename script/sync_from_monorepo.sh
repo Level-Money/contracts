@@ -10,6 +10,7 @@ IGNORED_DIRS=(
     "integration_tests"
     "docs"
     ".gitmodules"
+    ".github"
 )
 
 IGNORED_FILES=(
