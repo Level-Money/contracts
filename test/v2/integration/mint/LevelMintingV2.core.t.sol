@@ -202,10 +202,6 @@ contract LevelMintingV2CoreTests is Utils, Configurable {
         assertEq(config.tokens.lvlUsd.balanceOf(normalUser.addr), 1e18);
         assertApproxEqAbs(config.tokens.usdc.balanceOf(address(config.levelContracts.boringVault)), 1e6, 1);
 
-        // Test initiateRedeem when vault is paused
-        vm.expectEmit(true, true, true, false);
-        emit ILevelMintingV2Events.WithdrawDefaultFailed(normalUser.addr, address(config.tokens.usdc), 1e6);
-
         (, uint256 collateralAmountOnInitiate) = levelMinting.initiateRedeem(address(config.tokens.usdc), 1e18, 1e6);
 
         assertEq(
@@ -221,7 +217,7 @@ contract LevelMintingV2CoreTests is Utils, Configurable {
     }
 
     function test_mint_and_redeem(uint256 toMint, uint256 toRedeem) public {
-        uint256 toMint = bound(toMint, 1e6, 500000e6);
+        uint256 toMint = bound(toMint, 1e6, 250000e6);
         uint256 minLvlUsdAmount = _adjustAmount(toMint, address(config.tokens.usdc), address(config.tokens.lvlUsd));
 
         ILevelMintingV2Structs.Order memory order_ = mint_setup_inffApprovals(
@@ -271,7 +267,7 @@ contract LevelMintingV2CoreTests is Utils, Configurable {
     }
 
     function test_mint_and_redeem_mixed_collateral(uint256 toMint, uint256 toRedeem) public {
-        uint256 toMint = bound(toMint, 1e6, 250000e6);
+        uint256 toMint = bound(toMint, 1e6, 125000e6);
         uint256 minLvlUsdAmount = _adjustAmount(toMint, address(config.tokens.usdc), address(config.tokens.lvlUsd));
 
         ILevelMintingV2Structs.Order memory order_USDC = mint_setup_inffApprovals(
@@ -424,10 +420,12 @@ contract LevelMintingV2CoreTests is Utils, Configurable {
         (, uint256 usdcAmountOnInitiate) =
             levelMinting.initiateRedeem(address(config.tokens.usdc), lvlUsdToRedeemForUsdcMinter, minUsdc);
 
+        vm.roll(block.number + 1);
         vm.prank(usdtMinter);
         (, uint256 usdtAmountOnInitiate) =
             levelMinting.initiateRedeem(address(config.tokens.usdt), lvlUsdToRedeemForUsdtMinter, minUsdt);
 
+        vm.roll(block.number + 2);
         vm.startPrank(allCollateralMinter);
         (, uint256 allCollateralAmountOnInitiate_USDC) =
             levelMinting.initiateRedeem(address(config.tokens.usdc), lvlUsdToRedeemForAllCollateralMinter, minUsdc);
@@ -707,7 +705,7 @@ contract LevelMintingV2CoreTests is Utils, Configurable {
             address(config.users.admin),
             address(config.levelContracts.adminTimelock),
             address(levelMinting),
-            abi.encodeWithSignature("setMaxRedeemPerBlock(uint256)", 50e6)
+            abi.encodeWithSignature("setMaxRedeemPerBlock(uint256)", 50e18)
         );
 
         ILevelMintingV2Structs.Order memory order_ = mint_setup_inffApprovals(
@@ -730,7 +728,7 @@ contract LevelMintingV2CoreTests is Utils, Configurable {
             address(config.users.admin),
             address(config.levelContracts.adminTimelock),
             address(levelMinting),
-            abi.encodeWithSignature("setMaxRedeemPerBlock(uint256)", 50e6)
+            abi.encodeWithSignature("setMaxRedeemPerBlock(uint256)", 50e18)
         );
 
         ILevelMintingV2Structs.Order memory order_ = mint_setup_inffApprovals(
@@ -743,6 +741,45 @@ contract LevelMintingV2CoreTests is Utils, Configurable {
         levelMinting.initiateRedeem(address(config.tokens.usdc), 25e18, 25e6);
         vm.expectRevert(ILevelMintingV2Errors.ExceedsMaxBlockLimit.selector);
         levelMinting.initiateRedeem(address(config.tokens.usdc), 26e18, 26e6);
+    }
+
+    function test_exceed_max_redeem_multiple_redeemers() public {
+        uint256 collateralAmount = 100e6;
+        uint256 mintAmount = 100e18;
+
+        _scheduleAndExecuteAdminAction(
+            address(config.users.admin),
+            address(config.levelContracts.adminTimelock),
+            address(levelMinting),
+            abi.encodeWithSignature("setMaxRedeemPerBlock(uint256)", 50e18)
+        );
+
+        ILevelMintingV2Structs.Order memory order_ = mint_setup_inffApprovals(
+            normalUser.addr, normalUser.addr, address(config.tokens.usdc), mintAmount, collateralAmount
+        );
+
+        vm.startPrank(normalUser.addr);
+        levelMinting.mint(order_);
+
+        config.tokens.lvlUsd.transfer(alice.addr, 25e18);
+        config.tokens.lvlUsd.transfer(bob.addr, 25e18);
+        vm.stopPrank();
+
+        vm.startPrank(normalUser.addr);
+        levelMinting.initiateRedeem(address(config.tokens.usdc), 50e18, 50e6);
+        vm.stopPrank();
+
+        vm.startPrank(alice.addr);
+        config.tokens.lvlUsd.approve(address(levelMinting), type(uint256).max);
+        vm.expectRevert(ILevelMintingV2Errors.ExceedsMaxBlockLimit.selector);
+        levelMinting.initiateRedeem(address(config.tokens.usdc), 25e18, 25e6);
+        vm.stopPrank();
+
+        vm.startPrank(bob.addr);
+        config.tokens.lvlUsd.approve(address(levelMinting), type(uint256).max);
+        vm.expectRevert(ILevelMintingV2Errors.ExceedsMaxBlockLimit.selector);
+        levelMinting.initiateRedeem(address(config.tokens.usdc), 25e18, 25e6);
+        vm.stopPrank();
     }
 
     function test_redeem_unsufficient_lvlusd_balance() public {

@@ -11,6 +11,7 @@ import {MathLib} from "@level/src/v2/common/libraries/MathLib.sol";
 import {OracleLib} from "@level/src/v2/common/libraries/OracleLib.sol";
 import {LevelMintingV2Storage} from "@level/src/v2/LevelMintingV2Storage.sol";
 import {PauserGuarded} from "@level/src/v2/common/guard/PauserGuarded.sol";
+import {console2} from "forge-std/console2.sol";
 
 contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable, AuthUpgradeable, PauserGuarded {
     using MathLib for uint256;
@@ -36,12 +37,11 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
         __Auth_init(_admin, _authority);
         __PauserGuarded_init(_guard);
 
+        require(_oracles.length == _assets.length, "Invalid oracles length");
+
         for (uint256 i = 0; i < _assets.length; i++) {
             addMintableAsset(_assets[i]);
             addRedeemableAsset(_assets[i]);
-        }
-
-        for (uint256 i = 0; i < _assets.length; i++) {
             addOracle(_assets[i], _oracles[i], false);
         }
 
@@ -107,17 +107,17 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
 
         pendingRedemption[msg.sender][asset] += collateralAmount;
         userCooldown[msg.sender][asset] = block.timestamp;
+        redeemedPerBlock[block.number] += lvlUsdAmount;
 
-        // note preventing amounts that would fail by definition at complete redeem due to max per block
-        if (pendingRedemption[msg.sender][asset] > maxRedeemPerBlock) revert ExceedsMaxBlockLimit();
+        if (redeemedPerBlock[block.number] > maxRedeemPerBlock) revert ExceedsMaxBlockLimit();
 
         lvlusd.burnFrom(msg.sender, lvlUsdAmount);
 
-        // Don't block redemptions if withdraw default fails
-        try vaultManager.withdrawDefault(asset, collateralAmount) {
-            emit WithdrawDefaultSucceeded(msg.sender, asset, collateralAmount);
-        } catch {
-            emit WithdrawDefaultFailed(msg.sender, asset, collateralAmount);
+        uint256 availableCollateral = ERC20(asset).balanceOf((address(vaultManager.vault())));
+
+        if (availableCollateral < collateralAmount) {
+            uint256 toWithdraw = collateralAmount - availableCollateral;
+            vaultManager.withdrawDefault(asset, toWithdraw);
         }
 
         vaultManager.vault().exit(
@@ -130,7 +130,6 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
     }
 
     function completeRedeem(address asset, address beneficiary) external notPaused returns (uint256 collateralAmount) {
-        if (!redeemableAssets[asset]) revert UnsupportedAsset();
         if (userCooldown[msg.sender][asset] + cooldownDuration > block.timestamp) revert StillInCooldown();
 
         // note we only support complete withdrawal of pending redemptions
@@ -140,11 +139,14 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
 
         userCooldown[msg.sender][asset] = 0;
         pendingRedemption[msg.sender][asset] -= collateralAmount;
-        redeemedPerBlock[block.number] += collateralAmount;
 
         silo.withdraw(beneficiary, asset, collateralAmount);
 
         emit RedeemCompleted(msg.sender, beneficiary, asset, collateralAmount);
+    }
+
+    function setGuard(address _guard) external requiresAuth {
+        _setGuard(_guard);
     }
 
     /* --------------- GETTERS/ CHECKS --------------- */
@@ -186,9 +188,6 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
         }
 
         (int256 underlyingPrice, uint256 underlyingPriceDecimals) = getPriceAndDecimals(underlyingAsset);
-        if (underlyingPrice == 0) {
-            revert OraclePriceIsZero();
-        }
 
         // If stablecoin is under peg, we first multiply the collateral amount by the price before converting to lvlusd amount to mint
         // This helps ensure that lvlUSD is sufficiently collateralized in the event of sharp price movements down
@@ -202,9 +201,6 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
 
     function computeRedeem(address asset, uint256 lvlusdAmount) public view returns (uint256 collateralAmount) {
         (int256 price, uint256 decimals) = getPriceAndDecimals(asset);
-        if (price == 0) {
-            revert OraclePriceIsZero();
-        }
 
         uint8 asset_decimals = ERC20(asset).decimals();
 

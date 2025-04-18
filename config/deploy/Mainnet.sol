@@ -19,6 +19,8 @@ import {IMulticall3} from "forge-std/interfaces/IMulticall3.sol";
 import {RewardsManager} from "@level/src/v2/usd/RewardsManager.sol";
 import {PauserGuard} from "@level/src/v2/common/guard/PauserGuard.sol";
 import {StrictRolesAuthority} from "@level/src/v2/auth/StrictRolesAuthority.sol";
+import {LevelReserveLens} from "@level/src/v2/lens/LevelReserveLens.sol";
+import {LevelReserveLensMorphoOracle} from "@level/src/v1/lens/LevelReserveLensMorphoOracle.sol";
 
 contract Mainnet is BaseConfig {
     uint256 public constant chainId = 1;
@@ -58,7 +60,8 @@ contract Mainnet is BaseConfig {
                 rewardsManager: RewardsManager(address(0)),
                 adminTimelock: TimelockController(payable(address(0))),
                 erc4626OracleFactory: ERC4626OracleFactory(address(0)),
-                pauserGuard: PauserGuard(address(0))
+                pauserGuard: PauserGuard(address(0)),
+                levelReserveLens: LevelReserveLens(0x29759944834e08acE755dcEA71491413f7e2CBAD)
             }),
             morphoVaults: MorphoVaults({
                 steakhouseUsdc: MetaMorphoVault({
@@ -80,7 +83,8 @@ contract Mainnet is BaseConfig {
             }),
             periphery: PeripheryContracts({
                 aaveV3: IPool(0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2),
-                multicall3: IMulticall3(0xcA11bde05977b3631167028862bE2a173976CA11)
+                multicall3: IMulticall3(0xcA11bde05977b3631167028862bE2a173976CA11),
+                levelReserveLensMorphoOracle: LevelReserveLensMorphoOracle(0x625bB4f5133Ff9F6d43e21F15add35BE46387903)
             })
         });
 

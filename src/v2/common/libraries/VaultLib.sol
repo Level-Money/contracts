@@ -130,8 +130,6 @@ library VaultLib {
     {
         address aaveV3 = _getAaveV3Pool();
 
-        vault.increaseAllowance(address(_config.receiptToken), aaveV3, amount);
-
         bytes memory withdrawnRaw = vault.manage(
             address(aaveV3),
             abi.encodeWithSignature(
@@ -186,8 +184,6 @@ library VaultLib {
         if (sharesToRedeem == 0) {
             revert("VaultManager: amount must be greater than 0");
         }
-
-        vault.increaseAllowance(address(_config.receiptToken), _config.withdrawContract, sharesToRedeem);
 
         uint256 balanceBefore = _config.baseCollateral.balanceOf(address(vault));
         bytes memory sharesRaw = vault.manage(

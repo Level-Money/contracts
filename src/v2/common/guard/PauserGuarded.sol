@@ -30,7 +30,9 @@ abstract contract PauserGuarded is Initializable {
      * @dev Initializes the contract with a PauserGuard.
      * @param _guard The guard that controls the pause state of the contract.
      */
-    function __PauserGuarded_init(address _guard) internal onlyInitializing {
+    function __PauserGuarded_init(address _guard) internal {
+        if (address(guard) != address(0)) revert("Already initialized");
+
         if (_guard == address(0)) {
             revert("Guard cannot be zero address");
         }

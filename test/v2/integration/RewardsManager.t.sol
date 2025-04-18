@@ -152,7 +152,8 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
             ERC20 receiptToken,
             AggregatorV3Interface oracle,
             address depositContract,
-            address withdrawContract
+            address withdrawContract,
+            uint256 heartbeat
         ) = vaultManager.assetToStrategy(asset, strategy);
 
         StrategyConfig memory config = StrategyConfig({
@@ -161,7 +162,8 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
             receiptToken: receiptToken,
             oracle: oracle,
             depositContract: depositContract,
-            withdrawContract: withdrawContract
+            withdrawContract: withdrawContract,
+            heartbeat: heartbeat
         });
 
         return StrategyLib.getAssets(config, address(vaultManager.vault()));

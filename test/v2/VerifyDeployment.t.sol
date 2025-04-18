@@ -91,7 +91,11 @@ contract VerifyDeployment is Utils, Configurable {
 
     function test__allContractsHaveCorrectAuthority() public {
         // Only owner should be able to call RolesAuthority functions
-        assertEq(address(config.levelContracts.rolesAuthority.authority()), address(0));
+        // But we need ADMIN_MULTISIG_ROLE to be able to call removeUserRole
+        // All other rolesAuthority functions are only callable by the owner
+        assertEq(
+            address(config.levelContracts.rolesAuthority.authority()), address(config.levelContracts.rolesAuthority)
+        );
 
         // All contracts should have the RolesAuthority as their authority
         assertEq(address(config.levelContracts.boringVault.authority()), address(config.levelContracts.rolesAuthority));
