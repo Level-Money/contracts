@@ -1,5 +1,5 @@
 # IDelegationManager
-[Git Source](https://github.com/Level-Money/contracts/blob/cdcafc63c9abdb8c667176cf6dd45d63276ad690/src/v1/interfaces/eigenlayer/IDelegationManager.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/dc473999128bb60d87e479b557f6971af65ff8db/src/v1/interfaces/eigenlayer/IDelegationManager.sol)
 
 **Inherits:**
 [ISignatureUtils](/src/v1/interfaces/eigenlayer/ISignatureUtils.sol/interface.ISignatureUtils.md)
