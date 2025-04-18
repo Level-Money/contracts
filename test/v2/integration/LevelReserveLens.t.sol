@@ -18,7 +18,7 @@ import {VaultLib} from "@level/src/v2/common/libraries/VaultLib.sol";
 import {LevelReserveLens} from "@level/src/v2/lens/LevelReserveLens.sol";
 import {UpgradeLevelReserveLens} from "@level/script/v2/lens/UpgradeLevelReserveLens.s.sol";
 
-contract RewardsManagerMainnetTests is Utils, Configurable {
+contract LevelReserveLensTests is Utils, Configurable {
     using SafeTransferLib for ERC20;
     using MathLib for uint256;
 

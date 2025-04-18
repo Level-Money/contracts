@@ -11,7 +11,6 @@ import {MathLib} from "@level/src/v2/common/libraries/MathLib.sol";
 import {OracleLib} from "@level/src/v2/common/libraries/OracleLib.sol";
 import {LevelMintingV2Storage} from "@level/src/v2/LevelMintingV2Storage.sol";
 import {PauserGuarded} from "@level/src/v2/common/guard/PauserGuarded.sol";
-import {console2} from "forge-std/console2.sol";
 
 contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable, AuthUpgradeable, PauserGuarded {
     using MathLib for uint256;
@@ -24,8 +23,6 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
     }
 
     function initialize(
-        address[] memory _assets,
-        address[] memory _oracles,
         address _admin,
         uint256 _maxMintPerBlock,
         uint256 _maxRedeemPerBlock,
@@ -36,14 +33,6 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
         __UUPSUpgradeable_init();
         __Auth_init(_admin, _authority);
         __PauserGuarded_init(_guard);
-
-        require(_oracles.length == _assets.length, "Invalid oracles length");
-
-        for (uint256 i = 0; i < _assets.length; i++) {
-            addMintableAsset(_assets[i]);
-            addRedeemableAsset(_assets[i]);
-            addOracle(_assets[i], _oracles[i], false);
-        }
 
         maxMintPerBlock = _maxMintPerBlock;
         maxRedeemPerBlock = _maxRedeemPerBlock;

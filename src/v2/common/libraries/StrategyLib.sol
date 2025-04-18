@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 import {OracleLib} from "@level/src/v2/common/libraries/OracleLib.sol";
 
-import {console2} from "forge-std/console2.sol";
 import {AggregatorV3Interface} from "@level/src/v2/interfaces/AggregatorV3Interface.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {MathLib} from "@level/src/v2/common/libraries/MathLib.sol";

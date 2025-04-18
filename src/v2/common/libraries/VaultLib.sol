@@ -8,7 +8,6 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 import {IPool} from "@level/src/v2/interfaces/aave/IPool.sol";
 import {IPoolAddressesProvider} from "@level/src/v2/interfaces/aave/IPoolAddressesProvider.sol";
-import {console2} from "forge-std/console2.sol";
 
 library VaultLib {
     // Immutable Aave v3 pool addresses provider
