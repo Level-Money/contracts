@@ -37,7 +37,7 @@ import {StrictRolesAuthority} from "@level/src/v2/auth/StrictRolesAuthority.sol"
  * Kitchen sink deployment script; deploy the entire protocol in one go.
  * Used for testing + development.
  *
- * source .env && forge script script/DeployDeployer.s.sol:DeployDeployerScript --with-gas-price 30000000000 --slow --broadcast --etherscan-api-key $ETHERSCAN_KEY --verify
+ * source .env && forge script script/v2/DeployLevel.s.sol:DeployLevel --slow --broadcast --etherscan-api-key $ETHERSCAN_API_KEY --verify
  * @dev Optionally can change `--with-gas-price` to something more reasonable
  */
 contract DeployLevel is Configurable, DeploymentUtils, Script {
@@ -62,7 +62,9 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         chainId = _chainId;
         initConfig(_chainId);
 
-        vm.label(msg.sender, "Deployer EOA");
+        deployerWallet.addr = msg.sender;
+
+        vm.label(deployerWallet.addr, "Deployer EOA");
     }
 
     function setUp_(uint256 _chainId, uint256 _privateKey) public {
@@ -80,12 +82,24 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
     }
 
     function run() external returns (BaseConfig.Config memory) {
+        console2.log(string.concat("Deployer EOA: ", vm.toString(deployerWallet.addr)));
+
         return _run();
     }
 
-    function _run() internal returns (BaseConfig.Config memory) {
-        vm.startBroadcast(deployerWallet.privateKey);
+    modifier asDeployer() {
+        if (deployerWallet.privateKey != 0) {
+            vm.startBroadcast(deployerWallet.privateKey);
+        } else {
+            vm.startBroadcast();
+        }
 
+        _;
+
+        vm.stopBroadcast();
+    }
+
+    function _run() internal asDeployer returns (BaseConfig.Config memory) {
         // Deploy
         deployAdminTimelock();
         deployRolesAuthority();
@@ -383,16 +397,15 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
 
         _addExistingRedeemers();
 
-        // TODO: comment out before deployment
-        _setupMorphoVaultsForTests();
+        // TODO: Remove before deployment
+        setupMorphoVaultsForTests();
 
         cleanUp();
-        vm.stopBroadcast();
 
         return config;
     }
 
-    function _setupMorphoVaultsForTests() internal {
+    function setupMorphoVaultsForTests() public {
         if (address(config.morphoVaults.re7Usdc.oracle) == address(0)) {
             config.morphoVaults.re7Usdc.oracle = deployERC4626Oracle(config.morphoVaults.re7Usdc.vault, 4 hours);
         }
@@ -494,14 +507,9 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             return config.levelContracts.rolesAuthority;
         }
 
-        bytes memory creationCode;
-        bytes memory constructorArgs;
-
-        creationCode = type(StrictRolesAuthority).creationCode;
-        constructorArgs = abi.encode(deployerWallet.addr, Authority(address(0)));
-        config.levelContracts.rolesAuthority = StrictRolesAuthority(
-            this.deployContract(LevelUsdReserveRolesAuthorityName, creationCode, constructorArgs, 0)
-        );
+        config.levelContracts.rolesAuthority = new StrictRolesAuthority{
+            salt: convertNameToBytes32(LevelUsdReserveRolesAuthorityName)
+        }(deployerWallet.addr, Authority(address(0)));
 
         vm.label(address(config.levelContracts.rolesAuthority), LevelUsdReserveRolesAuthorityName);
 
@@ -516,22 +524,15 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             return config.levelContracts.adminTimelock;
         }
 
-        bytes memory creationCode;
-        bytes memory constructorArgs;
-
-        creationCode = type(TimelockController).creationCode;
-
         address[] memory proposers = new address[](1);
         proposers[0] = address(config.users.admin);
 
         address[] memory executors = new address[](1);
         executors[0] = address(config.users.admin);
 
-        constructorArgs = abi.encode(3 days, proposers, executors, deployerWallet.addr);
-
-        address contractAddress = this.deployContract(LevelTimelockName, creationCode, constructorArgs, 0);
-
-        config.levelContracts.adminTimelock = TimelockController(payable(contractAddress));
+        config.levelContracts.adminTimelock = new TimelockController{salt: convertNameToBytes32(LevelTimelockName)}(
+            0, proposers, executors, deployerWallet.addr
+        );
 
         vm.label(address(config.levelContracts.adminTimelock), LevelTimelockName);
         return config.levelContracts.adminTimelock;
@@ -550,15 +551,9 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             revert("PauserGuard must be deployed first");
         }
 
-        bytes memory creationCode;
-        bytes memory constructorArgs;
-
-        creationCode = type(BoringVault).creationCode;
-        constructorArgs = abi.encode(
+        BoringVault _boringVault = new BoringVault{salt: convertNameToBytes32(LevelUsdReserveName)}(
             deployerWallet.addr, "Level Vault Shares", "lvlVault", 18, address(config.levelContracts.pauserGuard)
         );
-        BoringVault _boringVault =
-            BoringVault(payable(this.deployContract(LevelUsdReserveName, creationCode, constructorArgs, 0)));
 
         _boringVault.setAuthority(config.levelContracts.rolesAuthority);
 
@@ -589,8 +584,12 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             "initialize(address,address)", deployerWallet.addr, address(config.levelContracts.pauserGuard)
         );
 
-        VaultManager _vaultManager = new VaultManager(address(config.levelContracts.boringVault));
-        ERC1967Proxy _vaultManagerProxy = new ERC1967Proxy(address(_vaultManager), constructorArgs);
+        VaultManager _vaultManager = new VaultManager{salt: convertNameToBytes32(LevelUsdReserveManagerName)}(
+            address(config.levelContracts.boringVault)
+        );
+        ERC1967Proxy _vaultManagerProxy = new ERC1967Proxy{salt: convertNameToBytes32(LevelUsdReserveManagerName)}(
+            address(_vaultManager), constructorArgs
+        );
 
         vm.label(address(_vaultManagerProxy), LevelUsdReserveManagerName);
 
@@ -623,8 +622,10 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             address(config.levelContracts.boringVault),
             address(config.levelContracts.pauserGuard)
         );
-        RewardsManager _rewardsManager = new RewardsManager();
-        ERC1967Proxy _rewardsManagerProxy = new ERC1967Proxy(address(_rewardsManager), constructorArgs);
+        RewardsManager _rewardsManager = new RewardsManager{salt: convertNameToBytes32(LevelUsdRewardsManagerName)}();
+        ERC1967Proxy _rewardsManagerProxy = new ERC1967Proxy{salt: convertNameToBytes32(LevelUsdRewardsManagerName)}(
+            address(_rewardsManager), constructorArgs
+        );
 
         vm.label(address(_rewardsManagerProxy), LevelUsdRewardsManagerName);
 
@@ -640,11 +641,8 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             return config.levelContracts.erc4626OracleFactory;
         }
 
-        bytes memory creationCode;
-
-        creationCode = type(ERC4626OracleFactory).creationCode;
         ERC4626OracleFactory _erc4626OracleFactory =
-            ERC4626OracleFactory(this.deployContract(LevelERC4626OracleFactoryName, creationCode, "", 0));
+            new ERC4626OracleFactory{salt: convertNameToBytes32(LevelERC4626OracleFactoryName)}();
 
         vm.label(address(_erc4626OracleFactory), LevelERC4626OracleFactoryName);
 
@@ -684,18 +682,8 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             revert("PauserGuard must be deployed first");
         }
 
-        address[] memory assets = new address[](2); // note needs to match oracle array!
-        assets[0] = address(config.tokens.usdc);
-        assets[1] = address(config.tokens.usdt);
-
-        address[] memory oracles = new address[](2);
-        oracles[0] = address(config.oracles.usdc);
-        oracles[1] = address(config.oracles.usdt);
-
         bytes memory constructorArgs = abi.encodeWithSignature(
-            "initialize(address[],address[],address,uint256,uint256,address,address,address)",
-            assets,
-            oracles,
+            "initialize(address,uint256,uint256,address,address,address)",
             address(deployerWallet.addr),
             500000e18,
             250000e18,
@@ -704,8 +692,10 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             address(config.levelContracts.pauserGuard)
         );
 
-        LevelMintingV2 _levelMintingV2Impl = new LevelMintingV2();
-        ERC1967Proxy _levelMintingV2Proxy = new ERC1967Proxy(address(_levelMintingV2Impl), constructorArgs);
+        LevelMintingV2 _levelMintingV2Impl = new LevelMintingV2{salt: convertNameToBytes32(LevelMintingName)}();
+        ERC1967Proxy _levelMintingV2Proxy = new ERC1967Proxy{salt: convertNameToBytes32(LevelMintingName)}(
+            address(_levelMintingV2Impl), constructorArgs
+        );
 
         vm.label(address(_levelMintingV2Proxy), LevelMintingName);
 
@@ -713,10 +703,16 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
 
         vm.label(address(_levelMintingV2.silo()), "LevelMintingV2Silo");
 
-        _levelMintingV2.setCooldownDuration(5 minutes);
+        _levelMintingV2.addMintableAsset(address(config.tokens.usdc));
+        _levelMintingV2.addMintableAsset(address(config.tokens.usdt));
+
+        _levelMintingV2.addRedeemableAsset(address(config.tokens.usdc));
+        _levelMintingV2.addRedeemableAsset(address(config.tokens.usdt));
 
         _levelMintingV2.addOracle(address(config.tokens.usdc), address(config.oracles.usdc), false);
         _levelMintingV2.addOracle(address(config.tokens.usdt), address(config.oracles.usdt), false);
+
+        _levelMintingV2.setCooldownDuration(5 minutes);
 
         _levelMintingV2.setHeartBeat(address(config.tokens.usdc), 1 days);
         _levelMintingV2.setHeartBeat(address(config.tokens.usdt), 1 days);
@@ -735,13 +731,9 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             revert("RolesAuthority must be deployed first");
         }
 
-        bytes memory creationCode;
-        bytes memory constructorArgs;
-
-        creationCode = type(PauserGuard).creationCode;
-        constructorArgs = abi.encode(deployerWallet.addr, address(config.levelContracts.rolesAuthority));
-        config.levelContracts.pauserGuard =
-            PauserGuard(this.deployContract(LevelPauserGuardName, creationCode, constructorArgs, 0));
+        config.levelContracts.pauserGuard = new PauserGuard{salt: convertNameToBytes32(LevelPauserGuardName)}(
+            deployerWallet.addr, config.levelContracts.rolesAuthority
+        );
 
         vm.label(address(config.levelContracts.pauserGuard), LevelPauserGuardName);
 
@@ -960,6 +952,9 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         _printDeployedContracts(chainId, LevelUsdRewardsManagerName, address(config.levelContracts.rewardsManager));
         _printDeployedContracts(chainId, LevelMintingName, address(config.levelContracts.levelMintingV2));
         _printDeployedContracts(chainId, LevelPauserGuardName, address(config.levelContracts.pauserGuard));
+        _printDeployedContracts(
+            chainId, LevelERC4626OracleFactoryName, address(config.levelContracts.erc4626OracleFactory)
+        );
     }
 
     // Exclude from coverage

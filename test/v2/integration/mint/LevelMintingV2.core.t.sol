@@ -31,7 +31,7 @@ contract LevelMintingV2CoreTests is Utils, Configurable {
     Vm.Wallet private bob;
     Vm.Wallet private pauser;
 
-    address public MAINNET_DAI = 0x6b175474e89094c44dA98b95B7002f2956889026;
+    address public MAINNET_DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
 
     uint256 public constant INITIAL_BALANCE = 100000000e6;
 

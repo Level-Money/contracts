@@ -27,100 +27,6 @@ contract DeploymentUtils is StdUtils {
     event ContractDeployed(string name, address contractAddress, bytes32 creationCodeHash);
 
     Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
-    address private constant CREATE2_FACTORY = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
-
-    function _deployFromArtifacts(string memory contractPath) internal returns (address deployment) {
-        bytes memory bytecode = abi.encodePacked(vm.getCode(contractPath));
-        assembly {
-            deployment := create(0, add(bytecode, 0x20), mload(bytecode))
-        }
-
-        return deployment;
-    }
-
-    function _deployFromArtifactsWithBroadcast(string memory contractPath) internal returns (address deployment) {
-        bytes memory bytecode = abi.encodePacked(vm.getCode(contractPath));
-        vm.broadcast();
-        assembly {
-            deployment := create(0, add(bytecode, 0x20), mload(bytecode))
-        }
-
-        return deployment;
-    }
-
-    function _deployFromArtifactsWithBroadcast(string memory contractPath, bytes memory args)
-        internal
-        returns (address deployment)
-    {
-        bytes memory bytecode = abi.encodePacked(vm.getCode(contractPath), args);
-
-        vm.broadcast();
-        assembly {
-            deployment := create(0, add(bytecode, 0x20), mload(bytecode))
-        }
-
-        return deployment;
-    }
-
-    function _deployCreate2FromArtifactsWithBroadcast(string memory contractPath, bytes memory args, uint256 salt)
-        internal
-        returns (address deployment)
-    {
-        bytes memory bytecode = abi.encodePacked(vm.getCode(contractPath), args);
-
-        vm.broadcast();
-        assembly {
-            deployment := create2(0, add(bytecode, 0x20), mload(bytecode), salt)
-        }
-
-        return deployment;
-    }
-
-    function _deployFromArtifacts(string memory contractPath, bytes memory args)
-        internal
-        returns (address deployment)
-    {
-        bytes memory bytecode = abi.encodePacked(vm.getCode(contractPath), args);
-        assembly {
-            deployment := create(0, add(bytecode, 0x20), mload(bytecode))
-        }
-
-        return deployment;
-    }
-
-    function _create2Deploy(bytes32 salt, bytes memory bytecode, bytes memory constructorParams)
-        internal
-        returns (address)
-    {
-        if (_isContractDeployed(CREATE2_FACTORY) == false) {
-            revert("MISSING CREATE2_FACTORY");
-        }
-        address computed = computeCreate2Address(salt, hashInitCode(bytecode, constructorParams));
-
-        if (_isContractDeployed(computed)) {
-            return computed;
-        } else {
-            bytes memory creationBytecode = abi.encodePacked(salt, abi.encodePacked(bytecode, constructorParams));
-            bytes memory returnData;
-            (, returnData) = CREATE2_FACTORY.call(creationBytecode);
-            address deployedAt = address(uint160(bytes20(returnData)));
-            if (deployedAt != computed) revert ADDRESS_DERIVATION_ERROR();
-            return deployedAt;
-        }
-    }
-
-    function _isContractDeployed(address _addr) internal view returns (bool isContract) {
-        return (_addr.code.length > 0);
-    }
-
-    function deploy2(bytes memory bytecode, uint256 _salt) public {
-        address addr;
-        assembly {
-            addr := create2(0, add(bytecode, 0x20), mload(bytecode), _salt)
-
-            if iszero(extcodesize(addr)) { revert(0, 0) }
-        }
-    }
 
     /**
      * @notice Deploy some contract to a deterministic address.
@@ -179,18 +85,6 @@ contract DeploymentUtils is StdUtils {
     function _printDeployedContracts(uint256 chainId, string memory name, address contractAddress) public pure {
         string memory baseUrl = _getEtherscanBaseUrl(chainId);
         console2.log("%s                          : %s/address/%s", name, baseUrl, contractAddress);
-    }
-
-    function _getPrivateKey(uint256 chainId) internal view returns (uint256 privateKey) {
-        if (chainId == 1) {
-            privateKey = vm.envUint("MAINNET_PRIVATE_KEY");
-        } else if (chainId == 11155111) {
-            privateKey = vm.envUint("TESTNET_PRIVATE_KEY");
-        } else if (chainId == 17000) {
-            privateKey = vm.envUint("TESTNET_PRIVATE_KEY");
-        } else {
-            revert MISSING_CHAIN_ID("Set CHAIN_ID in .env");
-        }
     }
 
     function _getEtherscanBaseUrl(uint256 chainId) internal pure returns (string memory) {
