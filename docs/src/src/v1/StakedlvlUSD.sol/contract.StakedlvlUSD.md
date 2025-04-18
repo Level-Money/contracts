@@ -1,5 +1,5 @@
 # StakedlvlUSD
-[Git Source](https://github.com/Level-Money/contracts/blob/cdcafc63c9abdb8c667176cf6dd45d63276ad690/src/v1/StakedlvlUSD.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/dc473999128bb60d87e479b557f6971af65ff8db/src/v1/StakedlvlUSD.sol)
 
 **Inherits:**
 [SingleAdminAccessControl](/src/v1/auth/v5/SingleAdminAccessControl.sol/abstract.SingleAdminAccessControl.md), ReentrancyGuard, ERC20Permit, ERC4626, [IStakedlvlUSD](/src/v1/interfaces/IStakedlvlUSD.sol/interface.IStakedlvlUSD.md), [IStakedlvlUSDCooldown](/src/v1/interfaces/IStakedlvlUSDCooldown.sol/interface.IStakedlvlUSDCooldown.md)

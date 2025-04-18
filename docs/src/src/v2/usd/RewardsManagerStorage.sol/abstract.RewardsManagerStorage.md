@@ -1,5 +1,5 @@
 # RewardsManagerStorage
-[Git Source](https://github.com/Level-Money/contracts/blob/cdcafc63c9abdb8c667176cf6dd45d63276ad690/src/v2/usd/RewardsManagerStorage.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/dc473999128bb60d87e479b557f6971af65ff8db/src/v2/usd/RewardsManagerStorage.sol)
 
 **Inherits:**
 [IRewardsManager](/src/v2/interfaces/level/IRewardsManager.sol/interface.IRewardsManager.md)

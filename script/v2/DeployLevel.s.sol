@@ -530,9 +530,8 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         address[] memory executors = new address[](1);
         executors[0] = address(config.users.admin);
 
-        config.levelContracts.adminTimelock = new TimelockController{salt: convertNameToBytes32(LevelTimelockName)}(
-            0, proposers, executors, deployerWallet.addr
-        );
+        config.levelContracts.adminTimelock =
+            new TimelockController{salt: convertNameToBytes32(LevelTimelockName)}(0, proposers, executors, address(0));
 
         vm.label(address(config.levelContracts.adminTimelock), LevelTimelockName);
         return config.levelContracts.adminTimelock;
