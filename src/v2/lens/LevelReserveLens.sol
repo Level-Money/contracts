@@ -37,7 +37,7 @@ contract LevelReserveLens is Initializable, OwnableUpgradeable, UUPSUpgradeable,
     // TODO: update when rewards manager is deployed
     // Immutable values are incompatible with upgradeable contracts (see https://forum.openzeppelin.com/t/upgradable-contracts-instantiating-an-immutable-value/28763/2)
     // Since this contract would be updating an existing proxy's implementation, we're choosing to set this as a constant.
-    address public constant rewardsManager = 0x9f7757b909E99987C44C34Cf084fb7B51B1999Bb;
+    address public constant rewardsManager = 0xCd0A326dD016b0B083ae806Df61F38f5C04ECbFB;
 
     /**
      * @notice Helper function to get the reserves of the given collateral token.
