@@ -120,6 +120,28 @@ contract VaultManager is VaultManagerStorage, Initializable, UUPSUpgradeable, Au
 
         StrategyConfig memory _config = assetToStrategy[_asset][_strategy];
 
+        // Remove from defaultStrategies if present, preserving order
+        address[] storage defaultStrats = defaultStrategies[_asset];
+        uint256 strategyIndex = type(uint256).max; // value indicating not found
+
+        // Find the index of the strategy to remove
+        for (uint256 i = 0; i < defaultStrats.length; i++) {
+            if (defaultStrats[i] == _strategy) {
+                strategyIndex = i;
+                break;
+            }
+        }
+
+        // If the strategy was found in the default strategies array
+        if (strategyIndex != type(uint256).max) {
+            // Shift elements to the left to fill the gap
+            for (uint256 i = strategyIndex; i < defaultStrats.length - 1; i++) {
+                defaultStrats[i] = defaultStrats[i + 1];
+            }
+            // Remove the last element
+            defaultStrats.pop();
+        }
+
         delete assetToStrategy[_asset][_strategy];
         delete receiptTokenToAsset[address(_config.receiptToken)];
 
