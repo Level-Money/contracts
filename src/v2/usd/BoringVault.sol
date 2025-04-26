@@ -9,6 +9,8 @@ import {SafeTransferLib} from "@solmate/src/utils/SafeTransferLib.sol";
 import {ERC20} from "@solmate/src/tokens/ERC20.sol";
 import {Auth, Authority} from "@solmate/src/auth/Auth.sol";
 import {PauserGuarded} from "@level/src/v2/common/guard/PauserGuarded.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface BeforeTransferHook {
     function beforeTransfer(address from, address to, address operator) external view;
@@ -148,8 +150,7 @@ contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder, PauserGuarded 
     //============================== APPROVAL ===============================
 
     function increaseAllowance(address token, address spender, uint256 amount) external notPaused requiresAuth {
-        require(token.code.length != 0, "Token does not exist");
-        ERC20(token).safeApprove(spender, amount); //TODO replace with forceapprove due to reset to 0 allowance change requirement
+        SafeERC20.forceApprove(IERC20(token), spender, amount);
     }
 
     //============================== OWNER ===============================
