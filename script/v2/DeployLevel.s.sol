@@ -878,7 +878,7 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
     }
 
     function _addExistingRedeemers() internal {
-        address[18] memory redeemers = [
+        address[24] memory redeemers = [
             0xABFD9948933b975Ee9a668a57C776eCf73F6D840,
             0xf641388a346976215B20cE3d5d3edCaBC8B9b98a,
             0xe9AF0428143E4509df4379Bd10C4850b223F2EcB,
@@ -896,7 +896,13 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             0xd7583E3CF08bbcaB66F1242195227bBf9F865Fda,
             0xbc0f3B23930fff9f4894914bD745ABAbA9588265,
             0x79B94C17d8178689Df8d10754d7e4A1Bb3D49bc1,
-            0x7FE4b2632f5AE6d930677D662AF26Bc0a06672b3
+            0x7FE4b2632f5AE6d930677D662AF26Bc0a06672b3,
+            0x79720266dEC914247424aeb0F06b8Fa5B3Ec073E,
+            0xC69381073814920D1CE2BB009ac9982A74679814,
+            0x10FB797CD3d8dEf7c704f54b6eBAD315F6dBa6F2,
+            0x560244D3151245B85A1eDD0c4574A689D22FD275,
+            0x8bBe46a0Bb587d6363cF34E655108dCB4d671E9E,
+            0x2C8Cff30Fe93BaD408D20B702934E18F0bbC7eF5
         ];
 
         for (uint256 i = 0; i < redeemers.length; i++) {

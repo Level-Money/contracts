@@ -562,7 +562,7 @@ contract VaultManagerMainnetTests is Utils, Configurable {
     function _depositDefault_multipleStrategies(ERC20 asset, address[] memory defaultStrategies, uint256 deposit)
         internal
     {
-        deposit = bound(deposit, 2e4, INITIAL_BALANCE);
+        deposit = bound(deposit, 2e2, INITIAL_BALANCE);
 
         _scheduleAndExecuteAdminAction(
             address(config.levelContracts.vaultManager),
@@ -593,8 +593,8 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         uint256 deposit,
         uint256 withdrawal
     ) public {
-        deposit = bound(deposit, 2e4, INITIAL_BALANCE);
-        withdrawal = bound(withdrawal, 1e4, deposit / 2);
+        deposit = bound(deposit, 2e2, INITIAL_BALANCE);
+        withdrawal = bound(withdrawal, 1e2, deposit / 2);
 
         _scheduleAndExecuteAdminAction(
             address(config.levelContracts.vaultManager),
@@ -635,7 +635,7 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         address fromStrategy,
         address toStrategy
     ) public {
-        rebalanceAmount = bound(rebalanceAmount, 1e6, _applyPercentage(INITIAL_BALANCE, 0.33333333e18));
+        rebalanceAmount = bound(rebalanceAmount, 1, _applyPercentage(INITIAL_BALANCE, 0.33333333e18));
 
         _scheduleAndExecuteAdminAction(
             address(config.levelContracts.vaultManager),
@@ -682,7 +682,7 @@ contract VaultManagerMainnetTests is Utils, Configurable {
     }
 
     // function test_withdrawDefault_multipleStrategiesWithdrawAll(uint256 deposit) public {
-    //     deposit = bound(deposit, 2e4, INITIAL_BALANCE);
+    //     deposgit = bound(deposit, 2e4, INITIAL_BALANCE);
 
     //     ERC20 asset = config.tokens.usdc;
 
@@ -700,7 +700,10 @@ contract VaultManagerMainnetTests is Utils, Configurable {
     //     vm.startPrank(strategist.addr);
 
     //     for (uint256 i = 0; i < defaultStrategies.length; i++) {
-    //         vaultManager.deposit(address(asset), defaultStrategies[i], _applyPercentage(deposit, 0.3333333333333e18));
+    //         uint256 deposited = vaultManager.deposit(
+    //             address(asset), defaultStrategies[i], _applyPercentage(deposit, 0.3333333333333e18)
+    //         );
+    //         console2.log(string.concat("Deposited ", deposited, " into ", defaultStrategies[i]));
     //     }
 
     //     // _inspectVaultBalances();
