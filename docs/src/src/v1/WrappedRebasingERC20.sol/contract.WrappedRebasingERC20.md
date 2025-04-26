@@ -1,5 +1,5 @@
 # WrappedRebasingERC20
-[Git Source](https://github.com/Level-Money/contracts/blob/dc473999128bb60d87e479b557f6971af65ff8db/src/v1/WrappedRebasingERC20.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/2607489a5c9f8e78f7e44db8057f41dc3a8c07c9/src/v1/WrappedRebasingERC20.sol)
 
 **Inherits:**
 ERC20, [SingleAdminAccessControl](/src/v1/auth/v5/SingleAdminAccessControl.sol/abstract.SingleAdminAccessControl.md)

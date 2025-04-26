@@ -16,7 +16,7 @@ contract StrictRolesAuthorityTest is Test, Utils, Configurable {
     Vm.Wallet public user2; // User with roles
 
     function setUp() public {
-        forkMainnet(22134384);
+        forkMainnet(22305203);
 
         // Create wallets
         owner = vm.createWallet("owner");

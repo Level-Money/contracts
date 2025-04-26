@@ -36,7 +36,7 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
     address[] public assets;
 
     function setUp() public {
-        forkMainnet(22134385);
+        forkMainnet(22305203);
 
         deployer = vm.createWallet("deployer");
         strategist = vm.createWallet("strategist");

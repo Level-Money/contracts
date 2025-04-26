@@ -1,5 +1,5 @@
 # VaultManager
-[Git Source](https://github.com/Level-Money/contracts/blob/dc473999128bb60d87e479b557f6971af65ff8db/src/v2/usd/VaultManager.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/2607489a5c9f8e78f7e44db8057f41dc3a8c07c9/src/v2/usd/VaultManager.sol)
 
 **Inherits:**
 [VaultManagerStorage](/src/v2/usd/VaultManagerStorage.sol/abstract.VaultManagerStorage.md), Initializable, UUPSUpgradeable, [AuthUpgradeable](/src/v2/auth/AuthUpgradeable.sol/abstract.AuthUpgradeable.md), [PauserGuarded](/src/v2/common/guard/PauserGuarded.sol/abstract.PauserGuarded.md)

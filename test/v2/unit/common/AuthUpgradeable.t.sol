@@ -19,7 +19,7 @@ contract AuthUpgradeableACLTests is Utils, Configurable {
     LevelMintingV2 public levelMinting;
 
     function setUp() public {
-        forkMainnet(22134385);
+        forkMainnet(22305203);
 
         deployer = vm.createWallet("deployer");
 

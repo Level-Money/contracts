@@ -58,7 +58,7 @@ contract Mainnet is BaseConfig {
                 boringVault: BoringVault(payable(address(0))),
                 vaultManager: VaultManager(address(0)),
                 rewardsManager: RewardsManager(address(0)),
-                adminTimelock: TimelockController(payable(address(0))),
+                adminTimelock: TimelockController(payable(0x0798880E772009DDf6eF062F2Ef32c738119d086)),
                 erc4626OracleFactory: ERC4626OracleFactory(address(0)),
                 pauserGuard: PauserGuard(address(0)),
                 levelReserveLens: LevelReserveLens(0x29759944834e08acE755dcEA71491413f7e2CBAD)
