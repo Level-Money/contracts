@@ -890,6 +890,60 @@ contract VaultManagerMainnetTests is Utils, Configurable {
     function _printBalance(address asset, address vault) internal {
         console2.log(vm.getLabel(asset), ERC20(asset).balanceOf(vault));
     }
+
+    function test_removeAssetStrategy_succeeds() public {
+        // Get initial state
+        address[] memory initialUsdcStrategies = vaultManager.getDefaultStrategies(address(config.tokens.usdc));
+        assertEq(initialUsdcStrategies.length, 3, "Initial USDC strategies count should be 3");
+
+        // Remove Aave V3 strategy (which is in defaultStrategies)
+        vm.startPrank(config.users.admin);
+        vaultManager.removeAssetStrategy(address(config.tokens.usdc), address(config.periphery.aaveV3));
+        vm.stopPrank();
+
+        // Verify Aave V3 was removed from defaultStrategies
+        address[] memory afterAaveRemoval = vaultManager.getDefaultStrategies(address(config.tokens.usdc));
+        assertEq(afterAaveRemoval.length, 2, "USDC strategies count should be 2 after removing Aave");
+        assertEq(
+            afterAaveRemoval[0],
+            address(config.morphoVaults.steakhouseUsdc.vault),
+            "First strategy should be Steakhouse"
+        );
+        assertEq(afterAaveRemoval[1], address(config.morphoVaults.re7Usdc.vault), "Second strategy should be Re7");
+
+        // Verify Aave V3 was removed from assetToStrategy
+        (
+            StrategyCategory category,
+            ERC20 baseCollateral,
+            ERC20 receiptToken,
+            AggregatorV3Interface oracle,
+            address depositContract,
+            address withdrawContract,
+            uint256 heartbeat
+        ) = vaultManager.assetToStrategy(address(config.tokens.usdc), address(config.periphery.aaveV3));
+        assertEq(
+            uint256(category), uint256(StrategyCategory.UNDEFINED), "Aave strategy should be undefined after removal"
+        );
+
+        // Remove Re7 strategy
+        vm.startPrank(config.users.admin);
+        vaultManager.removeAssetStrategy(address(config.tokens.usdc), address(config.morphoVaults.re7Usdc.vault));
+        vm.stopPrank();
+
+        // Verify Re7 was removed from defaultStrategies
+        address[] memory afterRe7Removal = vaultManager.getDefaultStrategies(address(config.tokens.usdc));
+        assertEq(afterRe7Removal.length, 1, "USDC strategies count should be 1 after removing Re7");
+        assertEq(
+            afterRe7Removal[0], address(config.morphoVaults.steakhouseUsdc.vault), "Only strategy should be Steakhouse"
+        );
+
+        // Verify Re7 was removed from assetToStrategy
+        (category, baseCollateral, receiptToken, oracle, depositContract, withdrawContract, heartbeat) =
+            vaultManager.assetToStrategy(address(config.tokens.usdc), address(config.morphoVaults.re7Usdc.vault));
+        assertEq(
+            uint256(category), uint256(StrategyCategory.UNDEFINED), "Re7 strategy should be undefined after removal"
+        );
+    }
 }
 
 /**
