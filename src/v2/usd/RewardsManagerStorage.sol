@@ -11,6 +11,7 @@ abstract contract RewardsManagerStorage is IRewardsManager {
     address public treasury;
 
     mapping(address => StrategyConfig[]) public allStrategies;
+    mapping(address => address) public oracles;
 
     constructor() {}
 

@@ -558,6 +558,9 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
 
         config.levelContracts.rewardsManager.setAuthority(config.levelContracts.rolesAuthority);
 
+        config.levelContracts.rewardsManager.updateOracle(address(config.tokens.usdc), address(config.oracles.usdc));
+        config.levelContracts.rewardsManager.updateOracle(address(config.tokens.usdt), address(config.oracles.usdt));
+
         return config.levelContracts.rewardsManager;
     }
 

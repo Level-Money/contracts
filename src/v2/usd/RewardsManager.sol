@@ -12,6 +12,7 @@ import {StrategyConfig} from "@level/src/v2/common/libraries/StrategyLib.sol";
 import {RewardsManagerStorage} from "@level/src/v2/usd/RewardsManagerStorage.sol";
 import {IRewardsManager} from "@level/src/v2/interfaces/level/IRewardsManager.sol";
 import {PauserGuarded} from "@level/src/v2/common/guard/PauserGuarded.sol";
+import {OracleLib} from "@level/src/v2/common/libraries/OracleLib.sol";
 
 /// @title RewardsManager
 /// @notice Contract for managing rewards distribution across strategies
@@ -20,6 +21,8 @@ import {PauserGuarded} from "@level/src/v2/common/guard/PauserGuarded.sol";
 contract RewardsManager is RewardsManagerStorage, Initializable, UUPSUpgradeable, AuthUpgradeable, PauserGuarded {
     using VaultLib for BoringVault;
     using MathLib for uint256;
+
+    uint256 public constant HEARTBEAT = 1 days;
 
     constructor() {
         _disableInitializers();
@@ -87,7 +90,8 @@ contract RewardsManager is RewardsManagerStorage, Initializable, UUPSUpgradeable
     //------- View functions ---------
 
     /// @inheritdoc IRewardsManager
-    function getAccruedYield(address[] calldata assets) public view returns (uint256 accrued) {
+    /// @dev the assets array should always be base tokens (USDC, USDT, etc.)
+    function getAccruedYield(address[] calldata assets) public returns (uint256 accrued) {
         uint256 total;
 
         for (uint256 i = 0; i < assets.length; i++) {
@@ -97,10 +101,27 @@ contract RewardsManager is RewardsManagerStorage, Initializable, UUPSUpgradeable
 
             uint256 totalForAsset = vault._getTotalAssets(strategies, asset);
 
-            total += totalForAsset.convertDecimalsDown(ERC20(asset).decimals(), vault.decimals());
+            OracleLib._tryUpdateOracle(oracles[asset]);
+            (int256 price, uint256 decimals) = OracleLib.getPriceAndDecimals(oracles[asset], HEARTBEAT);
+            uint256 adjustedAmount;
+
+            // Check if price is under peg
+            if (uint256(price) < 10 ** decimals) {
+                adjustedAmount = totalForAsset.mulDivDown(uint256(price), 10 ** decimals);
+                total += adjustedAmount.convertDecimalsDown(ERC20(asset).decimals(), vault.decimals());
+            } else {
+                total += totalForAsset.convertDecimalsDown(ERC20(asset).decimals(), vault.decimals());
+            }
         }
 
         uint256 vaultShares = vault.balanceOf(address(vault));
+
+        if (total <= vaultShares) {
+            // If the total is less than the vault shares, return 0
+            // This can happen if the price is under peg
+            return 0;
+        }
+
         accrued = total - vaultShares;
 
         return accrued;
@@ -118,6 +139,13 @@ contract RewardsManager is RewardsManagerStorage, Initializable, UUPSUpgradeable
         assets = vault._getTotalAssets(strategies, asset);
 
         return assets;
+    }
+
+    // -------- SETTERS --------
+
+    function updateOracle(address collateral, address oracle) public requiresAuth {
+        if (collateral == address(0) || oracle == address(0)) revert InvalidAddress();
+        oracles[collateral] = oracle;
     }
 
     // -------- Upgradeable --------
