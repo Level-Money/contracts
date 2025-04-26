@@ -157,9 +157,6 @@ perform_sync() {
     rm "$EXCLUDE_FILE"
 
     if [ "$DRY_RUN" = false ]; then
-        # Update docs
-        forge doc
-
         # Stage all changes (including deletions)
         git add -A
 
