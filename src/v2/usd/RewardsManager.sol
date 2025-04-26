@@ -99,6 +99,13 @@ contract RewardsManager is RewardsManagerStorage, Initializable, UUPSUpgradeable
 
             StrategyConfig[] memory strategies = allStrategies[asset];
 
+            // Update oracles for strategies
+            for (uint256 j = 0; j < strategies.length; j++) {
+                if (address(strategies[j].oracle) != address(0)) {
+                    OracleLib._tryUpdateOracle(address(strategies[j].oracle));
+                }
+            }
+
             uint256 totalForAsset = vault._getTotalAssets(strategies, asset);
 
             OracleLib._tryUpdateOracle(oracles[asset]);
