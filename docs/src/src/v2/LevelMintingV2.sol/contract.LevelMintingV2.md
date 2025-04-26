@@ -1,5 +1,5 @@
 # LevelMintingV2
-[Git Source](https://github.com/Level-Money/contracts/blob/dc473999128bb60d87e479b557f6971af65ff8db/src/v2/LevelMintingV2.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/6210538f7de83f92b07f38679d7d19520c984a03/src/v2/LevelMintingV2.sol)
 
 **Inherits:**
 [LevelMintingV2Storage](/src/v2/LevelMintingV2Storage.sol/abstract.LevelMintingV2Storage.md), Initializable, UUPSUpgradeable, [AuthUpgradeable](/src/v2/auth/AuthUpgradeable.sol/abstract.AuthUpgradeable.md), [PauserGuarded](/src/v2/common/guard/PauserGuarded.sol/abstract.PauserGuarded.md)

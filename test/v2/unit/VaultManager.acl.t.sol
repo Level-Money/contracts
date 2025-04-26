@@ -25,7 +25,7 @@ contract VaultManagerAclUnitTests is Utils, Configurable {
     StrategyConfig public strategyConfig;
 
     function setUp() public {
-        forkMainnet(22134385);
+        forkMainnet(22305203);
 
         deployer = vm.createWallet("deployer");
         vm.label(deployer.addr, "Deployer");

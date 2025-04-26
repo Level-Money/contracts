@@ -1,5 +1,5 @@
 # IMetaMorphoV1_1
-[Git Source](https://github.com/Level-Money/contracts/blob/dc473999128bb60d87e479b557f6971af65ff8db/src/v2/interfaces/morpho/IMetaMorphoV1_1.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/6210538f7de83f92b07f38679d7d19520c984a03/src/v2/interfaces/morpho/IMetaMorphoV1_1.sol)
 
 **Inherits:**
 [IMetaMorphoV1_1Base](/src/v2/interfaces/morpho/IMetaMorphoV1_1.sol/interface.IMetaMorphoV1_1Base.md), IERC4626, IERC20Permit, [IOwnable](/src/v2/interfaces/morpho/IMetaMorpho.sol/interface.IOwnable.md), [IMulticall](/src/v2/interfaces/morpho/IMetaMorpho.sol/interface.IMulticall.md)

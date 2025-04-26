@@ -17,7 +17,7 @@ contract BoringVaultAclUnitTests is Utils, Configurable {
     BoringVault public vault;
 
     function setUp() public {
-        forkMainnet(22134385);
+        forkMainnet(22305203);
 
         deployer = vm.createWallet("deployer");
         vm.label(deployer.addr, "Deployer");

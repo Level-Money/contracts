@@ -30,7 +30,7 @@ contract LevelReserveLensTests is Utils, Configurable {
     uint256 public constant INITIAL_BALANCE = 1000e6;
 
     function setUp() public {
-        forkMainnet(22276630);
+        forkMainnet(22305203);
 
         deployer = vm.createWallet("deployer");
 

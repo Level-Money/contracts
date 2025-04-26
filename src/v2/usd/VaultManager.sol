@@ -16,14 +16,15 @@ contract VaultManager is VaultManagerStorage, Initializable, UUPSUpgradeable, Au
     using VaultLib for BoringVault;
     using OracleLib for address;
 
-    constructor(address vault_) VaultManagerStorage(vault_) {
+    constructor() {
         _disableInitializers();
     }
 
-    function initialize(address admin_, address guard_) external initializer {
+    function initialize(address admin_, address guard_, address vault_) external initializer {
         __UUPSUpgradeable_init();
         __Auth_init(admin_, address(0));
         __PauserGuarded_init(guard_);
+        vault = BoringVault(payable(vault_));
     }
 
     // ------- External ------------

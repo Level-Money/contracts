@@ -1,5 +1,5 @@
 # ERC4626OracleFactory
-[Git Source](https://github.com/Level-Money/contracts/blob/dc473999128bb60d87e479b557f6971af65ff8db/src/v2/oracles/ERC4626OracleFactory.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/6210538f7de83f92b07f38679d7d19520c984a03/src/v2/oracles/ERC4626OracleFactory.sol)
 
 
 ## Functions

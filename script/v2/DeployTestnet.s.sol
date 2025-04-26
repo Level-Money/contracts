@@ -384,9 +384,7 @@ contract DeployTestnet is Configurable, DeploymentUtils, Script {
             "initialize(address,address)", deployerWallet.addr, address(config.levelContracts.pauserGuard)
         );
 
-        VaultManager _vaultManager = new VaultManager{salt: convertNameToBytes32(LevelUsdReserveManagerName)}(
-            address(config.levelContracts.boringVault)
-        );
+        VaultManager _vaultManager = new VaultManager{salt: convertNameToBytes32(LevelUsdReserveManagerName)}();
         ERC1967Proxy _vaultManagerProxy = new ERC1967Proxy{salt: convertNameToBytes32(LevelUsdReserveManagerName)}(
             address(_vaultManager), constructorArgs
         );

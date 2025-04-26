@@ -129,6 +129,7 @@
         - [IMorphoBase](src/v2/interfaces/morpho/IMorpho.sol/interface.IMorphoBase.md)
         - [IMorphoStaticTyping](src/v2/interfaces/morpho/IMorpho.sol/interface.IMorphoStaticTyping.md)
         - [IMorpho](src/v2/interfaces/morpho/IMorpho.sol/interface.IMorpho.md)
+        - [IMorphoChainlinkOracleV2](src/v2/interfaces/morpho/IMorphoChainlinkOracleV2.sol/interface.IMorphoChainlinkOracleV2.md)
         - [MarketConfig](src/v2/interfaces/morpho/PendingLib.sol/struct.MarketConfig.md)
         - [PendingUint192](src/v2/interfaces/morpho/PendingLib.sol/struct.PendingUint192.md)
         - [PendingAddress](src/v2/interfaces/morpho/PendingLib.sol/struct.PendingAddress.md)
