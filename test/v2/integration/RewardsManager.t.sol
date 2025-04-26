@@ -18,6 +18,7 @@ import {AggregatorV3Interface} from "@level/src/v2/interfaces/AggregatorV3Interf
 import {VaultLib} from "@level/src/v2/common/libraries/VaultLib.sol";
 import {BoringVault} from "@level/src/v2/usd/BoringVault.sol";
 import {IRewardsManagerErrors} from "@level/src/v2/interfaces/level/IRewardsManager.sol";
+import {MockOracle} from "@level/test/v2/mocks/MockOracle.sol";
 
 contract RewardsManagerMainnetTests is Utils, Configurable {
     using SafeTransferLib for ERC20;
@@ -29,6 +30,7 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
 
     RewardsManager public rewardsManager;
     VaultManager public vaultManager;
+    MockOracle public mockOracle;
 
     uint256 public constant INITIAL_BALANCE = 100_000_000e6;
     uint256 public constant INITIAL_SHARES = 200_000_000e18;
@@ -50,14 +52,22 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
 
         config = deployScript.run();
 
+        mockOracle = new MockOracle(1e8, 8);
+
         // Setup strategist
-        address[] memory targets = new address[](2);
+        address[] memory targets = new address[](4);
         targets[0] = address(config.levelContracts.rolesAuthority);
         targets[1] = address(config.levelContracts.rolesAuthority);
+        targets[2] = address(config.levelContracts.rewardsManager);
+        targets[3] = address(config.levelContracts.rewardsManager);
 
-        bytes[] memory payloads = new bytes[](2);
+        bytes[] memory payloads = new bytes[](4);
         payloads[0] = abi.encodeWithSignature("setUserRole(address,uint8,bool)", strategist.addr, STRATEGIST_ROLE, true);
         payloads[1] = abi.encodeWithSignature("setUserRole(address,uint8,bool)", strategist.addr, REWARDER_ROLE, true);
+        payloads[2] =
+            abi.encodeWithSignature("updateOracle(address,address)", address(config.tokens.usdc), address(mockOracle));
+        payloads[3] =
+            abi.encodeWithSignature("updateOracle(address,address)", address(config.tokens.usdt), address(mockOracle));
 
         _scheduleAndExecuteAdminActionBatch(
             address(config.users.admin), address(config.levelContracts.adminTimelock), targets, payloads
@@ -141,6 +151,29 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
             1,
             "The value of the vault should be approximately equal to the number of shares"
         );
+    }
+
+    function test_rewardYield_underPeg_reverts() public {
+        vm.startPrank(strategist.addr);
+
+        // Set oracle price to 0.95 (under peg)
+        uint256 underPegPrice = 99e6; // 0.95 in 8 decimals
+        mockOracle.updatePriceAndDecimals(int256(underPegPrice), 8);
+
+        uint256 treasuryUsdcBalanceBefore = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
+
+        // Transfer some aTokens to simulate yield
+        uint256 accrued = 1000e6; // 1000 USDC
+        config.tokens.aUsdc.transfer(address(rewardsManager.vault()), accrued);
+        config.tokens.aUsdt.transfer(address(rewardsManager.vault()), accrued);
+
+        // The accrued yield should be 0 because the price is under peg
+        uint256 accruedYield = rewardsManager.getAccruedYield(assets);
+        assertEq(accruedYield, 0, "Accrued yield should be 0");
+
+        // Execute reward should revert
+        vm.expectRevert(IRewardsManagerErrors.NotEnoughYield.selector);
+        rewardsManager.reward(assets);
     }
 
     // ------------- Internal Helpers -------------

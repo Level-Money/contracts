@@ -52,6 +52,9 @@ interface IRewardsManagerEvents {
 /// @notice Interface for managing rewards distribution across strategies
 /// @dev Inherits error and event interfaces from IRewardsManagerErrors and IRewardsManagerEvents
 interface IRewardsManager is IRewardsManagerErrors, IRewardsManagerEvents {
+    error InvalidAddress();
+    error InvalidHeartbeat();
+
     /// @notice Initializes the contract with admin and vault addresses
     /// @param admin_ Address of the admin who will have administrative privileges
     /// @param vault_ Address of the vault contract that holds the assets
@@ -84,7 +87,7 @@ interface IRewardsManager is IRewardsManagerErrors, IRewardsManagerEvents {
     /// @dev Returns the yield amount in the vault share's decimals
     /// @param assets Array of asset addresses to calculate yield for
     /// @return Amount of excess yield accrued to this contract
-    function getAccruedYield(address[] calldata assets) external view returns (uint256);
+    function getAccruedYield(address[] calldata assets) external returns (uint256);
 
     /// @notice Retrieves all strategies for a specific asset
     /// @param asset The address of the asset
