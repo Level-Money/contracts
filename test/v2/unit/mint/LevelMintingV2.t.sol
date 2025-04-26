@@ -5,7 +5,11 @@ import {stdStorage, StdStorage, Test, Vm} from "forge-std/Test.sol";
 import {console2} from "forge-std/console2.sol";
 
 import {LevelMintingV2} from "@level/src/v2/LevelMintingV2.sol";
-import {ILevelMintingV2, ILevelMintingV2Structs} from "@level/src/v2/interfaces/level/ILevelMintingV2.sol";
+import {
+    ILevelMintingV2,
+    ILevelMintingV2Structs,
+    ILevelMintingV2Errors
+} from "@level/src/v2/interfaces/level/ILevelMintingV2.sol";
 import {Utils} from "@level/test/utils/Utils.sol";
 import {Configurable} from "@level/config/Configurable.sol";
 import {DeployLevel} from "@level/script/v2/DeployLevel.s.sol";
@@ -24,6 +28,7 @@ import {ERC4626DelayedOracle} from "@level/src/v2/oracles/ERC4626DelayedOracle.s
 import {StrategyCategory, StrategyConfig} from "@level/src/v2/common/libraries/StrategyLib.sol";
 import {Silo} from "@level/src/v2/usd/Silo.sol";
 import {MockVaultManager} from "@level/test/v2/mocks/MockVaultManager.sol";
+import {lvlUSD} from "@level/src/v1/lvlUSD.sol";
 
 contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
     using SafeTransferLib for ERC20;
@@ -40,7 +45,7 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
     MockOracle public mockUsdcOracle;
 
     function setUp() public {
-        forkMainnet(22305203);
+        forkMainnet(22331729);
 
         deployer = vm.createWallet("deployer");
         normalUser = vm.createWallet("normalUser");
@@ -431,6 +436,44 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
 
         vm.startPrank(normalUser.addr);
         // Complete redeem should succeed
+        uint256 redeemedAmount = levelMinting.completeRedeem(address(config.tokens.usdc), normalUser.addr);
+
+        assertEq(config.tokens.usdc.balanceOf(normalUser.addr), redeemedAmount);
+    }
+
+    function test_completeRedeem_failsIfAddressIsDenylisted() public {
+        uint256 collateralAmount = 100;
+        uint256 sharesAmount = collateralAmount.convertDecimalsDown(
+            config.tokens.usdc.decimals(), config.levelContracts.boringVault.decimals()
+        );
+        uint256 lvlUsdAmount =
+            collateralAmount.convertDecimalsDown(config.tokens.usdc.decimals(), config.tokens.lvlUsd.decimals());
+
+        vm.startPrank(normalUser.addr);
+
+        deal(address(config.tokens.usdc), address(config.levelContracts.boringVault), collateralAmount);
+        deal(address(config.levelContracts.boringVault), address(config.levelContracts.boringVault), sharesAmount);
+        deal(address(config.tokens.lvlUsd), normalUser.addr, lvlUsdAmount);
+
+        config.tokens.lvlUsd.approve(address(levelMinting), lvlUsdAmount);
+        (, uint256 pendingRedemptionAmount) = levelMinting.initiateRedeem(address(config.tokens.usdc), lvlUsdAmount, 0);
+
+        // Initiate redeem should succeed
+        assertEq(config.tokens.lvlUsd.balanceOf(normalUser.addr), 0);
+        assertEq(levelMinting.pendingRedemption(normalUser.addr, address(config.tokens.usdc)), pendingRedemptionAmount);
+
+        vm.stopPrank();
+
+        lvlUSD _lvlUSD = lvlUSD(address(config.tokens.lvlUsd));
+        vm.startPrank(config.users.admin);
+        _lvlUSD.addToDenylist(normalUser.addr);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1 days);
+
+        vm.startPrank(normalUser.addr);
+        // Complete redeem should fail
+        vm.expectRevert(ILevelMintingV2Errors.DenyListed.selector);
         uint256 redeemedAmount = levelMinting.completeRedeem(address(config.tokens.usdc), normalUser.addr);
 
         assertEq(config.tokens.usdc.balanceOf(normalUser.addr), redeemedAmount);
