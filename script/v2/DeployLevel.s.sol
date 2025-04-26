@@ -373,6 +373,31 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             bytes4(abi.encodeWithSignature("removeRedeemableAsset(address)"))
         );
 
+        config.levelContracts.levelMintingV2.addMintableAsset(address(config.tokens.usdc));
+        config.levelContracts.levelMintingV2.addMintableAsset(address(config.tokens.usdt));
+        config.levelContracts.levelMintingV2.addMintableAsset(address(config.tokens.aUsdc));
+        config.levelContracts.levelMintingV2.addMintableAsset(address(config.tokens.aUsdt));
+        config.levelContracts.levelMintingV2.addMintableAsset(address(config.morphoVaults.steakhouseUsdc.vault));
+
+        config.levelContracts.levelMintingV2.addRedeemableAsset(address(config.tokens.usdc));
+        config.levelContracts.levelMintingV2.addRedeemableAsset(address(config.tokens.usdt));
+
+        config.levelContracts.levelMintingV2.addOracle(address(config.tokens.usdc), address(config.oracles.usdc), false);
+        config.levelContracts.levelMintingV2.addOracle(address(config.tokens.usdt), address(config.oracles.usdt), false);
+        config.levelContracts.levelMintingV2.addOracle(address(config.tokens.aUsdc), address(aUsdcOracle), false);
+        config.levelContracts.levelMintingV2.addOracle(address(config.tokens.aUsdt), address(aUsdtOracle), false);
+        config.levelContracts.levelMintingV2.addOracle(
+            address(config.morphoVaults.steakhouseUsdc.vault), address(config.morphoVaults.steakhouseUsdc.oracle), true
+        );
+
+        config.levelContracts.levelMintingV2.setHeartBeat(address(config.tokens.usdc), 1 days);
+        config.levelContracts.levelMintingV2.setHeartBeat(address(config.tokens.usdt), 1 days);
+        config.levelContracts.levelMintingV2.setHeartBeat(address(config.tokens.aUsdc), 1 days);
+        config.levelContracts.levelMintingV2.setHeartBeat(address(config.tokens.aUsdt), 1 days);
+        config.levelContracts.levelMintingV2.setHeartBeat(address(config.morphoVaults.steakhouseUsdc.vault), 4 hours);
+
+        config.levelContracts.levelMintingV2.setCooldownDuration(5 minutes);
+
         // ------------ Setup StrictRolesAuthority
         _setRoleCapabilityIfNotExists(
             ADMIN_MULTISIG_ROLE,
@@ -602,20 +627,6 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         LevelMintingV2 _levelMintingV2 = LevelMintingV2(address(_levelMintingV2Proxy));
 
         vm.label(address(_levelMintingV2.silo()), "LevelMintingV2Silo");
-
-        _levelMintingV2.addMintableAsset(address(config.tokens.usdc));
-        _levelMintingV2.addMintableAsset(address(config.tokens.usdt));
-
-        _levelMintingV2.addRedeemableAsset(address(config.tokens.usdc));
-        _levelMintingV2.addRedeemableAsset(address(config.tokens.usdt));
-
-        _levelMintingV2.addOracle(address(config.tokens.usdc), address(config.oracles.usdc), false);
-        _levelMintingV2.addOracle(address(config.tokens.usdt), address(config.oracles.usdt), false);
-
-        _levelMintingV2.setCooldownDuration(5 minutes);
-
-        _levelMintingV2.setHeartBeat(address(config.tokens.usdc), 1 days);
-        _levelMintingV2.setHeartBeat(address(config.tokens.usdt), 1 days);
 
         config.levelContracts.levelMintingV2 = _levelMintingV2;
 
