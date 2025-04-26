@@ -22,6 +22,8 @@ import {MathLib} from "@level/src/v2/common/libraries/MathLib.sol";
 import {MockERC4626} from "@level/test/v2/mocks/MockERC4626.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AaveTokenOracle} from "@level/src/v2/oracles/AaveTokenOracle.sol";
+import {IVaultManager} from "@level/src/v2/interfaces/level/IVaultManager.sol";
+import {StrategyConfig, StrategyCategory} from "@level/src/v2/common/libraries/StrategyLib.sol";
 
 // Test minting using receipt tokens.
 contract LevelMintingV2ReceiptTests is Utils, Configurable {
@@ -35,7 +37,6 @@ contract LevelMintingV2ReceiptTests is Utils, Configurable {
 
     LevelMintingV2 public levelMinting;
     MockOracle public mockOracle;
-    // MockERC4626 public mockUsdcERC4626;
 
     address[] public morphoVaults;
 
@@ -53,27 +54,31 @@ contract LevelMintingV2ReceiptTests is Utils, Configurable {
         config = deployScript.run();
 
         mockOracle = new MockOracle(1e8, 8);
-        // mockUsdcERC4626 = new MockERC4626(IERC20(address(config.tokens.usdc)));
 
         morphoVaults = _allMorphoVaultAddresses();
 
         AaveTokenOracle aUsdcOracle = new AaveTokenOracle(address(config.tokens.usdc));
 
-        // config.morphoVaults.steakhouseUsdc.oracle = new ERC4626Oracle(mockUsdcERC4626, 4 hours);
-        // config.morphoVaults.re7Usdc.oracle = new ERC4626Oracle(mockUsdcERC4626, 4 hours);
-        // config.morphoVaults.steakhouseUsdt.oracle = new ERC4626Oracle(mockUsdcERC4626, 4 hours);
-        // config.morphoVaults.steakhouseUsdtLite.oracle = new ERC4626Oracle(mockUsdcERC4626, 4 hours);
+        config.morphoVaults.steakhouseUsdc.oracle =
+            config.levelContracts.erc4626OracleFactory.create(config.morphoVaults.steakhouseUsdc.vault);
+        config.morphoVaults.re7Usdc.oracle =
+            config.levelContracts.erc4626OracleFactory.create(config.morphoVaults.re7Usdc.vault);
+        config.morphoVaults.steakhouseUsdt.oracle =
+            config.levelContracts.erc4626OracleFactory.create(config.morphoVaults.steakhouseUsdt.vault);
+        config.morphoVaults.steakhouseUsdtLite.oracle =
+            config.levelContracts.erc4626OracleFactory.create(config.morphoVaults.steakhouseUsdtLite.vault);
 
-        // config.morphoVaults.steakhouseUsdc.oracle =
-        //     config.levelContracts.erc4626OracleFactory.create(config.morphoVaults.steakhouseUsdc.vault, 4 hours);
-        // config.morphoVaults.re7Usdc.oracle =
-        //     config.levelContracts.erc4626OracleFactory.create(config.morphoVaults.re7Usdc.vault, 4 hours);
-        // config.morphoVaults.steakhouseUsdt.oracle =
-        //     config.levelContracts.erc4626OracleFactory.create(config.morphoVaults.steakhouseUsdt.vault, 4 hours);
-        // config.morphoVaults.steakhouseUsdtLite.oracle =
-        //     config.levelContracts.erc4626OracleFactory.create(config.morphoVaults.steakhouseUsdtLite.vault, 4 hours);
+        StrategyConfig memory steakhouseUsdtLiteConfig = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdt,
+            receiptToken: ERC20(address(config.morphoVaults.steakhouseUsdtLite.vault)),
+            oracle: config.morphoVaults.steakhouseUsdtLite.oracle,
+            depositContract: address(config.morphoVaults.steakhouseUsdtLite.vault),
+            withdrawContract: address(config.morphoVaults.steakhouseUsdtLite.vault),
+            heartbeat: 1 days
+        });
 
-        address[] memory targets = new address[](15);
+        address[] memory targets = new address[](16);
         targets[0] = address(config.levelContracts.rolesAuthority);
         targets[1] = address(config.levelContracts.levelMintingV2);
         targets[2] = address(config.levelContracts.levelMintingV2);
@@ -89,8 +94,9 @@ contract LevelMintingV2ReceiptTests is Utils, Configurable {
         targets[12] = address(config.levelContracts.levelMintingV2);
         targets[13] = address(config.levelContracts.levelMintingV2);
         targets[14] = address(config.levelContracts.levelMintingV2);
+        targets[15] = address(config.levelContracts.vaultManager);
 
-        bytes[] memory payloads = new bytes[](15);
+        bytes[] memory payloads = new bytes[](16);
         payloads[0] =
             abi.encodeWithSignature("setUserRole(address,uint8,bool)", address(normalUser.addr), REDEEMER_ROLE, true);
         payloads[1] = abi.encodeWithSignature(
@@ -136,6 +142,12 @@ contract LevelMintingV2ReceiptTests is Utils, Configurable {
         );
         payloads[14] = abi.encodeWithSignature(
             "setHeartBeat(address,uint256)", address(config.morphoVaults.steakhouseUsdtLite.vault), 1 days
+        );
+        payloads[15] = abi.encodeWithSelector(
+            IVaultManager.addAssetStrategy.selector,
+            address(config.tokens.usdt),
+            address(config.morphoVaults.steakhouseUsdtLite.vault),
+            steakhouseUsdtLiteConfig
         );
 
         _scheduleAndExecuteAdminActionBatch(
