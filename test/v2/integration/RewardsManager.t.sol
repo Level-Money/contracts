@@ -176,6 +176,21 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         rewardsManager.reward(assets);
     }
 
+    function test_basic_getAccruedYield_succeeds() public {
+        StrategyConfig[] memory strategies = rewardsManager.getAllStrategies(address(config.tokens.usdc));
+        assertGt(strategies.length, 0, "Should have at least one strategy for USDC");
+
+        // Transfer some aUSDC to the vault to simulate yield
+        vm.startPrank(strategist.addr);
+        uint256 accrued = 1000e6;
+        config.tokens.aUsdc.transfer(address(rewardsManager.vault()), accrued);
+        console2.log("Transferring aUSDC to vault");
+
+        // Call getAccruedYield - should not revert
+        uint256 yield = rewardsManager.getAccruedYield(assets);
+        assertGt(yield, 0, "Should have accrued some yield");
+    }
+
     // ------------- Internal Helpers -------------
 
     function _getAssetsInStrategy(address asset, address strategy) public view returns (uint256) {
