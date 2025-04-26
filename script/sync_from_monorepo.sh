@@ -55,8 +55,6 @@ if [ "$#" -eq 2 ]; then
 fi
 
 CONTRACTS_PATH="$MONOREPO_PATH/packages/contracts"
-CURRENT_DATE=$(date +"%Y%m%d_%H%M%S")
-NEW_BRANCH="sync_from_monorepo_$CURRENT_DATE"
 
 # Check if the monorepo path exists
 if [ ! -d "$MONOREPO_PATH" ]; then
@@ -75,6 +73,44 @@ if [ ! -d ".git" ]; then
     echo "Error: Must be run from the root of the contracts repo"
     exit 1
 fi
+
+# Function to get PR details from commit hash
+get_pr_details() {
+    local commit_hash="$1"
+    local monorepo_dir="$2"
+    
+    # Save current directory
+    local current_dir=$(pwd)
+    
+    # Change to monorepo directory
+    cd "$monorepo_dir"
+    
+    # Get the commit message to extract PR number
+    local commit_msg=$(git log -1 --pretty=format:"%s" "$commit_hash")
+    
+    # Extract PR number using regex
+    local pr_number=$(echo "$commit_msg" | grep -oE "Merge pull request #([0-9]+)" | grep -oE "#([0-9]+)" | tr -d '#')
+    
+    # If we couldn't find PR number in merge commit, try to find it in the commit message
+    if [ -z "$pr_number" ]; then
+        pr_number=$(echo "$commit_msg" | grep -oE "\(#([0-9]+)\)" | grep -oE "#([0-9]+)" | tr -d '#')
+    fi
+    
+    # Get PR title from commit message (removing the PR number part if present)
+    local pr_title=""
+    if [ -n "$pr_number" ]; then
+        pr_title=$(echo "$commit_msg" | sed -E 's/Merge pull request #[0-9]+ from [^/]+\/[^[:space:]]+//' | sed -E 's/\(#[0-9]+\)//' | xargs)
+    else
+        # If no PR number found, use the commit message as title
+        pr_title="$commit_msg"
+    fi
+    
+    # Return to original directory
+    cd "$current_dir"
+    
+    # Return the results
+    echo "$pr_number|$pr_title"
+}
 
 # Function to perform sync
 perform_sync() {
@@ -127,18 +163,28 @@ perform_sync() {
         # Stage all changes (including deletions)
         git add -A
 
-        # Commit the changes
-        commit_msg="Sync changes from monorepo - $CURRENT_DATE"
+        # Get PR details if commit hash is available
+        local pr_details=""
+        local pr_number=""
+        local pr_title=""
         
-        # Add commit hash information if available
-        if [ -n "$COMMIT_HASH" ]; then
-            commit_msg+="\n\nSynchronized with monorepo at commit $COMMIT_HASH"
-        else
-            commit_msg+="\n\nSynchronized with latest monorepo main branch"
+        if [ -n "$CURRENT_COMMIT" ]; then
+            pr_details=$(get_pr_details "$CURRENT_COMMIT" "$MONOREPO_PATH")
+            pr_number=$(echo "$pr_details" | cut -d'|' -f1)
+            pr_title=$(echo "$pr_details" | cut -d'|' -f2)
         fi
         
-        commit_msg+=", including removal of files/directories"
-        commit_msg+=" that no longer exist in the monorepo's contracts directory."
+        # Format commit message
+        local commit_msg=""
+        
+        if [ -n "$pr_number" ] && [ -n "$pr_title" ]; then
+            # Format with PR number and title
+            commit_msg="#$pr_number: $pr_title (${CURRENT_COMMIT:0:7})"
+        else
+            # Fallback format if PR details not found
+            commit_msg="Sync changes from monorepo - commit ${CURRENT_COMMIT:0:7}"
+        fi
+    
         
         git commit -m "$commit_msg"
 
@@ -150,11 +196,6 @@ perform_sync() {
 
 # Fetch the latest changes from the contracts repo remote
 git fetch origin
-
-if [ "$DRY_RUN" = false ]; then
-    # Create and checkout a new branch in the contracts repo
-    git checkout -b "$NEW_BRANCH"
-fi
 
 # Go to the monorepo and ensure we have the right commit
 cd "$MONOREPO_PATH"
@@ -168,16 +209,27 @@ if [ -n "$COMMIT_HASH" ]; then
     
     # Checkout the specific commit
     git checkout "$COMMIT_HASH"
-    echo "Using monorepo at specific commit: $COMMIT_HASH"
+    CURRENT_COMMIT="$COMMIT_HASH"
+    echo "Using monorepo at specific commit: $CURRENT_COMMIT"
 else
     # No commit hash provided, use latest main
     git checkout main
     git pull origin main
-    echo "Using latest commit from monorepo main branch"
+    CURRENT_COMMIT=$(git rev-parse HEAD)
+    echo "Using latest commit from monorepo main branch: $CURRENT_COMMIT"
 fi
+
+# Create branch name using the commit hash
+SHORT_HASH="${CURRENT_COMMIT:0:7}"
+NEW_BRANCH="sync_from_monorepo_$SHORT_HASH"
 
 # Go back to the contracts repo
 cd -
+
+if [ "$DRY_RUN" = false ]; then
+    # Create and checkout a new branch in the contracts repo
+    git checkout -b "$NEW_BRANCH"
+fi
 
 # Perform the sync
 perform_sync
