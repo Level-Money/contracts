@@ -44,7 +44,12 @@ contract RewardsManager is RewardsManagerStorage, Initializable, UUPSUpgradeable
 
         uint256 accruedAssets = accrued.convertDecimalsDown(vault.decimals(), ERC20(redemptionAsset).decimals());
 
-        vault._withdrawBatch(allStrategies[redemptionAsset], accruedAssets);
+        uint256 availableCollateral = ERC20(redemptionAsset).balanceOf(address(vault));
+
+        if (availableCollateral < accruedAssets) {
+            uint256 toWithdraw = accruedAssets - availableCollateral;
+            vault._withdrawBatch(allStrategies[redemptionAsset], toWithdraw);
+        }
 
         vault.exit(treasury, ERC20(redemptionAsset), accruedAssets, address(vault), 0);
 
