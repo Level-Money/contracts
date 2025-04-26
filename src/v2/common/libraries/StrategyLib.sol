@@ -47,14 +47,11 @@ library StrategyLib {
 
         uint256 shares = receiptToken.balanceOf(vault);
 
-        uint256 sharesToAssetDecimals =
-            shares.mulDivDown(10 ** ERC20(address(config.baseCollateral)).decimals(), 10 ** receiptToken.decimals());
-
         (int256 assetsForOneShare, uint256 decimals) =
             OracleLib.getPriceAndDecimals(address(config.oracle), config.heartbeat);
 
-        assets_ = uint256(assetsForOneShare).mulDivDown(sharesToAssetDecimals, 10 ** decimals);
+        assets_ = uint256(assetsForOneShare).mulDivDown(shares, 10 ** decimals);
 
-        return assets_;
+        return assets_.convertDecimalsDown(receiptToken.decimals(), config.baseCollateral.decimals());
     }
 }
