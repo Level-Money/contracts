@@ -40,7 +40,7 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
     MockOracle public mockUsdcOracle;
 
     function setUp() public {
-        forkMainnet(22134385);
+        forkMainnet(22305203);
 
         deployer = vm.createWallet("deployer");
         normalUser = vm.createWallet("normalUser");

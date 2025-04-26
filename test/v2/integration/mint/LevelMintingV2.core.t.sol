@@ -39,7 +39,7 @@ contract LevelMintingV2CoreTests is Utils, Configurable {
     MockOracle public mockOracle;
 
     function setUp() public {
-        forkMainnet(22134384);
+        forkMainnet(22305203);
 
         deployer = vm.createWallet("deployer");
         vm.label(deployer.addr, "deployer");

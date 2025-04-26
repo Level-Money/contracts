@@ -1,5 +1,5 @@
 # IVaultManager
-[Git Source](https://github.com/Level-Money/contracts/blob/dc473999128bb60d87e479b557f6971af65ff8db/src/v2/interfaces/level/IVaultManager.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/6210538f7de83f92b07f38679d7d19520c984a03/src/v2/interfaces/level/IVaultManager.sol)
 
 **Inherits:**
 [IVaultManagerEvents](/src/v2/interfaces/level/IVaultManager.sol/interface.IVaultManagerEvents.md), [IVaultManagerErrors](/src/v2/interfaces/level/IVaultManager.sol/interface.IVaultManagerErrors.md)
@@ -16,7 +16,7 @@ Initializes the contract with admin and guard addresses
 
 
 ```solidity
-function initialize(address admin_, address guard_) external;
+function initialize(address admin_, address guard_, address vault_) external;
 ```
 **Parameters**
 
@@ -24,6 +24,7 @@ function initialize(address admin_, address guard_) external;
 |----|----|-----------|
 |`admin_`|`address`|Address of the admin who will have administrative privileges|
 |`guard_`|`address`|Address of the guard that provides security controls|
+|`vault_`|`address`|Address of the vault to be set|
 
 
 ### setVault

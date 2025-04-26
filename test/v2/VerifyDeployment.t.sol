@@ -7,12 +7,13 @@ import {Configurable} from "@level/config/Configurable.sol";
 import {console2} from "forge-std/console2.sol";
 
 import {Utils} from "@level/test/utils/Utils.sol";
+import {IMorphoChainlinkOracleV2} from "@level/src/v2/interfaces/morpho/IMorphoChainlinkOracleV2.sol";
 
 contract VerifyDeployment is Utils, Configurable {
     Vm.Wallet private deployer;
 
     function setUp() public {
-        forkMainnet(22134385);
+        forkMainnet(22305203);
 
         deployer = vm.createWallet("deployer");
 
@@ -181,6 +182,41 @@ contract VerifyDeployment is Utils, Configurable {
             UNPAUSER_ROLE,
             bytes4(abi.encodeWithSignature("unpauseSelector(address,bytes4)"))
         );
+    }
+
+    function test__pause__levelReserveLensMorphoOracle__returnsDollar() public {
+        IMorphoChainlinkOracleV2 lvlUsdOracle = IMorphoChainlinkOracleV2(0x6779b2F08611906FcE70c70c596e05859701235d);
+        IMorphoChainlinkOracleV2 slvlUsdOracle = IMorphoChainlinkOracleV2(0x50356C32c984BF921a0eFB1F4264Ac328e429c2c);
+
+        IMorphoChainlinkOracleV2 ptLvlUsdUsdcOracle =
+            IMorphoChainlinkOracleV2(0xC0EFB90F40e8Dd4CB3bC20837D30E388549a8405);
+        IMorphoChainlinkOracleV2 ptLvlUsdLvlUsdOracle =
+            IMorphoChainlinkOracleV2(0x0E6D96E8aA0de4783a049d6793F33d55497c27A9);
+        IMorphoChainlinkOracleV2 ptSlvlUsdOracle = IMorphoChainlinkOracleV2(0xEaAf18E3D90e1A3741376383Beb41A2081b4Cb8F);
+
+        uint256 priceBefore_lvlUsdOracle = lvlUsdOracle.price();
+        uint256 priceBefore_slvlUsdOracle = slvlUsdOracle.price();
+
+        uint256 priceBefore_ptLvlUsdUsdcOracle = ptLvlUsdUsdcOracle.price();
+        uint256 priceBefore_ptLvlUsdLvlUsdOracle = ptLvlUsdLvlUsdOracle.price();
+        uint256 priceBefore_ptSlvlUsdOracle = ptSlvlUsdOracle.price();
+
+        vm.startPrank(config.users.operator);
+        config.periphery.levelReserveLensMorphoOracle.setPaused(true);
+        vm.stopPrank();
+
+        uint256 priceAfter_lvlUsdOracle = lvlUsdOracle.price();
+        uint256 priceAfter_slvlUsdOracle = slvlUsdOracle.price();
+
+        uint256 priceAfter_ptLvlUsdUsdcOracle = ptLvlUsdUsdcOracle.price();
+        uint256 priceAfter_ptLvlUsdLvlUsdOracle = ptLvlUsdLvlUsdOracle.price();
+        uint256 priceAfter_ptSlvlUsdOracle = ptSlvlUsdOracle.price();
+
+        assertEq(priceBefore_lvlUsdOracle, priceAfter_lvlUsdOracle);
+        assertEq(priceBefore_slvlUsdOracle, priceAfter_slvlUsdOracle);
+        assertEq(priceBefore_ptLvlUsdUsdcOracle, priceAfter_ptLvlUsdUsdcOracle);
+        assertEq(priceBefore_ptLvlUsdLvlUsdOracle, priceAfter_ptLvlUsdLvlUsdOracle);
+        assertEq(priceBefore_ptSlvlUsdOracle, priceAfter_ptSlvlUsdOracle);
     }
 
     function _doesUserHaveRole(address user, uint8 role) internal {

@@ -22,6 +22,7 @@
 - [IMorphoBase](IMorpho.sol/interface.IMorphoBase.md)
 - [IMorphoStaticTyping](IMorpho.sol/interface.IMorphoStaticTyping.md)
 - [IMorpho](IMorpho.sol/interface.IMorpho.md)
+- [IMorphoChainlinkOracleV2](IMorphoChainlinkOracleV2.sol/interface.IMorphoChainlinkOracleV2.md)
 - [MarketConfig](PendingLib.sol/struct.MarketConfig.md)
 - [PendingUint192](PendingLib.sol/struct.PendingUint192.md)
 - [PendingAddress](PendingLib.sol/struct.PendingAddress.md)

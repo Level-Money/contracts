@@ -40,7 +40,7 @@ contract LevelMintingV2ReceiptTests is Utils, Configurable {
     address[] public morphoVaults;
 
     function setUp() public {
-        forkMainnet(22134385);
+        forkMainnet(22305203);
 
         deployer = vm.createWallet("deployer");
         normalUser = vm.createWallet("normalUser");

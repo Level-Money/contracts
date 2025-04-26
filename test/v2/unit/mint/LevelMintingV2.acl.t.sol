@@ -22,7 +22,7 @@ contract LevelMintingV2AclUnitTests is Utils, Configurable {
     address public constant DAI = 0x6b175474e89094c44dA98b95B7002f2956889026;
 
     function setUp() public {
-        forkMainnet(22134385);
+        forkMainnet(22305203);
 
         deployer = vm.createWallet("deployer");
         vm.label(deployer.addr, "Deployer");

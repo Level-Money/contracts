@@ -31,7 +31,7 @@ contract PauserGuardTests is Test, Utils, Configurable {
     uint256 public constant INITIAL_BALANCE = 100000000e6;
 
     function setUp() public {
-        forkMainnet(22134384);
+        forkMainnet(22305203);
 
         // Create wallets
         owner = vm.createWallet("owner");

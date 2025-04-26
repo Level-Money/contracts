@@ -67,7 +67,8 @@ interface IVaultManager is IVaultManagerEvents, IVaultManagerErrors {
     /// @notice Initializes the contract with admin and guard addresses
     /// @param admin_ Address of the admin who will have administrative privileges
     /// @param guard_ Address of the guard that provides security controls
-    function initialize(address admin_, address guard_) external;
+    /// @param vault_ Address of the vault to be set
+    function initialize(address admin_, address guard_, address vault_) external;
 
     /// @notice Sets the vault address
     /// @dev Restricted to admin timelock
