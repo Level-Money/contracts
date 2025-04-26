@@ -11,6 +11,7 @@ import {MathLib} from "@level/src/v2/common/libraries/MathLib.sol";
 import {OracleLib} from "@level/src/v2/common/libraries/OracleLib.sol";
 import {LevelMintingV2Storage} from "@level/src/v2/LevelMintingV2Storage.sol";
 import {PauserGuarded} from "@level/src/v2/common/guard/PauserGuarded.sol";
+import {ILevelMintingV2} from "@level/src/v2/interfaces/level/ILevelMintingV2.sol";
 
 contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable, AuthUpgradeable, PauserGuarded {
     using MathLib for uint256;
@@ -43,6 +44,9 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
     }
 
     /* --------------- External --------------- */
+
+    /// @inheritdoc ILevelMintingV2
+    /// @notice If not public, callable by MINTER_ROLE
     function mint(Order calldata order) external requiresAuth notPaused returns (uint256 lvlUsdMinted) {
         if (lvlusd.denylisted(msg.sender)) revert DenyListed();
         verifyOrder(order);
@@ -80,7 +84,9 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
         emit Mint(msg.sender, order.beneficiary, order.collateral_asset, order.collateral_amount, order.lvlusd_amount);
     }
 
-    // Redemptions must only occur in base assets
+    /// @inheritdoc ILevelMintingV2
+    /// @notice If not public, callable by REDEEMER_ROLE
+    /// @dev Redemptions must only occur in base assets
     function initiateRedeem(address asset, uint256 lvlUsdAmount, uint256 expectedAmount)
         external
         requiresAuth
@@ -118,8 +124,11 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
         return (lvlUsdAmount, collateralAmount);
     }
 
+    /// @inheritdoc ILevelMintingV2
+    /// @dev Collateral sent to the silo may be locked if the address is denylisted after initiating redemption
     function completeRedeem(address asset, address beneficiary) external notPaused returns (uint256 collateralAmount) {
         if (userCooldown[msg.sender][asset] + cooldownDuration > block.timestamp) revert StillInCooldown();
+        if (lvlusd.denylisted(msg.sender) || lvlusd.denylisted(beneficiary)) revert DenyListed();
 
         // note we only support complete withdrawal of pending redemptions
         // initiateRedeem can only initiate up to max per block
@@ -149,9 +158,13 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
         if (oracles[order.collateral_asset] == address(0)) revert UnsupportedAsset();
     }
 
-    /// This function could take in either a base collateral (ie USDC/USDT) or a receipt token (ie Morpho vault share, aUSDC/T)
-    /// If we receive a receipt token, we need to first convert the receipt token to the amount of underlying it can be redeemd for
-    /// before applying the underlying's USD price and calculating the lvlUSD amount to mint
+    /// @notice Converts collateralAmount to lvlUSD amount to mint
+    /// @dev This function could take in either a base collateral (ie USDC/USDT) or a receipt token (ie Morpho vault share, aUSDC/T)
+    /// @dev If we receive a receipt token, we need to first convert the receipt token to the amount of underlying it can be redeemd for
+    /// @dev before applying the underlying's USD price and calculating the lvlUSD amount to mint
+    /// @param collateralAsset The collateral asset to convert
+    /// @param collateralAmount The amount of collateral to convert
+    /// @return lvlusdAmount The amount of lvlUSD to mint
     function computeMint(address collateralAsset, uint256 collateralAmount)
         public
         view
@@ -188,6 +201,10 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
         return collateralAmount.mulDivDown(numerator, denominator);
     }
 
+    /// @notice Converts lvlUSD amount to redeem to collateral amount
+    /// @param asset The asset to convert
+    /// @param lvlusdAmount The amount of lvlUSD to convert
+    /// @return collateralAmount The amount of collateral to redeem
     function computeRedeem(address asset, uint256 lvlusdAmount) public view returns (uint256 collateralAmount) {
         (int256 price, uint256 decimals) = getPriceAndDecimals(asset);
 
@@ -203,6 +220,10 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
         }
     }
 
+    /// @notice Gets the price and decimals of a collateral token
+    /// @param collateralToken The collateral token to get the price and decimals for
+    /// @return price The price of the collateral token
+    /// @return decimal The decimals of the collateral token
     function getPriceAndDecimals(address collateralToken) public view returns (int256 price, uint256 decimal) {
         address oracle = oracles[collateralToken];
         if (oracle == address(0)) {
@@ -216,26 +237,28 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
 
     /* --------------- SETTERS --------------- */
 
-    /// @notice Sets the max mintPerBlock limit
-    /// Callable by ADMIN_ROLE
+    /// @inheritdoc ILevelMintingV2
+    /// @notice Callable by owner
     function setMaxMintPerBlock(uint256 _maxMintPerBlock) external requiresAuth {
         _setMaxMintPerBlock(_maxMintPerBlock);
     }
 
-    /// @notice Sets the max redeemPerBlock limit
-    /// Callable by ADMIN_ROLE
+    /// @inheritdoc ILevelMintingV2
+    /// @notice Callable by owner
     function setMaxRedeemPerBlock(uint256 _maxRedeemPerBlock) external requiresAuth {
         _setMaxRedeemPerBlock(_maxRedeemPerBlock);
     }
 
-    /// @notice Disables the mint and redeem
-    /// Callable by GATEKEEPER_ROLE and ADMIN_ROLE
+    /// @inheritdoc ILevelMintingV2
+    /// @notice Callable by GATEKEEPER_ROLE and owner
     function disableMintRedeem() external requiresAuth {
         _setMaxMintPerBlock(0);
         _setMaxRedeemPerBlock(0);
         emit MintRedeemDisabled();
     }
 
+    /// @inheritdoc ILevelMintingV2
+    /// @notice Callable by owner
     function setBaseCollateral(address asset, bool isBase) external requiresAuth {
         if (asset == address(0)) revert InvalidAddress();
         isBaseCollateral[asset] = isBase;
@@ -243,36 +266,38 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
         emit BaseCollateralUpdated(asset, isBase);
     }
 
-    /// @notice Adds an asset to the supported assets list.
-    /// Callable by ADMIN_ROLE (admin timelock)
+    /// @inheritdoc ILevelMintingV2
+    /// @notice Callable by owner
     function addMintableAsset(address asset) public requiresAuth {
         if (asset == address(0)) revert InvalidAddress();
         mintableAssets[asset] = true;
         emit AssetAdded(asset);
     }
 
-    /// @notice Adds an asset to the redeemable assets list.
-    /// Callable by ADMIN_ROLE (admin timelock)
+    /// @inheritdoc ILevelMintingV2
+    /// @notice Callable by owner
     function addRedeemableAsset(address asset) public requiresAuth {
         if (asset == address(0)) revert InvalidAddress();
         redeemableAssets[asset] = true;
         emit RedeemableAssetAdded(asset);
     }
 
-    /// @notice Removes an asset from the supported assets list
-    // @notice Callable by ADMIN_MULTISIG_ROLE
+    /// @inheritdoc ILevelMintingV2
+    // @notice Callable by ADMIN_MULTISIG_ROLE and owner
     function removeMintableAsset(address asset) external requiresAuth {
         mintableAssets[asset] = false;
         emit AssetRemoved(asset);
     }
 
-    /// @notice Removes an asset from the redeemable assets list
-    // @notice Callable by ADMIN_MULTISIG_ROLE
+    /// @inheritdoc ILevelMintingV2
+    // @notice Callable by ADMIN_MULTISIG_ROLE and owner
     function removeRedeemableAsset(address asset) external requiresAuth {
         redeemableAssets[asset] = false;
         emit RedeemableAssetRemoved(asset);
     }
 
+    /// @inheritdoc ILevelMintingV2
+    /// @dev Callable by owner
     function addOracle(address collateral, address oracle, bool _isLevelOracle) public requiresAuth {
         if (collateral == address(0) || oracle == address(0)) revert InvalidAddress();
         oracles[collateral] = oracle;
@@ -280,24 +305,31 @@ contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable
         emit OracleAdded(collateral, oracle);
     }
 
-    /// @notice Callable by ADMIN_ROLE (admin timelock)
+    /// @inheritdoc ILevelMintingV2
+    // @notice Callable by ADMIN_MULTISIG_ROLE and owner
     function removeOracle(address collateral) public requiresAuth {
         oracles[collateral] = address(0);
         isLevelOracle[collateral] = false;
         emit OracleRemoved(collateral);
     }
 
+    /// @inheritdoc ILevelMintingV2
+    /// @dev Callable by owner
     function setHeartBeat(address collateral, uint256 heartBeat) public requiresAuth {
         if (heartBeat == 0) revert InvalidHeartBeatValue();
         heartbeats[collateral] = heartBeat;
         emit HeartBeatSet(collateral, heartBeat);
     }
 
+    /// @inheritdoc ILevelMintingV2
+    /// @dev Callable by owner
     function setCooldownDuration(uint256 newduration) external requiresAuth {
         cooldownDuration = newduration;
         emit CooldownDurationSet(newduration);
     }
 
+    /// @inheritdoc ILevelMintingV2
+    /// @dev Callable by owner
     function setVaultManager(address _vaultManager) external requiresAuth {
         address oldVaultManager = address(vaultManager);
         vaultManager = VaultManager(_vaultManager);
