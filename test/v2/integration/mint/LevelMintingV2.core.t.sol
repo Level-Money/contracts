@@ -19,6 +19,7 @@ import {MockOracle} from "@level/test/v2/mocks/MockOracle.sol";
 import {SafeTransferLib} from "@solmate/src/utils/SafeTransferLib.sol";
 import {lvlUSD} from "@level/src/v1/lvlUSD.sol";
 import {MathLib} from "@level/src/v2/common/libraries/MathLib.sol";
+import {IlvlUSDDefinitions} from "@level/src/v1/interfaces/IlvlUSDDefinitions.sol";
 
 contract LevelMintingV2CoreTests is Utils, Configurable {
     using SafeTransferLib for ERC20;
@@ -540,7 +541,7 @@ contract LevelMintingV2CoreTests is Utils, Configurable {
 
         vm.startPrank(denylistedUser.addr);
 
-        vm.expectRevert(ILevelMintingV2Errors.DenyListed.selector);
+        vm.expectRevert(IlvlUSDDefinitions.Denylisted.selector);
         levelMinting.mint(order_);
     }
 

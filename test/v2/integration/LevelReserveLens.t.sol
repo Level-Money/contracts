@@ -46,6 +46,8 @@ contract LevelReserveLensTests is Utils, Configurable {
         rewardsManager = config.levelContracts.rewardsManager;
         lens = config.levelContracts.levelReserveLens;
 
+        console2.log(address(rewardsManager));
+
         // Upgrade level reserve lens
         UpgradeLevelReserveLens upgradeScript = new UpgradeLevelReserveLens();
 

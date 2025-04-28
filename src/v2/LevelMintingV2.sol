@@ -54,7 +54,6 @@ contract LevelMintingV2 is
     /// @inheritdoc ILevelMintingV2
     /// @notice If not public, callable by MINTER_ROLE
     function mint(Order calldata order) external requiresAuth notPaused returns (uint256 lvlUsdMinted) {
-        if (lvlusd.denylisted(msg.sender)) revert DenyListed();
         verifyOrder(order);
 
         if (isLevelOracle[order.collateral_asset]) {
@@ -142,7 +141,7 @@ contract LevelMintingV2 is
         if (collateralAmount == 0) revert NoPendingRedemptions();
 
         userCooldown[msg.sender][asset] = 0;
-        pendingRedemption[msg.sender][asset] -= collateralAmount;
+        pendingRedemption[msg.sender][asset] = 0;
 
         silo.withdraw(beneficiary, asset, collateralAmount);
 
@@ -274,7 +273,7 @@ contract LevelMintingV2 is
 
     /// @inheritdoc ILevelMintingV2
     /// @notice Callable by owner
-    function addMintableAsset(address asset) public requiresAuth {
+    function addMintableAsset(address asset) external requiresAuth {
         if (asset == address(0)) revert InvalidAddress();
         mintableAssets[asset] = true;
         emit AssetAdded(asset);
@@ -282,7 +281,7 @@ contract LevelMintingV2 is
 
     /// @inheritdoc ILevelMintingV2
     /// @notice Callable by owner
-    function addRedeemableAsset(address asset) public requiresAuth {
+    function addRedeemableAsset(address asset) external requiresAuth {
         if (asset == address(0)) revert InvalidAddress();
         redeemableAssets[asset] = true;
         emit RedeemableAssetAdded(asset);
@@ -304,7 +303,7 @@ contract LevelMintingV2 is
 
     /// @inheritdoc ILevelMintingV2
     /// @dev Callable by owner
-    function addOracle(address collateral, address oracle, bool _isLevelOracle) public requiresAuth {
+    function addOracle(address collateral, address oracle, bool _isLevelOracle) external requiresAuth {
         if (collateral == address(0) || oracle == address(0)) revert InvalidAddress();
         oracles[collateral] = oracle;
         isLevelOracle[collateral] = _isLevelOracle;
@@ -313,7 +312,7 @@ contract LevelMintingV2 is
 
     /// @inheritdoc ILevelMintingV2
     // @notice Callable by ADMIN_MULTISIG_ROLE and owner
-    function removeOracle(address collateral) public requiresAuth {
+    function removeOracle(address collateral) external requiresAuth {
         oracles[collateral] = address(0);
         isLevelOracle[collateral] = false;
         emit OracleRemoved(collateral);
@@ -321,7 +320,7 @@ contract LevelMintingV2 is
 
     /// @inheritdoc ILevelMintingV2
     /// @dev Callable by owner
-    function setHeartBeat(address collateral, uint256 heartBeat) public requiresAuth {
+    function setHeartBeat(address collateral, uint256 heartBeat) external requiresAuth {
         if (heartBeat == 0) revert InvalidHeartBeatValue();
         heartbeats[collateral] = heartBeat;
         emit HeartBeatSet(collateral, heartBeat);
