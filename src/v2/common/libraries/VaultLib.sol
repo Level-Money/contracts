@@ -28,11 +28,7 @@ library VaultLib {
         // Initialize to undeployed
         uint256 totalForAsset = ERC20(asset).balanceOf(address(vault));
 
-        for (uint256 j = 0; j < strategies.length; j++) {
-            StrategyConfig memory config = strategies[j];
-
-            totalForAsset += StrategyLib.getAssets(config, address(vault));
-        }
+        totalForAsset += StrategyLib.getAssets(strategies, address(vault));
 
         return totalForAsset;
     }

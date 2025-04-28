@@ -52,7 +52,7 @@ contract StrictRolesAuthority is RolesAuthority {
      * @param role The role to remove
      * @custom:reverts If caller is not the admin multisig
      */
-    function removeUserRole(address user, uint8 role) public virtual requiresAuth {
+    function removeUserRole(address user, uint8 role) external virtual requiresAuth {
         if (!isRoleRemovable[role]) {
             revert RoleRemovalNotAllowed();
         }

@@ -948,9 +948,6 @@ contract VaultManagerMainnetTests is Utils, Configurable {
 
 /**
  * Test cases to add
- * - Test that withdrawDefault works with multiple strategies
- * - Test that depositBatch works with multiple assets
- * - Test that withdrawBatch works with multiple assets
  * - Test what happens when there is not enough liquidity to withdraw from Morpho
  * - Test what happens when there is not enough liquidity to withdraw from Aave
  */
