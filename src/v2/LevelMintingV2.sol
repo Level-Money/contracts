@@ -10,10 +10,16 @@ import {Silo} from "@level/src/v2/usd/Silo.sol";
 import {MathLib} from "@level/src/v2/common/libraries/MathLib.sol";
 import {OracleLib} from "@level/src/v2/common/libraries/OracleLib.sol";
 import {LevelMintingV2Storage} from "@level/src/v2/LevelMintingV2Storage.sol";
-import {PauserGuarded} from "@level/src/v2/common/guard/PauserGuarded.sol";
+import {PauserGuardedUpgradable} from "@level/src/v2/common/guard/PauserGuardedUpgradable.sol";
 import {ILevelMintingV2} from "@level/src/v2/interfaces/level/ILevelMintingV2.sol";
 
-contract LevelMintingV2 is LevelMintingV2Storage, Initializable, UUPSUpgradeable, AuthUpgradeable, PauserGuarded {
+contract LevelMintingV2 is
+    LevelMintingV2Storage,
+    Initializable,
+    UUPSUpgradeable,
+    AuthUpgradeable,
+    PauserGuardedUpgradable
+{
     using MathLib for uint256;
     using OracleLib for address;
 

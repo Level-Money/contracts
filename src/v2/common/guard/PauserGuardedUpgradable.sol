@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {PauserGuard} from "@level/src/v2/common/guard/PauserGuard.sol";
+import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * @title PauserGuarded
@@ -10,7 +11,7 @@ import {PauserGuard} from "@level/src/v2/common/guard/PauserGuard.sol";
  *
  * @dev This contract is used to control the pause state of the contract.
  */
-abstract contract PauserGuarded {
+abstract contract PauserGuardedUpgradable is Initializable {
     event PauserGuardUpdated(address indexed oldGuard, address indexed newGuard);
 
     error Paused();
@@ -19,10 +20,19 @@ abstract contract PauserGuarded {
     PauserGuard public guard;
 
     /**
-     * @dev Constructor to initialize the PauserGuard.
-     * @param _guard The address of the PauserGuard to use.
+     * @dev This empty reserved space is put in place to allow future versions to add new
+     * variables without shifting down storage in the inheritance chain.
+     * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
-    constructor(address _guard) {
+    uint256[35] private __gap;
+
+    /**
+     * @dev Initializes the contract with a PauserGuard.
+     * @param _guard The guard that controls the pause state of the contract.
+     */
+    function __PauserGuarded_init(address _guard) internal onlyInitializing {
+        if (address(guard) != address(0)) revert("Already initialized");
+
         if (_guard == address(0)) {
             revert("Guard cannot be zero address");
         }
