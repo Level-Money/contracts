@@ -1,5 +1,5 @@
 # RewardsManager
-[Git Source](https://github.com/Level-Money/contracts/blob/6210538f7de83f92b07f38679d7d19520c984a03/src/v2/usd/RewardsManager.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/8e1575e7e26fdc58ac15be6578d36ba7aa02390c/src/v2/usd/RewardsManager.sol)
 
 **Inherits:**
 [RewardsManagerStorage](/src/v2/usd/RewardsManagerStorage.sol/abstract.RewardsManagerStorage.md), Initializable, UUPSUpgradeable, [AuthUpgradeable](/src/v2/auth/AuthUpgradeable.sol/abstract.AuthUpgradeable.md), [PauserGuarded](/src/v2/common/guard/PauserGuarded.sol/abstract.PauserGuarded.md)
@@ -9,6 +9,14 @@ Contract for managing rewards distribution across strategies
 *Inherits error and event interfaces from IRewardsManagerErrors and IRewardsManagerEvents*
 
 *Inherits interface from IRewardsManager*
+
+
+## State Variables
+### HEARTBEAT
+
+```solidity
+uint256 public constant HEARTBEAT = 1 days;
+```
 
 
 ## Functions
@@ -30,17 +38,18 @@ function initialize(address admin_, address vault_, address guard_) external ini
 
 Harvests yield from specified assets and distributes rewards
 
-*Callable by HARVESTER_ROLE*
+*The yieldAmount is the amount of yield to distribute. Should be in the redemption asset's precision.*
 
 
 ```solidity
-function reward(address[] calldata assets) external notPaused requiresAuth;
+function reward(address[] calldata assets, uint256 yieldAmount) external notPaused requiresAuth;
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
 |`assets`|`address[]`|Array of asset addresses to harvest rewards from|
+|`yieldAmount`|`uint256`|The amount of yield to distribute|
 
 
 ### setVault
@@ -99,11 +108,11 @@ function setAllStrategies(address asset, StrategyConfig[] memory strategies) ext
 
 Calculates the total accrued yield for specified assets
 
-*Returns the yield amount in the vault share's decimals*
+*the assets array should always be base tokens (USDC, USDT, etc.)*
 
 
 ```solidity
-function getAccruedYield(address[] calldata assets) public view returns (uint256 accrued);
+function getAccruedYield(address[] calldata assets) public returns (uint256 accrued);
 ```
 **Parameters**
 
@@ -146,6 +155,13 @@ Returns the total assets in the vault for a given asset, to the asset's precisio
 
 ```solidity
 function getTotalAssets(address asset) external view returns (uint256 assets);
+```
+
+### updateOracle
+
+
+```solidity
+function updateOracle(address collateral, address oracle) public requiresAuth;
 ```
 
 ### _authorizeUpgrade

@@ -1,5 +1,5 @@
 # IMetaMorphoV1_1StaticTyping
-[Git Source](https://github.com/Level-Money/contracts/blob/6210538f7de83f92b07f38679d7d19520c984a03/src/v2/interfaces/morpho/IMetaMorphoV1_1.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/8e1575e7e26fdc58ac15be6578d36ba7aa02390c/src/v2/interfaces/morpho/IMetaMorphoV1_1.sol)
 
 **Inherits:**
 [IMetaMorphoV1_1Base](/src/v2/interfaces/morpho/IMetaMorphoV1_1.sol/interface.IMetaMorphoV1_1Base.md)

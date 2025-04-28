@@ -1,5 +1,5 @@
 # LevelReserveLens
-[Git Source](https://github.com/Level-Money/contracts/blob/6210538f7de83f92b07f38679d7d19520c984a03/src/v2/lens/LevelReserveLens.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/8e1575e7e26fdc58ac15be6578d36ba7aa02390c/src/v2/lens/LevelReserveLens.sol)
 
 **Inherits:**
 Initializable, OwnableUpgradeable, UUPSUpgradeable, LevelReserveLensV1
@@ -31,7 +31,7 @@ changelog: Adds the balance of the BoringVault
 ### rewardsManager
 
 ```solidity
-address public constant rewardsManager = 0x9f7757b909E99987C44C34Cf084fb7B51B1999Bb;
+address public constant rewardsManager = 0x3821031eE4362F757C2C0E5365ACC39003035FF4;
 ```
 
 

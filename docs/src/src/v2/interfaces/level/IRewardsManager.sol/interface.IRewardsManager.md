@@ -1,5 +1,5 @@
 # IRewardsManager
-[Git Source](https://github.com/Level-Money/contracts/blob/6210538f7de83f92b07f38679d7d19520c984a03/src/v2/interfaces/level/IRewardsManager.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/8e1575e7e26fdc58ac15be6578d36ba7aa02390c/src/v2/interfaces/level/IRewardsManager.sol)
 
 **Inherits:**
 [IRewardsManagerErrors](/src/v2/interfaces/level/IRewardsManager.sol/interface.IRewardsManagerErrors.md), [IRewardsManagerEvents](/src/v2/interfaces/level/IRewardsManager.sol/interface.IRewardsManagerEvents.md)
@@ -89,13 +89,14 @@ Harvests yield from specified assets and distributes rewards
 
 
 ```solidity
-function reward(address[] calldata assets) external;
+function reward(address[] calldata assets, uint256 yieldAmount) external;
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
 |`assets`|`address[]`|Array of asset addresses to harvest rewards from|
+|`yieldAmount`|`uint256`|The amount of yield to distribute|
 
 
 ### getAccruedYield
@@ -106,7 +107,7 @@ Calculates the total accrued yield for specified assets
 
 
 ```solidity
-function getAccruedYield(address[] calldata assets) external view returns (uint256);
+function getAccruedYield(address[] calldata assets) external returns (uint256);
 ```
 **Parameters**
 
@@ -141,4 +142,17 @@ function getAllStrategies(address asset) external view returns (StrategyConfig[]
 |----|----|-----------|
 |`<none>`|`StrategyConfig[]`|Array of strategy configurations|
 
+
+## Errors
+### InvalidAddress
+
+```solidity
+error InvalidAddress();
+```
+
+### InvalidHeartbeat
+
+```solidity
+error InvalidHeartbeat();
+```
 

@@ -1,5 +1,5 @@
 # ERC4626DelayedOracle
-[Git Source](https://github.com/Level-Money/contracts/blob/6210538f7de83f92b07f38679d7d19520c984a03/src/v2/oracles/ERC4626DelayedOracle.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/8e1575e7e26fdc58ac15be6578d36ba7aa02390c/src/v2/oracles/ERC4626DelayedOracle.sol)
 
 **Inherits:**
 [IERC4626Oracle](/src/v2/interfaces/level/IERC4626Oracle.sol/interface.IERC4626Oracle.md)
