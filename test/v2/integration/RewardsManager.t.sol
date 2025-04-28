@@ -97,13 +97,20 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         vaultManager = config.levelContracts.vaultManager;
     }
 
+    function test_tooHighYieldAmount_reverts() public {
+        vm.startPrank(strategist.addr);
+
+        vm.expectRevert(IRewardsManagerErrors.NotEnoughYield.selector);
+        rewardsManager.reward(assets, 1000e6);
+    }
+
     function test_rewardYield_noYield_reverts() public {
         vm.startPrank(strategist.addr);
 
         uint256 treasuryUsdcBalanceBefore = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
 
         vm.expectRevert(IRewardsManagerErrors.NotEnoughYield.selector);
-        rewardsManager.reward(assets);
+        rewardsManager.reward(assets, 0);
 
         uint256 treasuryUsdcBalanceAfter = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
 
@@ -129,12 +136,15 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
             "Accrued amount does not match"
         );
 
-        rewardsManager.reward(assets);
+        // getAccruedYield() can be ~2 less than accrued * 2 due to rounding
+        // so we reward 2 * accrued - 2
+        uint256 yieldAmount = 2 * accrued - 2;
+        rewardsManager.reward(assets, yieldAmount);
 
         uint256 treasuryUsdcBalanceAfter = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
 
         assertApproxEqAbs(
-            treasuryUsdcBalanceAfter - treasuryUsdcBalanceBefore, 2 * accrued, 2, "Accrued amount does not match"
+            treasuryUsdcBalanceAfter - treasuryUsdcBalanceBefore, yieldAmount, 2, "Accrued amount does not match"
         );
 
         uint256 totalAssets = vaultManager.vault()._getTotalAssets(
@@ -145,10 +155,64 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
             rewardsManager.getAllStrategies(address(config.tokens.usdt)), address(config.tokens.usdt)
         );
 
-        assertApproxEqAbs(
+        // Due to rounding, we allow for a 0.01% difference
+        // This is because there can be small left over yield (eg. 0.00000001)
+        assertApproxEqRel(
             totalAssets.convertDecimalsDown(ERC20(assets[0]).decimals(), vaultManager.vault().decimals()),
             INITIAL_SHARES,
-            1,
+            0.0001e18, // Allow for 0.01% difference
+            "The value of the vault should be approximately equal to the number of shares"
+        );
+    }
+
+    function test_rewardYield_partialYield_succeeds(uint256 accrued) public {
+        accrued = bound(accrued, 1, INITIAL_BALANCE / 2);
+
+        vm.startPrank(strategist.addr);
+
+        uint256 treasuryUsdcBalanceBefore = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
+
+        config.tokens.aUsdc.transfer(address(rewardsManager.vault()), accrued);
+        config.tokens.aUsdt.transfer(address(rewardsManager.vault()), accrued);
+
+        assertApproxEqAbs(
+            rewardsManager.getAccruedYield(assets).convertDecimalsDown(
+                vaultManager.vault().decimals(), ERC20(assets[0]).decimals()
+            ),
+            accrued * 2,
+            2,
+            "Accrued amount does not match"
+        );
+
+        // Only reward 80% of the accrued yield
+        uint256 yieldAmount = accrued * 2 * 8 / 10;
+        rewardsManager.reward(assets, yieldAmount);
+
+        uint256 treasuryUsdcBalanceAfter = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
+
+        assertApproxEqAbs(
+            treasuryUsdcBalanceAfter - treasuryUsdcBalanceBefore, yieldAmount, 2, "Accrued amount does not match"
+        );
+
+        uint256 totalAssets = vaultManager.vault()._getTotalAssets(
+            rewardsManager.getAllStrategies(address(config.tokens.usdc)), address(config.tokens.usdc)
+        );
+
+        totalAssets += vaultManager.vault()._getTotalAssets(
+            rewardsManager.getAllStrategies(address(config.tokens.usdt)), address(config.tokens.usdt)
+        );
+
+        uint256 leftOverYield = accrued * 2 * 2 / 10;
+        uint256 leftOverYieldInVaultPrecision =
+            leftOverYield.convertDecimalsDown(ERC20(assets[0]).decimals(), vaultManager.vault().decimals());
+
+        // Due to rounding, we allow for a 0.01% difference
+        // This is because there can be small left over yield (eg. 0.00000001)
+        // We also need to account for the remaining yield that was not rewarded
+        assertApproxEqRel(
+            totalAssets.convertDecimalsDown(ERC20(assets[0]).decimals(), vaultManager.vault().decimals()),
+            INITIAL_SHARES + leftOverYieldInVaultPrecision,
+            0.0001e18, // Allow for 0.01% difference
             "The value of the vault should be approximately equal to the number of shares"
         );
     }
@@ -173,7 +237,7 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
 
         // Execute reward should revert
         vm.expectRevert(IRewardsManagerErrors.NotEnoughYield.selector);
-        rewardsManager.reward(assets);
+        rewardsManager.reward(assets, 0);
     }
 
     function test_basic_getAccruedYield_succeeds() public {

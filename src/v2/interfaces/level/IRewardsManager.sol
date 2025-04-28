@@ -81,7 +81,8 @@ interface IRewardsManager is IRewardsManagerErrors, IRewardsManagerEvents {
     /// @dev Callable by HARVESTER_ROLE
     /// @dev Caller must ensure that vault has enough of the first asset in the list to reward
     /// @param assets Array of asset addresses to harvest rewards from
-    function reward(address[] calldata assets) external;
+    /// @param yieldAmount The amount of yield to distribute
+    function reward(address[] calldata assets, uint256 yieldAmount) external;
 
     /// @notice Calculates the total accrued yield for specified assets
     /// @dev Returns the yield amount in the vault share's decimals

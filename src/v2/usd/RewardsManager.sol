@@ -37,7 +37,8 @@ contract RewardsManager is RewardsManagerStorage, Initializable, UUPSUpgradeable
 
     // ----- External --------
     /// @inheritdoc IRewardsManager
-    function reward(address[] calldata assets) external notPaused requiresAuth {
+    /// @dev The yieldAmount is the amount of yield to distribute. Should be in the redemption asset's precision.
+    function reward(address[] calldata assets, uint256 yieldAmount) external notPaused requiresAuth {
         uint256 accrued = getAccruedYield(assets);
         address redemptionAsset = assets[0];
 
@@ -47,16 +48,20 @@ contract RewardsManager is RewardsManagerStorage, Initializable, UUPSUpgradeable
 
         uint256 accruedAssets = accrued.convertDecimalsDown(vault.decimals(), ERC20(redemptionAsset).decimals());
 
+        if (yieldAmount > accruedAssets) {
+            revert NotEnoughYield();
+        }
+
         uint256 availableCollateral = ERC20(redemptionAsset).balanceOf(address(vault));
 
-        if (availableCollateral < accruedAssets) {
-            uint256 toWithdraw = accruedAssets - availableCollateral;
+        if (availableCollateral < yieldAmount) {
+            uint256 toWithdraw = yieldAmount - availableCollateral;
             vault._withdrawBatch(allStrategies[redemptionAsset], toWithdraw);
         }
 
-        vault.exit(treasury, ERC20(redemptionAsset), accruedAssets, address(vault), 0);
+        vault.exit(treasury, ERC20(redemptionAsset), yieldAmount, address(vault), 0);
 
-        emit Rewarded(redemptionAsset, treasury, accruedAssets);
+        emit Rewarded(redemptionAsset, treasury, yieldAmount);
     }
 
     //------- Setters ---------

@@ -232,7 +232,7 @@ contract DeployTestnet is Configurable, DeploymentUtils, Script {
         _setRoleCapabilityIfNotExists(
             REWARDER_ROLE,
             address(config.levelContracts.rewardsManager),
-            bytes4(abi.encodeWithSignature("reward(address[])"))
+            bytes4(abi.encodeWithSignature("reward(address[],uint256)"))
         );
 
         _setRoleIfNotExists(address(config.levelContracts.levelMintingV2), REWARDER_ROLE);
