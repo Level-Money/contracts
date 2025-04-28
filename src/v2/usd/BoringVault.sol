@@ -39,9 +39,8 @@ contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder, PauserGuarded 
     constructor(address _owner, string memory _name, string memory _symbol, uint8 _decimals, address _guard)
         ERC20(_name, _symbol, _decimals)
         Auth(_owner, Authority(address(0)))
-    {
-        __PauserGuarded_init(_guard);
-    }
+        PauserGuarded(_guard)
+    {}
 
     //============================== MANAGE ===============================
 

@@ -3,11 +3,11 @@ pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
 import {PauserGuard} from "@level/src/v2/common/guard/PauserGuard.sol";
-import {PauserGuarded} from "@level/src/v2/common/guard/PauserGuarded.sol";
+import {PauserGuardedUpgradable} from "@level/src/v2/common/guard/PauserGuardedUpgradable.sol";
 import {Authority} from "@solmate/src/auth/Auth.sol";
 import {RolesAuthority} from "@solmate/src/auth/authorities/RolesAuthority.sol";
 
-contract MockTarget is PauserGuarded {
+contract MockTarget is PauserGuardedUpgradable {
     function initialize(address _guard) external initializer {
         __PauserGuarded_init(_guard);
     }
@@ -429,9 +429,9 @@ contract PauserGuardUnitTests is Test {
         );
 
         vm.startPrank(user);
-        vm.expectRevert(PauserGuarded.Paused.selector);
+        vm.expectRevert(PauserGuardedUpgradable.Paused.selector);
         mockTarget.mint();
-        vm.expectRevert(PauserGuarded.Paused.selector);
+        vm.expectRevert(PauserGuardedUpgradable.Paused.selector);
         mockTarget.mintBatch();
         vm.stopPrank();
     }
@@ -457,7 +457,7 @@ contract PauserGuardUnitTests is Test {
 
         vm.startPrank(user);
         assertTrue(mockTarget.mint());
-        vm.expectRevert(PauserGuarded.Paused.selector);
+        vm.expectRevert(PauserGuardedUpgradable.Paused.selector);
         mockTarget.mintBatch();
         vm.stopPrank();
     }

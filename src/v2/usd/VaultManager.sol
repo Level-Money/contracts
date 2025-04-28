@@ -8,11 +8,17 @@ import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable
 import {StrategyConfig, StrategyCategory} from "@level/src/v2/common/libraries/StrategyLib.sol";
 import {VaultLib} from "@level/src/v2/common/libraries/VaultLib.sol";
 import {VaultManagerStorage} from "@level/src/v2/usd/VaultManagerStorage.sol";
-import {PauserGuarded} from "@level/src/v2/common/guard/PauserGuarded.sol";
+import {PauserGuardedUpgradable} from "@level/src/v2/common/guard/PauserGuardedUpgradable.sol";
 import {IVaultManager} from "@level/src/v2/interfaces/level/IVaultManager.sol";
 import {OracleLib} from "@level/src/v2/common/libraries/OracleLib.sol";
 
-contract VaultManager is VaultManagerStorage, Initializable, UUPSUpgradeable, AuthUpgradeable, PauserGuarded {
+contract VaultManager is
+    VaultManagerStorage,
+    Initializable,
+    UUPSUpgradeable,
+    AuthUpgradeable,
+    PauserGuardedUpgradable
+{
     using VaultLib for BoringVault;
     using OracleLib for address;
 
