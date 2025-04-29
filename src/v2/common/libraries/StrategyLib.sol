@@ -30,6 +30,9 @@ struct StrategyConfig {
 library StrategyLib {
     using MathLib for uint256;
 
+    /// @notice Error thrown when a strategy is invalid
+    error InvalidStrategy();
+
     function getAssets(StrategyConfig[] memory configs, address vault) internal view returns (uint256 assets_) {
         for (uint256 i = 0; i < configs.length; i++) {
             assets_ += getAssets(configs[i], vault);
@@ -53,5 +56,19 @@ library StrategyLib {
         assets_ = uint256(assetsForOneShare).mulDivDown(shares, 10 ** decimals);
 
         return assets_.convertDecimalsDown(receiptToken.decimals(), config.baseCollateral.decimals());
+    }
+
+    /// @notice Validate a strategy configuration
+    /// @param config The strategy configuration to validate
+    /// @param baseCollateral The base collateral of the strategy
+    /// @dev Reverts with InvalidStrategy if the strategy is invalid
+    function validateStrategy(StrategyConfig memory config, address baseCollateral) internal pure {
+        if (address(config.baseCollateral) != baseCollateral) {
+            revert InvalidStrategy();
+        }
+
+        if (config.category == StrategyCategory.UNDEFINED) {
+            revert InvalidStrategy();
+        }
     }
 }

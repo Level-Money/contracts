@@ -5,7 +5,7 @@ import {AuthUpgradeable} from "@level/src/v2/auth/AuthUpgradeable.sol";
 import {BoringVault} from "@level/src/v2/usd/BoringVault.sol";
 import {UUPSUpgradeable} from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
-import {StrategyConfig, StrategyCategory} from "@level/src/v2/common/libraries/StrategyLib.sol";
+import {StrategyConfig, StrategyCategory, StrategyLib} from "@level/src/v2/common/libraries/StrategyLib.sol";
 import {VaultLib} from "@level/src/v2/common/libraries/VaultLib.sol";
 import {VaultManagerStorage} from "@level/src/v2/usd/VaultManagerStorage.sol";
 import {PauserGuardedUpgradable} from "@level/src/v2/common/guard/PauserGuardedUpgradable.sol";
@@ -21,6 +21,7 @@ contract VaultManager is
 {
     using VaultLib for BoringVault;
     using OracleLib for address;
+    using StrategyLib for StrategyConfig;
 
     constructor() {
         _disableInitializers();
@@ -163,9 +164,9 @@ contract VaultManager is
 
         // Validate strategy already in assetToStrategy
         for (uint256 i = 0; i < strategies.length; i++) {
-            if (assetToStrategy[_asset][strategies[i]].category == StrategyCategory.UNDEFINED) {
-                revert InvalidStrategy();
-            }
+            StrategyConfig memory config = assetToStrategy[_asset][strategies[i]];
+
+            config.validateStrategy(_asset);
         }
 
         defaultStrategies[_asset] = strategies;

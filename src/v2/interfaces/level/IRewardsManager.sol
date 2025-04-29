@@ -11,6 +11,7 @@ interface IRewardsManagerErrors {
     error InvalidStrategy();
     error InvalidRewardAmount();
     error NotEnoughYield();
+    error NoStrategiesProvided();
 }
 
 /// @title IRewardsManagerEvents
