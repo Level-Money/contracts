@@ -8,7 +8,7 @@ import {ERC20} from "@solmate/src/tokens/ERC20.sol";
 import {MathLib} from "@level/src/v2/common/libraries/MathLib.sol";
 import {BoringVault} from "@level/src/v2/usd/BoringVault.sol";
 import {VaultLib} from "@level/src/v2/common/libraries/VaultLib.sol";
-import {StrategyConfig} from "@level/src/v2/common/libraries/StrategyLib.sol";
+import {StrategyLib, StrategyConfig} from "@level/src/v2/common/libraries/StrategyLib.sol";
 import {RewardsManagerStorage} from "@level/src/v2/usd/RewardsManagerStorage.sol";
 import {IRewardsManager} from "@level/src/v2/interfaces/level/IRewardsManager.sol";
 import {PauserGuardedUpgradable} from "@level/src/v2/common/guard/PauserGuardedUpgradable.sol";
@@ -27,6 +27,7 @@ contract RewardsManager is
 {
     using VaultLib for BoringVault;
     using MathLib for uint256;
+    using StrategyLib for StrategyConfig;
 
     uint256 public constant HEARTBEAT = 1 days;
 
@@ -88,11 +89,16 @@ contract RewardsManager is
 
     /// @inheritdoc IRewardsManager
     function setAllStrategies(address asset, StrategyConfig[] memory strategies) external notPaused requiresAuth {
-        for (uint256 i = 0; i < strategies.length; i++) {
-            if (address(strategies[i].baseCollateral) != asset) {
-                revert InvalidStrategy();
-            }
+        if (strategies.length == 0) {
+            revert NoStrategiesProvided();
         }
+
+        for (uint256 i = 0; i < strategies.length; i++) {
+            StrategyConfig memory config = strategies[i];
+
+            config.validateStrategy(asset);
+        }
+
         allStrategies[asset] = strategies;
 
         emit StrategiesUpdated(asset, strategies);

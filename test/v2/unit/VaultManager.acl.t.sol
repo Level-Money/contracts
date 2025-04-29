@@ -253,9 +253,9 @@ contract VaultManagerAclUnitTests is Utils, Configurable {
         strategies[0] = address(DAI);
 
         vm.startPrank(address(config.levelContracts.adminTimelock));
-        vaultManager.addAssetStrategy(address(config.tokens.usdc), address(DAI), strategyConfig);
+        vaultManager.addAssetStrategy(address(DAI), address(DAI), strategyConfig);
 
-        vaultManager.setDefaultStrategies(address(config.tokens.usdc), strategies);
+        vaultManager.setDefaultStrategies(address(DAI), strategies);
         vm.stopPrank();
     }
 
