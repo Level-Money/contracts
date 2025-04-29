@@ -131,7 +131,7 @@ contract DeployTestnet is Configurable, DeploymentUtils, Script {
         _setRoleCapabilityIfNotExists(
             VAULT_REDEEMER_ROLE,
             address(config.levelContracts.boringVault),
-            bytes4(abi.encodeWithSignature("increaseAllowance(address,address,uint256)"))
+            bytes4(abi.encodeWithSignature("setTokenAllowance(address,address,uint256)"))
         );
         _setRoleCapabilityIfNotExists(
             VAULT_MANAGER_ROLE,
@@ -146,7 +146,7 @@ contract DeployTestnet is Configurable, DeploymentUtils, Script {
         _setRoleCapabilityIfNotExists(
             VAULT_MANAGER_ROLE,
             address(config.levelContracts.boringVault),
-            bytes4(abi.encodeWithSignature("increaseAllowance(address,address,uint256)"))
+            bytes4(abi.encodeWithSignature("setTokenAllowance(address,address,uint256)"))
         );
 
         _setRoleIfNotExists(address(config.levelContracts.vaultManager), VAULT_MANAGER_ROLE);
@@ -610,7 +610,7 @@ contract DeployTestnet is Configurable, DeploymentUtils, Script {
                 beneficiary: msg.sender,
                 collateral_asset: address(config.tokens.usdc),
                 collateral_amount: 2,
-                lvlusd_amount: 0
+                min_lvlusd_amount: 0
             })
         );
 

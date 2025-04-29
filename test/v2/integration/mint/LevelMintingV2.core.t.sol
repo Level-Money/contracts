@@ -119,7 +119,7 @@ contract LevelMintingV2CoreTests is Utils, Configurable {
         order = ILevelMintingV2Structs.Order({
             beneficiary: beneficiary,
             collateral_asset: collateral,
-            lvlusd_amount: lvlusdAmount,
+            min_lvlusd_amount: lvlusdAmount,
             collateral_amount: collateralAmount
         });
 

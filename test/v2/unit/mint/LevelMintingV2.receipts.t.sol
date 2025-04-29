@@ -140,7 +140,7 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
             beneficiary: normalUser.addr,
             collateral_asset: address(mockUsdcERC4626),
             collateral_amount: collateralAmount,
-            lvlusd_amount: expectedLvlUsdAmount
+            min_lvlusd_amount: expectedLvlUsdAmount
         });
 
         uint256 minted = levelMinting.mint(order);
@@ -169,7 +169,7 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
             beneficiary: normalUser.addr,
             collateral_asset: address(mockUsdcERC4626),
             collateral_amount: collateralAmount,
-            lvlusd_amount: expectedLvlUsdAmount
+            min_lvlusd_amount: expectedLvlUsdAmount
         });
 
         // Should succeed because reverts swallow error
@@ -197,7 +197,7 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
             beneficiary: normalUser.addr,
             collateral_asset: address(mockUsdcERC4626),
             collateral_amount: collateralAmount,
-            lvlusd_amount: expectedLvlUsdAmount
+            min_lvlusd_amount: expectedLvlUsdAmount
         });
 
         // Check oracle before mint
@@ -224,7 +224,7 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
             beneficiary: normalUser.addr,
             collateral_asset: address(mockUsdcERC4626),
             collateral_amount: collateralAmount,
-            lvlusd_amount: expectedLvlUsdAmount
+            min_lvlusd_amount: expectedLvlUsdAmount
         });
 
         // Check oracle before mint
@@ -244,7 +244,7 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
         console2.log("order.beneficiary", order.beneficiary);
         console2.log("order.collateral_asset", order.collateral_asset);
         console2.log("order.collateral_amount", order.collateral_amount);
-        console2.log("order.lvlusd_amount", order.lvlusd_amount);
+        console2.log("order.min_lvlusd_amount", order.min_lvlusd_amount);
     }
 
     function _printOracle() internal {

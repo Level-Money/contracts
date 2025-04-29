@@ -98,7 +98,7 @@ library VaultLib {
         returns (uint256 deposited)
     {
         address aaveV3 = _getAaveV3Pool();
-        vault.increaseAllowance(address(_config.baseCollateral), aaveV3, amount);
+        vault.setTokenAllowance(address(_config.baseCollateral), aaveV3, amount);
 
         uint256 sharesBefore = ERC20(_config.receiptToken).balanceOf(address(vault));
         vault.manage(
@@ -153,7 +153,7 @@ library VaultLib {
         internal
         returns (uint256 deposited)
     {
-        vault.increaseAllowance(address(_config.baseCollateral), _config.depositContract, amount);
+        vault.setTokenAllowance(address(_config.baseCollateral), _config.depositContract, amount);
 
         bytes memory sharesRaw = vault.manage(
             address(_config.depositContract),

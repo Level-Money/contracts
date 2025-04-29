@@ -145,7 +145,7 @@ contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder, PauserGuarded 
 
     //============================== APPROVAL ===============================
 
-    function increaseAllowance(address token, address spender, uint256 amount) external notPaused requiresAuth {
+    function setTokenAllowance(address token, address spender, uint256 amount) external notPaused requiresAuth {
         SafeERC20.forceApprove(IERC20(token), spender, amount);
     }
 

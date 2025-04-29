@@ -194,7 +194,7 @@ contract LevelMintingV2ReceiptTests is Utils, Configurable {
             beneficiary: normalUser.addr,
             collateral_asset: address(config.morphoVaults.steakhouseUsdc.vault),
             collateral_amount: collateralAmount,
-            lvlusd_amount: minLvlUsdAmount
+            min_lvlusd_amount: minLvlUsdAmount
         });
 
         _mint_withMorphoVaultShares_succeeds(normalUser.addr, order, underlyingAmount);
@@ -213,7 +213,7 @@ contract LevelMintingV2ReceiptTests is Utils, Configurable {
             beneficiary: normalUser.addr,
             collateral_asset: address(config.morphoVaults.steakhouseUsdtLite.vault),
             collateral_amount: collateralAmount,
-            lvlusd_amount: minLvlUsdAmount
+            min_lvlusd_amount: minLvlUsdAmount
         });
 
         _mint_withMorphoVaultShares_succeeds(normalUser.addr, order, underlyingAmount);
@@ -258,7 +258,7 @@ contract LevelMintingV2ReceiptTests is Utils, Configurable {
             beneficiary: normalUser.addr,
             collateral_asset: address(collateral),
             collateral_amount: collateralAmount,
-            lvlusd_amount: minLvlUsdAmount
+            min_lvlusd_amount: minLvlUsdAmount
         });
 
         vm.startPrank(normalUser.addr);
