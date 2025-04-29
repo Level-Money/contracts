@@ -100,7 +100,7 @@ library VaultLib {
         address aaveV3 = _getAaveV3Pool();
         vault.increaseAllowance(address(_config.baseCollateral), aaveV3, amount);
 
-        uint256 balanceBefore = ERC20(_config.baseCollateral).balanceOf(address(vault));
+        uint256 sharesBefore = ERC20(_config.receiptToken).balanceOf(address(vault));
         vault.manage(
             address(aaveV3),
             abi.encodeWithSignature(
@@ -108,12 +108,12 @@ library VaultLib {
             ),
             0
         );
-        uint256 balanceAfter = ERC20(_config.baseCollateral).balanceOf(address(vault));
+        uint256 sharesAfter = ERC20(_config.receiptToken).balanceOf(address(vault));
 
-        uint256 deposited_ = balanceBefore - balanceAfter;
-        emit DepositToAave(address(vault), address(_config.baseCollateral), amount, deposited_);
+        uint256 shares = sharesAfter - sharesBefore;
+        emit DepositToAave(address(vault), address(_config.baseCollateral), amount, shares);
 
-        return deposited_;
+        return amount;
     }
 
     /**
@@ -125,6 +125,7 @@ library VaultLib {
     {
         address aaveV3 = _getAaveV3Pool();
 
+        uint256 sharesBefore = ERC20(_config.receiptToken).balanceOf(address(vault));
         bytes memory withdrawnRaw = vault.manage(
             address(aaveV3),
             abi.encodeWithSignature(
@@ -133,9 +134,12 @@ library VaultLib {
             0
         );
 
+        uint256 sharesAfter = ERC20(_config.receiptToken).balanceOf(address(vault));
+        uint256 shares = sharesBefore - sharesAfter;
+
         uint256 withdrawn_ = abi.decode(withdrawnRaw, (uint256));
 
-        emit WithdrawFromAave(address(vault), address(_config.baseCollateral), amount, withdrawn_);
+        emit WithdrawFromAave(address(vault), address(_config.baseCollateral), amount, shares);
 
         return withdrawn_;
     }
@@ -151,21 +155,17 @@ library VaultLib {
     {
         vault.increaseAllowance(address(_config.baseCollateral), _config.depositContract, amount);
 
-        uint256 balanceBefore = ERC20(_config.baseCollateral).balanceOf(address(vault));
-
         bytes memory sharesRaw = vault.manage(
             address(_config.depositContract),
             abi.encodeWithSignature("deposit(uint256,address)", amount, address(vault)),
             0
         );
-        uint256 balanceAfter = ERC20(_config.baseCollateral).balanceOf(address(vault));
 
-        uint256 deposited_ = balanceBefore - balanceAfter;
         uint256 shares_ = abi.decode(sharesRaw, (uint256));
 
-        emit DepositToMorpho(address(vault), address(_config.baseCollateral), deposited_, shares_);
+        emit DepositToMorpho(address(vault), address(_config.baseCollateral), amount, shares_);
 
-        return deposited_;
+        return amount;
     }
 
     function _withdrawFromMorpho(BoringVault vault, StrategyConfig memory _config, uint256 amount)
@@ -180,19 +180,16 @@ library VaultLib {
             revert("VaultManager: amount must be greater than 0");
         }
 
-        uint256 balanceBefore = _config.baseCollateral.balanceOf(address(vault));
         bytes memory sharesRaw = vault.manage(
             address(_config.withdrawContract),
             abi.encodeWithSignature("withdraw(uint256,address,address)", amount, address(vault), address(vault)),
             0
         );
-        uint256 balanceAfter = _config.baseCollateral.balanceOf(address(vault));
 
-        uint256 withdrawn_ = balanceAfter - balanceBefore;
         uint256 shares_ = abi.decode(sharesRaw, (uint256));
 
-        emit WithdrawFromMorpho(address(vault), address(_config.baseCollateral), withdrawn_, shares_);
+        emit WithdrawFromMorpho(address(vault), address(_config.baseCollateral), amount, shares_);
 
-        return withdrawn_;
+        return amount;
     }
 }
