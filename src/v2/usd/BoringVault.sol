@@ -86,7 +86,6 @@ contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder, PauserGuarded 
         notPaused
         requiresAuth
     {
-        require(address(asset).code.length != 0, "Token does not exist");
         // Transfer assets in
         if (assetAmount > 0) asset.safeTransferFrom(from, address(this), assetAmount);
 
@@ -108,8 +107,6 @@ contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder, PauserGuarded 
         notPaused
         requiresAuth
     {
-        require(address(asset).code.length != 0, "Token does not exist");
-
         // Burn shares.
         _burn(from, shareAmount);
 
