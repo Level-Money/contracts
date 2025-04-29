@@ -7,6 +7,23 @@ import {VaultManager} from "@level/src/v2/usd/VaultManager.sol";
 import {Silo} from "@level/src/v2/usd/Silo.sol";
 import {IlvlUSD} from "@level/src/v2/interfaces/level/IlvlUSD.sol";
 
+/**
+ *                                     .-==+=======+:
+ *                                      :---=-::-==:
+ *                                      .-:-==-:-==:
+ *                    .:::--::::::.     .--:-=--:--.       .:--:::--..
+ *                   .=++=++:::::..     .:::---::--.    ....::...:::.
+ *                    :::-::..::..      .::::-:::::.     ...::...:::.
+ *                    ...::..::::..     .::::--::-:.    ....::...:::..
+ *                    ............      ....:::..::.    ------:......
+ *    ...........     ........:....     .....::..:..    ======-......      ...........
+ *    :------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
+ *    .::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
+ *
+ * @title LevelMintingV2Storage
+ * @author Level (https://level.money)
+ * @notice Storage contract for the LevelMintingV2
+ */
 abstract contract LevelMintingV2Storage is ILevelMintingV2 {
     /* --------------- GLOBAL VARIABLES --------------- */
     VaultManager public vaultManager;

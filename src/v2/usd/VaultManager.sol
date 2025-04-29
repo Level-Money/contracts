@@ -12,6 +12,23 @@ import {PauserGuardedUpgradable} from "@level/src/v2/common/guard/PauserGuardedU
 import {IVaultManager} from "@level/src/v2/interfaces/level/IVaultManager.sol";
 import {OracleLib} from "@level/src/v2/common/libraries/OracleLib.sol";
 
+/**
+ *                                     .-==+=======+:
+ *                                      :---=-::-==:
+ *                                      .-:-==-:-==:
+ *                    .:::--::::::.     .--:-=--:--.       .:--:::--..
+ *                   .=++=++:::::..     .:::---::--.    ....::...:::.
+ *                    :::-::..::..      .::::-:::::.     ...::...:::.
+ *                    ...::..::::..     .::::--::-:.    ....::...:::..
+ *                    ............      ....:::..::.    ------:......
+ *    ...........     ........:....     .....::..:..    ======-......      ...........
+ *    :------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
+ *    .::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
+ *
+ * @title VaultManager
+ * @author Level (https://level.money)
+ * @notice Contract for depositing and withdrawing into BoringVault
+ */
 contract VaultManager is
     VaultManagerStorage,
     Initializable,
@@ -36,7 +53,6 @@ contract VaultManager is
 
     // ------- External ------------
     /// @inheritdoc IVaultManager
-    /// @dev only callable by STRATEGIST_ROLE
     function deposit(address asset, address strategy, uint256 amount)
         external
         requiresAuth
@@ -47,7 +63,6 @@ contract VaultManager is
     }
 
     /// @inheritdoc IVaultManager
-    /// @dev only callable by STRATEGIST_ROLE
     function withdraw(address asset, address strategy, uint256 amount)
         external
         requiresAuth
@@ -58,7 +73,6 @@ contract VaultManager is
     }
 
     /// @inheritdoc IVaultManager
-    /// @dev only callable by STRATEGIST_ROLE
     function depositDefault(address asset, uint256 amount)
         external
         requiresAuth
@@ -69,7 +83,6 @@ contract VaultManager is
     }
 
     /// @inheritdoc IVaultManager
-    /// @dev only callable by STRATEGIST_ROLE
     function withdrawDefault(address asset, uint256 amount)
         external
         requiresAuth
@@ -92,7 +105,6 @@ contract VaultManager is
     // ------- Setters -------------
 
     /// @inheritdoc IVaultManager
-    /// @notice Only callable by the owner (admin timelock)
     function setVault(address _vault) external requiresAuth {
         address from = address(vault);
         vault = BoringVault(payable(_vault));
@@ -100,7 +112,6 @@ contract VaultManager is
     }
 
     /// @inheritdoc IVaultManager
-    /// @notice Only callable by the owner (admin timelock)
     function addAssetStrategy(address _asset, address _strategy, StrategyConfig calldata _config)
         external
         requiresAuth
@@ -156,7 +167,6 @@ contract VaultManager is
     }
 
     /// @inheritdoc IVaultManager
-    /// @notice Only callable by the owner (admin timelock)
     function setDefaultStrategies(address _asset, address[] calldata strategies) external requiresAuth {
         if (strategies.length == 0) {
             revert NoStrategiesProvided();

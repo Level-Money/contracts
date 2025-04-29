@@ -13,6 +13,23 @@ import {LevelMintingV2Storage} from "@level/src/v2/LevelMintingV2Storage.sol";
 import {PauserGuardedUpgradable} from "@level/src/v2/common/guard/PauserGuardedUpgradable.sol";
 import {ILevelMintingV2} from "@level/src/v2/interfaces/level/ILevelMintingV2.sol";
 
+/**
+ *                                     .-==+=======+:
+ *                                      :---=-::-==:
+ *                                      .-:-==-:-==:
+ *                    .:::--::::::.     .--:-=--:--.       .:--:::--..
+ *                   .=++=++:::::..     .:::---::--.    ....::...:::.
+ *                    :::-::..::..      .::::-:::::.     ...::...:::.
+ *                    ...::..::::..     .::::--::-:.    ....::...:::..
+ *                    ............      ....:::..::.    ------:......
+ *    ...........     ........:....     .....::..:..    ======-......      ...........
+ *    :------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
+ *    .::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
+ *
+ * @title LevelMintingV2
+ * @author Level (https://level.money)
+ * @notice Contract for minting and redeeming lvlUSD
+ */
 contract LevelMintingV2 is
     LevelMintingV2Storage,
     Initializable,
@@ -180,8 +197,8 @@ contract LevelMintingV2 is
         address underlyingAsset;
 
         ERC20 collateralToken = ERC20(collateralAsset);
-        uint256 numerator = 10 ** LVLUSD_DECIMAL;
-        uint256 denominator = 10 ** collateralToken.decimals();
+        uint256 numerator = 1;
+        uint256 denominatorDecimals = collateralToken.decimals();
 
         if (isBaseCollateral[collateralAsset]) {
             underlyingAsset = collateralAsset;
@@ -191,7 +208,7 @@ contract LevelMintingV2 is
             (int256 collateralOraclePrice, uint256 collateralOracleDecimals) = getPriceAndDecimals(collateralAsset);
 
             numerator *= uint256(collateralOraclePrice);
-            denominator *= 10 ** collateralOracleDecimals;
+            denominatorDecimals += collateralOracleDecimals;
         } else {
             revert UnsupportedAsset();
         }
@@ -202,10 +219,14 @@ contract LevelMintingV2 is
         // This helps ensure that lvlUSD is sufficiently collateralized in the event of sharp price movements down
         if (uint256(underlyingPrice) < 10 ** underlyingPriceDecimals) {
             numerator *= uint256(underlyingPrice);
-            denominator *= 10 ** underlyingPriceDecimals;
+            denominatorDecimals += underlyingPriceDecimals;
         }
 
-        return collateralAmount.mulDivDown(numerator, denominator);
+        if (denominatorDecimals > LVLUSD_DECIMAL) {
+            return collateralAmount.mulDivDown(numerator, 10 ** (denominatorDecimals - LVLUSD_DECIMAL));
+        } else {
+            return collateralAmount.mulDivDown(numerator * (10 ** (LVLUSD_DECIMAL - denominatorDecimals)), 1);
+        }
     }
 
     /// @notice Converts lvlUSD amount to redeem to collateral amount

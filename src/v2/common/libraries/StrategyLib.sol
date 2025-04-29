@@ -9,8 +9,6 @@ import {MathLib} from "@level/src/v2/common/libraries/MathLib.sol";
 import {ERC20} from "@solmate/src/tokens/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-/// @title StrategyLib
-
 enum StrategyCategory {
     UNDEFINED,
     AAVEV3,
@@ -27,6 +25,9 @@ struct StrategyConfig {
     uint256 heartbeat;
 }
 
+/// @title StrategyLib
+/// @author Level (https://level.money)
+/// @notice Library to get values stored in strategies
 library StrategyLib {
     using MathLib for uint256;
 

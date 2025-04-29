@@ -14,10 +14,25 @@ import {IRewardsManager} from "@level/src/v2/interfaces/level/IRewardsManager.so
 import {PauserGuardedUpgradable} from "@level/src/v2/common/guard/PauserGuardedUpgradable.sol";
 import {OracleLib} from "@level/src/v2/common/libraries/OracleLib.sol";
 
-/// @title RewardsManager
-/// @notice Contract for managing rewards distribution across strategies
-/// @dev Inherits error and event interfaces from IRewardsManagerErrors and IRewardsManagerEvents
-/// @dev Inherits interface from IRewardsManager
+/**
+ *                                     .-==+=======+:
+ *                                      :---=-::-==:
+ *                                      .-:-==-:-==:
+ *                    .:::--::::::.     .--:-=--:--.       .:--:::--..
+ *                   .=++=++:::::..     .:::---::--.    ....::...:::.
+ *                    :::-::..::..      .::::-:::::.     ...::...:::.
+ *                    ...::..::::..     .::::--::-:.    ....::...:::..
+ *                    ............      ....:::..::.    ------:......
+ *    ...........     ........:....     .....::..:..    ======-......      ...........
+ *    :------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
+ *    .::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
+ *
+ * @title RewardsManager
+ * @author Level (https://level.money)
+ * @notice Contract for managing rewards distribution across strategies
+ * @dev Inherits error and event interfaces from IRewardsManagerErrors and IRewardsManagerEvents
+ * @dev Inherits interface from IRewardsManager
+ */
 contract RewardsManager is
     RewardsManagerStorage,
     Initializable,

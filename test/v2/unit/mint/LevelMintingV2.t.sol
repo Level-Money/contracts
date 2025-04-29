@@ -20,6 +20,8 @@ import {lvlUSD} from "@level/src/v1/lvlUSD.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {MathLib} from "@level/src/v2/common/libraries/MathLib.sol";
 import {MockERC4626} from "@level/test/v2/mocks/MockERC4626.sol";
+import {MockToken} from "@level/test/v2/mocks/MockToken.sol";
+
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {VaultManager} from "@level/src/v2/usd/VaultManager.sol";
 import {AggregatorV3Interface} from "@level/src/v2/interfaces/AggregatorV3Interface.sol";
@@ -477,5 +479,93 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
         uint256 redeemedAmount = levelMinting.completeRedeem(address(config.tokens.usdc), normalUser.addr);
 
         assertEq(config.tokens.usdc.balanceOf(normalUser.addr), redeemedAmount);
+    }
+
+    function test_computeMint_doesNotOverflowWithHighDecimals() public {
+        vm.startPrank(normalUser.addr);
+
+        // Create a mock ERC20 with 18 decimals
+        // This will be base collateral
+        MockToken mockToken = new MockToken("Mock Token", "MTK", 18, address(normalUser.addr));
+        mockToken.mint(1000000 * (10 ** 18));
+
+        // Create a mock oracle with 18 decimals
+        MockOracle mockOracle = new MockOracle(1e18, 18);
+
+        // Set up calls for timelock
+        address[] memory targets = new address[](4);
+        targets[0] = address(levelMinting);
+        targets[1] = address(levelMinting);
+        targets[2] = address(levelMinting);
+        targets[3] = address(levelMinting);
+        bytes[] memory payloads = new bytes[](4);
+        payloads[0] = abi.encodeWithSignature("addMintableAsset(address)", address(mockToken));
+        payloads[1] = abi.encodeWithSignature("setBaseCollateral(address,bool)", address(mockToken), true);
+        payloads[2] =
+            abi.encodeWithSignature("addOracle(address,address,bool)", address(mockToken), address(mockOracle), false);
+        payloads[3] = abi.encodeWithSignature("setHeartBeat(address,uint256)", address(mockToken), 1 days);
+
+        _scheduleAndExecuteAdminActionBatch(
+            config.users.admin, address(config.levelContracts.adminTimelock), targets, payloads
+        );
+
+        // Call computeMint
+        uint256 mintAmount = levelMinting.computeMint(address(mockToken), 105265 * (10 ** 18));
+        assertEq(mintAmount, 105265 * (10 ** 18));
+
+        // Check when slightly under peg
+        mockOracle.updatePriceAndDecimals(99e16, 18);
+        uint256 mintAmountUnderPeg = levelMinting.computeMint(address(mockToken), 105265 * (10 ** 18));
+        assertEq(mintAmountUnderPeg, 10421235 * (10 ** 16));
+
+        // Check when slightly over peg
+        mockOracle.updatePriceAndDecimals(101e16, 18);
+        uint256 mintAmountOverPeg = levelMinting.computeMint(address(mockToken), 105265 * (10 ** 18));
+        assertEq(mintAmountOverPeg, 105265 * (10 ** 18));
+    }
+
+    function test_computeMint_doesNotOverflowWithReceiptToken() public {
+        vm.startPrank(normalUser.addr);
+
+        // Create a mock ERC20 with 18 decimals
+        // This will be base collateral
+        MockToken mockToken = new MockToken("Mock Token", "MTK", 18, address(normalUser.addr));
+        mockToken.mint(1000000 * (10 ** 18));
+
+        // Create a mock oracle with 36 decimals
+        // In a receipt token scenario, two oracles will be used
+        // Their decimals will be added together, so simulating 36
+        MockOracle mockOracle = new MockOracle(1e36, 36);
+
+        // Set up calls for timelock
+        address[] memory targets = new address[](4);
+        targets[0] = address(levelMinting);
+        targets[1] = address(levelMinting);
+        targets[2] = address(levelMinting);
+        targets[3] = address(levelMinting);
+        bytes[] memory payloads = new bytes[](4);
+        payloads[0] = abi.encodeWithSignature("addMintableAsset(address)", address(mockToken));
+        payloads[1] = abi.encodeWithSignature("setBaseCollateral(address,bool)", address(mockToken), true);
+        payloads[2] =
+            abi.encodeWithSignature("addOracle(address,address,bool)", address(mockToken), address(mockOracle), false);
+        payloads[3] = abi.encodeWithSignature("setHeartBeat(address,uint256)", address(mockToken), 1 days);
+
+        _scheduleAndExecuteAdminActionBatch(
+            config.users.admin, address(config.levelContracts.adminTimelock), targets, payloads
+        );
+
+        // Call computeMint
+        uint256 mintAmount = levelMinting.computeMint(address(mockToken), 105265 * (10 ** 18));
+        assertEq(mintAmount, 105265 * (10 ** 18));
+
+        // Check when slightly under peg
+        mockOracle.updatePriceAndDecimals(99e16, 18);
+        uint256 mintAmountUnderPeg = levelMinting.computeMint(address(mockToken), 105265 * (10 ** 18));
+        assertEq(mintAmountUnderPeg, 10421235 * (10 ** 16));
+
+        // Check when slightly over peg
+        mockOracle.updatePriceAndDecimals(101e16, 18);
+        uint256 mintAmountOverPeg = levelMinting.computeMint(address(mockToken), 105265 * (10 ** 18));
+        assertEq(mintAmountOverPeg, 105265 * (10 ** 18));
     }
 }

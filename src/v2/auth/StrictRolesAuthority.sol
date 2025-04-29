@@ -5,6 +5,18 @@ import {RolesAuthority} from "@solmate/src/auth/authorities/RolesAuthority.sol";
 import {Authority} from "@solmate/src/auth/Auth.sol";
 
 /**
+ *                                     .-==+=======+:
+ *                                      :---=-::-==:
+ *                                      .-:-==-:-==:
+ *                    .:::--::::::.     .--:-=--:--.       .:--:::--..
+ *                   .=++=++:::::..     .:::---::--.    ....::...:::.
+ *                    :::-::..::..      .::::-:::::.     ...::...:::.
+ *                    ...::..::::..     .::::--::-:.    ....::...:::..
+ *                    ............      ....:::..::.    ------:......
+ *    ...........     ........:....     .....::..:..    ======-......      ...........
+ *    :------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
+ *    .::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
+ *
  * @title StrictRolesAuthority
  * @notice An extension of RolesAuthority that enforces stricter role management rules
  * @dev This contract only allows adding roles through setUserRole() and requires admin multisig

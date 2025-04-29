@@ -6,6 +6,23 @@ import {StrategyConfig} from "@level/src/v2/common/libraries/StrategyLib.sol";
 import {LevelMintingV2} from "@level/src/v2/LevelMintingV2.sol";
 import {IVaultManager} from "@level/src/v2/interfaces/level/IVaultManager.sol";
 
+/**
+ *                                     .-==+=======+:
+ *                                      :---=-::-==:
+ *                                      .-:-==-:-==:
+ *                    .:::--::::::.     .--:-=--:--.       .:--:::--..
+ *                   .=++=++:::::..     .:::---::--.    ....::...:::.
+ *                    :::-::..::..      .::::-:::::.     ...::...:::.
+ *                    ...::..::::..     .::::--::-:.    ....::...:::..
+ *                    ............      ....:::..::.    ------:......
+ *    ...........     ........:....     .....::..:..    ======-......      ...........
+ *    :------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
+ *    .::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
+ *
+ * @title VaultManagerStorage
+ * @author Level (https://level.money)
+ * @notice Storage contract for the VaultManager
+ */
 abstract contract VaultManagerStorage is IVaultManager {
     BoringVault public vault;
 
