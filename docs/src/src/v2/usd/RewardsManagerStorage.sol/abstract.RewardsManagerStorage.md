@@ -1,8 +1,27 @@
 # RewardsManagerStorage
-[Git Source](https://github.com/Level-Money/contracts/blob/6210538f7de83f92b07f38679d7d19520c984a03/src/v2/usd/RewardsManagerStorage.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/0fa663cd541ef95fb08cd2849fd8cc2be3967548/src/v2/usd/RewardsManagerStorage.sol)
 
 **Inherits:**
 [IRewardsManager](/src/v2/interfaces/level/IRewardsManager.sol/interface.IRewardsManager.md)
+
+**Author:**
+Level (https://level.money)
+
+.-==+=======+:
+:---=-::-==:
+.-:-==-:-==:
+.:::--::::::.     .--:-=--:--.       .:--:::--..
+.=++=++:::::..     .:::---::--.    ....::...:::.
+:::-::..::..      .::::-:::::.     ...::...:::.
+...::..::::..     .::::--::-:.    ....::...:::..
+............      ....:::..::.    ------:......
+...........     ........:....     .....::..:..    ======-......      ...........
+:------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
+.::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
+
+Storage contract for RewardsManager. Separate to make it easier to discern upgrades.
+
+*Inherits interface from IRewardsManager*
 
 
 ## State Variables
@@ -24,6 +43,27 @@ address public treasury;
 
 ```solidity
 mapping(address => StrategyConfig[]) public allStrategies;
+```
+
+
+### oracles
+
+```solidity
+mapping(address => address) public oracles;
+```
+
+
+### allBaseCollateral
+
+```solidity
+address[] public allBaseCollateral;
+```
+
+
+### HEARTBEAT
+
+```solidity
+uint256 public constant HEARTBEAT = 1 days;
 ```
 
 

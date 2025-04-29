@@ -1,8 +1,23 @@
 # RewardsManager
-[Git Source](https://github.com/Level-Money/contracts/blob/6210538f7de83f92b07f38679d7d19520c984a03/src/v2/usd/RewardsManager.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/0fa663cd541ef95fb08cd2849fd8cc2be3967548/src/v2/usd/RewardsManager.sol)
 
 **Inherits:**
-[RewardsManagerStorage](/src/v2/usd/RewardsManagerStorage.sol/abstract.RewardsManagerStorage.md), Initializable, UUPSUpgradeable, [AuthUpgradeable](/src/v2/auth/AuthUpgradeable.sol/abstract.AuthUpgradeable.md), [PauserGuarded](/src/v2/common/guard/PauserGuarded.sol/abstract.PauserGuarded.md)
+[RewardsManagerStorage](/src/v2/usd/RewardsManagerStorage.sol/abstract.RewardsManagerStorage.md), Initializable, UUPSUpgradeable, [AuthUpgradeable](/src/v2/auth/AuthUpgradeable.sol/abstract.AuthUpgradeable.md), [PauserGuardedUpgradable](/src/v2/common/guard/PauserGuardedUpgradable.sol/abstract.PauserGuardedUpgradable.md)
+
+**Author:**
+Level (https://level.money)
+
+.-==+=======+:
+:---=-::-==:
+.-:-==-:-==:
+.:::--::::::.     .--:-=--:--.       .:--:::--..
+.=++=++:::::..     .:::---::--.    ....::...:::.
+:::-::..::..      .::::-:::::.     ...::...:::.
+...::..::::..     .::::--::-:.    ....::...:::..
+............      ....:::..::.    ------:......
+...........     ........:....     .....::..:..    ======-......      ...........
+:------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
+.::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
 
 Contract for managing rewards distribution across strategies
 
@@ -34,20 +49,21 @@ Harvests yield from specified assets and distributes rewards
 
 
 ```solidity
-function reward(address[] calldata assets) external notPaused requiresAuth;
+function reward(address redemptionAsset, uint256 yieldAmount) external notPaused requiresAuth;
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`assets`|`address[]`|Array of asset addresses to harvest rewards from|
+|`redemptionAsset`|`address`|The address of the base collateral to withdraw from the vault|
+|`yieldAmount`|`uint256`|The amount of yield to distribute in the redemption asset's precision.|
 
 
 ### setVault
 
 Sets a new vault address
 
-*Only callable by admin timelock*
+*Only callable by owner (admin timelock)*
 
 
 ```solidity
@@ -64,7 +80,7 @@ function setVault(address vault_) external notPaused requiresAuth;
 
 Sets a new treasury address
 
-*Only callable by admin timelock*
+*Only callable by owner (admin timelock)*
 
 
 ```solidity
@@ -81,7 +97,7 @@ function setTreasury(address treasury_) external notPaused requiresAuth;
 
 Updates all strategies for a specific asset
 
-*Only callable by admin timelock*
+*Only callable by owner (admin timelock)*
 
 
 ```solidity
@@ -95,15 +111,57 @@ function setAllStrategies(address asset, StrategyConfig[] memory strategies) ext
 |`strategies`|`StrategyConfig[]`|Array of strategy configurations to be set|
 
 
+### setAllBaseCollateral
+
+Sets the base collateral
+
+*Only callable by owner (admin timelock)*
+
+
+```solidity
+function setAllBaseCollateral(address[] calldata _allBaseCollateral) external notPaused requiresAuth;
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_allBaseCollateral`|`address[]`|Array of base collateral addresses|
+
+
+### setGuard
+
+
+```solidity
+function setGuard(address guard_) external requiresAuth;
+```
+
+### updateOracle
+
+Updates the oracle for a specific asset
+
+*Only callable by owner (admin timelock)*
+
+
+```solidity
+function updateOracle(address collateral, address oracle) external notPaused requiresAuth;
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`collateral`|`address`|The address of the asset|
+|`oracle`|`address`|The new oracle address|
+
+
 ### getAccruedYield
 
 Calculates the total accrued yield for specified assets
 
-*Returns the yield amount in the vault share's decimals*
+*the assets array should always be base tokens (USDC, USDT, etc.)*
 
 
 ```solidity
-function getAccruedYield(address[] calldata assets) public view returns (uint256 accrued);
+function getAccruedYield(address[] memory assets) public returns (uint256 accrued);
 ```
 **Parameters**
 
@@ -141,24 +199,50 @@ function getAllStrategies(address asset) external view returns (StrategyConfig[]
 
 ### getTotalAssets
 
-Returns the total assets in the vault for a given asset, to the asset's precision
+Retrieves the total assets for a specific asset
 
 
 ```solidity
 function getTotalAssets(address asset) external view returns (uint256 assets);
 ```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`asset`|`address`|The address of the asset|
+
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`assets`|`uint256`|Total assets for the asset|
+
+
+### _inAllBaseCollateral
+
+Checks if an asset is in the allBaseCollateral array
+
+
+```solidity
+function _inAllBaseCollateral(address asset) internal view returns (bool);
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`asset`|`address`|The asset to check|
+
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`<none>`|`bool`|bool True if the asset is in the allBaseCollateral array, false otherwise|
+
 
 ### _authorizeUpgrade
 
 
 ```solidity
 function _authorizeUpgrade(address newImplementation) internal override requiresAuth;
-```
-
-### setGuard
-
-
-```solidity
-function setGuard(address guard_) external requiresAuth;
 ```
 

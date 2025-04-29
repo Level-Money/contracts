@@ -77,6 +77,7 @@
       - [❱ guard](src/v2/common/guard/README.md)
         - [PauserGuard](src/v2/common/guard/PauserGuard.sol/contract.PauserGuard.md)
         - [PauserGuarded](src/v2/common/guard/PauserGuarded.sol/abstract.PauserGuarded.md)
+        - [PauserGuardedUpgradable](src/v2/common/guard/PauserGuardedUpgradable.sol/abstract.PauserGuardedUpgradable.md)
       - [❱ libraries](src/v2/common/libraries/README.md)
         - [MathLib](src/v2/common/libraries/MathLib.sol/library.MathLib.md)
         - [MathLib constants](src/v2/common/libraries/MathLib.sol/constants.MathLib.md)

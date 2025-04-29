@@ -1,8 +1,27 @@
 # BoringVault
-[Git Source](https://github.com/Level-Money/contracts/blob/6210538f7de83f92b07f38679d7d19520c984a03/src/v2/usd/BoringVault.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/0fa663cd541ef95fb08cd2849fd8cc2be3967548/src/v2/usd/BoringVault.sol)
 
 **Inherits:**
 ERC20, Auth, ERC721Holder, ERC1155Holder, [PauserGuarded](/src/v2/common/guard/PauserGuarded.sol/abstract.PauserGuarded.md)
+
+**Author:**
+Level (https://level.money)
+
+.-==+=======+:
+:---=-::-==:
+.-:-==-:-==:
+.:::--::::::.     .--:-=--:--.       .:--:::--..
+.=++=++:::::..     .:::---::--.    ....::...:::.
+:::-::..::..      .::::-:::::.     ...::...:::.
+...::..::::..     .::::--::-:.    ....::...:::..
+............      ....:::..::.    ------:......
+...........     ........:....     .....::..:..    ======-......      ...........
+:------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
+.::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
+
+The BoringVault contract is a simple contract that allows users to deposit and withdraw assets.
+
+Forked from Veda's BoringVault standard. Adds PauserGuarded, method to recover ETH, and `setTokenAllowance`
 
 
 ## State Variables
@@ -22,7 +41,8 @@ BeforeTransferHook public hook;
 ```solidity
 constructor(address _owner, string memory _name, string memory _symbol, uint8 _decimals, address _guard)
     ERC20(_name, _symbol, _decimals)
-    Auth(_owner, Authority(address(0)));
+    Auth(_owner, Authority(address(0)))
+    PauserGuarded(_guard);
 ```
 
 ### manage
@@ -123,11 +143,11 @@ function transfer(address to, uint256 amount) public override returns (bool);
 function transferFrom(address from, address to, uint256 amount) public override returns (bool);
 ```
 
-### increaseAllowance
+### setTokenAllowance
 
 
 ```solidity
-function increaseAllowance(address token, address spender, uint256 amount) external notPaused requiresAuth;
+function setTokenAllowance(address token, address spender, uint256 amount) external notPaused requiresAuth;
 ```
 
 ### recoverEth

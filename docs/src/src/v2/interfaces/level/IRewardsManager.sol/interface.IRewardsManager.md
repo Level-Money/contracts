@@ -1,5 +1,5 @@
 # IRewardsManager
-[Git Source](https://github.com/Level-Money/contracts/blob/6210538f7de83f92b07f38679d7d19520c984a03/src/v2/interfaces/level/IRewardsManager.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/0fa663cd541ef95fb08cd2849fd8cc2be3967548/src/v2/interfaces/level/IRewardsManager.sol)
 
 **Inherits:**
 [IRewardsManagerErrors](/src/v2/interfaces/level/IRewardsManager.sol/interface.IRewardsManagerErrors.md), [IRewardsManagerEvents](/src/v2/interfaces/level/IRewardsManager.sol/interface.IRewardsManagerEvents.md)
@@ -31,7 +31,7 @@ function initialize(address admin_, address vault_, address guard_) external;
 
 Sets a new vault address
 
-*Only callable by admin timelock*
+*Only callable by owner (admin timelock)*
 
 
 ```solidity
@@ -48,7 +48,7 @@ function setVault(address vault_) external;
 
 Sets a new treasury address
 
-*Only callable by admin timelock*
+*Only callable by owner (admin timelock)*
 
 
 ```solidity
@@ -65,7 +65,7 @@ function setTreasury(address treasury_) external;
 
 Updates all strategies for a specific asset
 
-*Only callable by admin timelock*
+*Only callable by owner (admin timelock)*
 
 
 ```solidity
@@ -85,17 +85,16 @@ Harvests yield from specified assets and distributes rewards
 
 *Callable by HARVESTER_ROLE*
 
-*Caller must ensure that vault has enough of the first asset in the list to reward*
-
 
 ```solidity
-function reward(address[] calldata assets) external;
+function reward(address redemptionAsset, uint256 yieldAmount) external;
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`assets`|`address[]`|Array of asset addresses to harvest rewards from|
+|`redemptionAsset`|`address`|The address of the base collateral to withdraw from the vault|
+|`yieldAmount`|`uint256`|The amount of yield to distribute in the redemption asset's precision.|
 
 
 ### getAccruedYield
@@ -106,7 +105,7 @@ Calculates the total accrued yield for specified assets
 
 
 ```solidity
-function getAccruedYield(address[] calldata assets) external view returns (uint256);
+function getAccruedYield(address[] calldata assets) external returns (uint256);
 ```
 **Parameters**
 
@@ -140,5 +139,61 @@ function getAllStrategies(address asset) external view returns (StrategyConfig[]
 |Name|Type|Description|
 |----|----|-----------|
 |`<none>`|`StrategyConfig[]`|Array of strategy configurations|
+
+
+### getTotalAssets
+
+Retrieves the total assets for a specific asset
+
+
+```solidity
+function getTotalAssets(address asset) external view returns (uint256);
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`asset`|`address`|The address of the asset|
+
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`<none>`|`uint256`|Total assets for the asset|
+
+
+### updateOracle
+
+Updates the oracle for a specific asset
+
+*Only callable by owner (admin timelock)*
+
+
+```solidity
+function updateOracle(address collateral, address oracle) external;
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`collateral`|`address`|The address of the asset|
+|`oracle`|`address`|The new oracle address|
+
+
+### setAllBaseCollateral
+
+Sets the base collateral
+
+*Only callable by owner (admin timelock)*
+
+
+```solidity
+function setAllBaseCollateral(address[] calldata _allBaseCollateral) external;
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_allBaseCollateral`|`address[]`|Array of base collateral addresses|
 
 

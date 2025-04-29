@@ -1,5 +1,5 @@
 # ILevelMintingV2Events
-[Git Source](https://github.com/Level-Money/contracts/blob/6210538f7de83f92b07f38679d7d19520c984a03/src/v2/interfaces/level/ILevelMintingV2.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/0fa663cd541ef95fb08cd2849fd8cc2be3967548/src/v2/interfaces/level/ILevelMintingV2.sol)
 
 
 ## Events
@@ -11,14 +11,14 @@ event Mint(
     address beneficiary,
     address indexed collateral_asset,
     uint256 indexed collateral_amount,
-    uint256 indexed lvlusd_amount
+    uint256 indexed min_lvlusd_amount
 );
 ```
 
 ### RedeemInitiated
 
 ```solidity
-event RedeemInitiated(address user, address asset, uint256 collateral_amount, uint256 lvlusd_amount);
+event RedeemInitiated(address user, address asset, uint256 collateral_amount, uint256 min_lvlusd_amount);
 ```
 
 ### RedeemCompleted
