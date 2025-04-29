@@ -324,13 +324,18 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         _setRoleCapabilityIfNotExists(
             REWARDER_ROLE,
             address(config.levelContracts.rewardsManager),
-            bytes4(abi.encodeWithSignature("reward(address[],uint256)"))
+            bytes4(abi.encodeWithSignature("reward(address,uint256)"))
         );
 
         _setRoleIfNotExists(address(config.levelContracts.levelMintingV2), REWARDER_ROLE);
         _setRoleIfNotExists(address(config.users.operator), REWARDER_ROLE);
 
         config.levelContracts.rewardsManager.setTreasury(config.users.protocolTreasury);
+
+        address[] memory baseCollateral = new address[](2);
+        baseCollateral[0] = address(config.tokens.usdc);
+        baseCollateral[1] = address(config.tokens.usdt);
+        config.levelContracts.rewardsManager.setAllBaseCollateral(baseCollateral);
 
         config.levelContracts.rewardsManager.setAllStrategies(address(config.tokens.usdc), usdcConfigs);
         config.levelContracts.rewardsManager.setAllStrategies(address(config.tokens.usdt), usdtConfigs);
@@ -758,9 +763,9 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
 
         // =============================== REWARDS MANAGER ===============================
 
-        PauserGuard.FunctionSig[] memory rewardsManagerPauseGroup = new PauserGuard.FunctionSig[](4);
+        PauserGuard.FunctionSig[] memory rewardsManagerPauseGroup = new PauserGuard.FunctionSig[](6);
         rewardsManagerPauseGroup[0] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("reward(address[],uint256)")),
+            selector: bytes4(abi.encodeWithSignature("reward(address,uint256)")),
             target: address(config.levelContracts.rewardsManager)
         });
         rewardsManagerPauseGroup[1] = PauserGuard.FunctionSig({
@@ -773,6 +778,10 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         });
         rewardsManagerPauseGroup[3] = PauserGuard.FunctionSig({
             selector: bytes4(abi.encodeWithSignature("setAllStrategies(address,StrategyConfig[])")),
+            target: address(config.levelContracts.rewardsManager)
+        });
+        rewardsManagerPauseGroup[4] = PauserGuard.FunctionSig({
+            selector: bytes4(abi.encodeWithSignature("setAllBaseCollateral(address[])")),
             target: address(config.levelContracts.rewardsManager)
         });
 

@@ -9,9 +9,10 @@ import {StrategyConfig} from "@level/src/v2/common/libraries/StrategyLib.sol";
 /// @notice Interface for error definitions
 interface IRewardsManagerErrors {
     error InvalidStrategy();
-    error InvalidRewardAmount();
     error NotEnoughYield();
-    error NoStrategiesProvided();
+    error InvalidAddress();
+    error InvalidBaseCollateral();
+    error InvalidBaseCollateralArray();
 }
 
 /// @title IRewardsManagerEvents
@@ -47,15 +48,17 @@ interface IRewardsManagerEvents {
     /// @param asset The asset that was attempted to be withdrawn
     /// @param collateralAmount The amount of collateral that was attempted to be withdrawn
     event WithdrawDefaultFailed(address asset, uint256 collateralAmount);
+
+    /// @notice Emitted when base collateral is added
+    /// @param prevAllBaseCollateral The previous base collateral array
+    /// @param newAllBaseCollateral The new base collateral array
+    event AllBaseCollateralUpdated(address[] prevAllBaseCollateral, address[] newAllBaseCollateral);
 }
 
 /// @title IRewardsManager
 /// @notice Interface for managing rewards distribution across strategies
 /// @dev Inherits error and event interfaces from IRewardsManagerErrors and IRewardsManagerEvents
 interface IRewardsManager is IRewardsManagerErrors, IRewardsManagerEvents {
-    error InvalidAddress();
-    error InvalidHeartbeat();
-
     /// @notice Initializes the contract with admin and vault addresses
     /// @param admin_ Address of the admin who will have administrative privileges
     /// @param vault_ Address of the vault contract that holds the assets
@@ -63,27 +66,26 @@ interface IRewardsManager is IRewardsManagerErrors, IRewardsManagerEvents {
     function initialize(address admin_, address vault_, address guard_) external;
 
     /// @notice Sets a new vault address
-    /// @dev Only callable by admin timelock
+    /// @dev Only callable by owner (admin timelock)
     /// @param vault_ The new vault address
     function setVault(address vault_) external;
 
     /// @notice Sets a new treasury address
-    /// @dev Only callable by admin timelock
+    /// @dev Only callable by owner (admin timelock)
     /// @param treasury_ The new treasury address
     function setTreasury(address treasury_) external;
 
     /// @notice Updates all strategies for a specific asset
-    /// @dev Only callable by admin timelock
+    /// @dev Only callable by owner (admin timelock)
     /// @param asset The address of the asset for which to set strategies
     /// @param strategies Array of strategy configurations to be set
     function setAllStrategies(address asset, StrategyConfig[] memory strategies) external;
 
     /// @notice Harvests yield from specified assets and distributes rewards
     /// @dev Callable by HARVESTER_ROLE
-    /// @dev Caller must ensure that vault has enough of the first asset in the list to reward
-    /// @param assets Array of asset addresses to harvest rewards from
-    /// @param yieldAmount The amount of yield to distribute
-    function reward(address[] calldata assets, uint256 yieldAmount) external;
+    /// @param redemptionAsset The address of the base collateral to withdraw from the vault
+    /// @param yieldAmount The amount of yield to distribute in the redemption asset's precision.
+    function reward(address redemptionAsset, uint256 yieldAmount) external;
 
     /// @notice Calculates the total accrued yield for specified assets
     /// @dev Returns the yield amount in the vault share's decimals
@@ -95,4 +97,20 @@ interface IRewardsManager is IRewardsManagerErrors, IRewardsManagerEvents {
     /// @param asset The address of the asset
     /// @return Array of strategy configurations
     function getAllStrategies(address asset) external view returns (StrategyConfig[] memory);
+
+    /// @notice Retrieves the total assets for a specific asset
+    /// @param asset The address of the asset
+    /// @return Total assets for the asset
+    function getTotalAssets(address asset) external view returns (uint256);
+
+    /// @notice Updates the oracle for a specific asset
+    /// @dev Only callable by owner (admin timelock)
+    /// @param collateral The address of the asset
+    /// @param oracle The new oracle address
+    function updateOracle(address collateral, address oracle) external;
+
+    /// @notice Sets the base collateral
+    /// @dev Only callable by owner (admin timelock)
+    /// @param _allBaseCollateral Array of base collateral addresses
+    function setAllBaseCollateral(address[] calldata _allBaseCollateral) external;
 }

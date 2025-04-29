@@ -101,7 +101,7 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         vm.startPrank(strategist.addr);
 
         vm.expectRevert(IRewardsManagerErrors.NotEnoughYield.selector);
-        rewardsManager.reward(assets, 1000e6);
+        rewardsManager.reward(assets[0], 1000e6);
     }
 
     function test_rewardYield_noYield_reverts() public {
@@ -110,7 +110,7 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         uint256 treasuryUsdcBalanceBefore = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
 
         vm.expectRevert(IRewardsManagerErrors.NotEnoughYield.selector);
-        rewardsManager.reward(assets, 0);
+        rewardsManager.reward(assets[0], 0);
 
         uint256 treasuryUsdcBalanceAfter = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
 
@@ -139,7 +139,7 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         // getAccruedYield() can be ~2 less than accrued * 2 due to rounding
         // so we reward 2 * accrued - 2
         uint256 yieldAmount = 2 * accrued - 2;
-        rewardsManager.reward(assets, yieldAmount);
+        rewardsManager.reward(assets[0], yieldAmount);
 
         uint256 treasuryUsdcBalanceAfter = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
 
@@ -186,7 +186,7 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
 
         // Only reward 80% of the accrued yield
         uint256 yieldAmount = accrued * 2 * 8 / 10;
-        rewardsManager.reward(assets, yieldAmount);
+        rewardsManager.reward(assets[0], yieldAmount);
 
         uint256 treasuryUsdcBalanceAfter = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
 
@@ -237,7 +237,7 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
 
         // Execute reward should revert
         vm.expectRevert(IRewardsManagerErrors.NotEnoughYield.selector);
-        rewardsManager.reward(assets, 0);
+        rewardsManager.reward(assets[0], 0);
     }
 
     function test_basic_getAccruedYield_succeeds() public {
@@ -317,5 +317,4 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
 
     // Test cases to add:
     // - Test when morpho yield accrues
-    // - Test that you can't reward more than accrued
 }
