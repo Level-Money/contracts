@@ -65,7 +65,7 @@ contract LevelMintingV2 is
         mintedPerBlock[block.number] += lvlUsdMinted;
 
         if (mintedPerBlock[block.number] > maxMintPerBlock) revert ExceedsMaxBlockLimit();
-        if (lvlUsdMinted < order.lvlusd_amount) revert MinimumlvlUSDAmountNotMet();
+        if (lvlUsdMinted < order.min_lvlusd_amount) revert MinimumlvlUSDAmountNotMet();
 
         vaultManager.vault().enter(
             msg.sender,
@@ -86,13 +86,15 @@ contract LevelMintingV2 is
 
         lvlusd.mint(order.beneficiary, lvlUsdMinted);
 
-        emit Mint(msg.sender, order.beneficiary, order.collateral_asset, order.collateral_amount, order.lvlusd_amount);
+        emit Mint(
+            msg.sender, order.beneficiary, order.collateral_asset, order.collateral_amount, order.min_lvlusd_amount
+        );
     }
 
     /// @inheritdoc ILevelMintingV2
     /// @notice If not public, callable by REDEEMER_ROLE
     /// @dev Redemptions must only occur in base assets
-    function initiateRedeem(address asset, uint256 lvlUsdAmount, uint256 expectedAmount)
+    function initiateRedeem(address asset, uint256 lvlUsdAmount, uint256 minAssetAmount)
         external
         requiresAuth
         notPaused
@@ -103,7 +105,7 @@ contract LevelMintingV2 is
         if (lvlUsdAmount == 0) revert InvalidAmount();
 
         uint256 collateralAmount = computeRedeem(asset, lvlUsdAmount);
-        if (collateralAmount < expectedAmount) revert MinimumCollateralAmountNotMet();
+        if (collateralAmount < minAssetAmount) revert MinimumCollateralAmountNotMet();
 
         pendingRedemption[msg.sender][asset] += collateralAmount;
         userCooldown[msg.sender][asset] = block.timestamp;

@@ -119,25 +119,25 @@ contract BoringVaultAclUnitTests is Utils, Configurable {
         vm.stopPrank();
     }
 
-    function test_increaseAllowance_succeedsIfCalledByOwner() public {
+    function test_setTokenAllowance_succeedsIfCalledByOwner() public {
         vm.prank(address(config.levelContracts.adminTimelock));
-        vault.increaseAllowance(address(config.tokens.usdc), address(normal.addr), 1e6);
+        vault.setTokenAllowance(address(config.tokens.usdc), address(normal.addr), 1e6);
     }
 
-    function test_increaseAllowance_succeedsIfCalledByManager() public {
+    function test_setTokenAllowance_succeedsIfCalledByManager() public {
         vm.startPrank(address(config.levelContracts.vaultManager));
-        vault.increaseAllowance(address(config.tokens.usdc), address(normal.addr), 1e6);
+        vault.setTokenAllowance(address(config.tokens.usdc), address(normal.addr), 1e6);
         vm.stopPrank();
 
         vm.startPrank(address(config.levelContracts.rewardsManager));
-        vault.increaseAllowance(address(config.tokens.usdc), address(normal.addr), 1e6);
+        vault.setTokenAllowance(address(config.tokens.usdc), address(normal.addr), 1e6);
         vm.stopPrank();
     }
 
-    function test_increaseAllowance_revertsIfNotOwnerOrManager() public {
+    function test_setTokenAllowance_revertsIfNotOwnerOrManager() public {
         vm.startPrank(config.users.admin);
         vm.expectRevert("UNAUTHORIZED");
-        vault.increaseAllowance(address(config.tokens.usdc), address(normal.addr), 1e6);
+        vault.setTokenAllowance(address(config.tokens.usdc), address(normal.addr), 1e6);
         vm.stopPrank();
     }
 

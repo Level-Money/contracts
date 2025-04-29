@@ -174,7 +174,7 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         _setRoleCapabilityIfNotExists(
             VAULT_REDEEMER_ROLE,
             address(config.levelContracts.boringVault),
-            bytes4(abi.encodeWithSignature("increaseAllowance(address,address,uint256)"))
+            bytes4(abi.encodeWithSignature("setTokenAllowance(address,address,uint256)"))
         );
         _setRoleCapabilityIfNotExists(
             VAULT_MANAGER_ROLE,
@@ -189,7 +189,7 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         _setRoleCapabilityIfNotExists(
             VAULT_MANAGER_ROLE,
             address(config.levelContracts.boringVault),
-            bytes4(abi.encodeWithSignature("increaseAllowance(address,address,uint256)"))
+            bytes4(abi.encodeWithSignature("setTokenAllowance(address,address,uint256)"))
         );
         _setRoleCapabilityIfNotExists(
             VAULT_MANAGER_ROLE,
@@ -751,7 +751,7 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             target: address(config.levelContracts.boringVault)
         });
         boringVaultPauseGroup[4] = PauserGuard.FunctionSig({
-            selector: bytes4(abi.encodeWithSignature("increaseAllowance(address,address,uint256)")),
+            selector: bytes4(abi.encodeWithSignature("setTokenAllowance(address,address,uint256)")),
             target: address(config.levelContracts.boringVault)
         });
         boringVaultPauseGroup[5] = PauserGuard.FunctionSig({

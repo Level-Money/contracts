@@ -272,7 +272,7 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
                 beneficiary: normalUser.addr,
                 collateral_asset: address(config.tokens.usdc),
                 collateral_amount: 100,
-                lvlusd_amount: 0
+                min_lvlusd_amount: 0
             })
         );
 
@@ -305,7 +305,7 @@ contract LevelMintingV2ReceiptUnitTests is Utils, Configurable {
                 beneficiary: normalUser.addr,
                 collateral_asset: address(config.tokens.usdc),
                 collateral_amount: collateralAmount,
-                lvlusd_amount: 0
+                min_lvlusd_amount: 0
             })
         );
 

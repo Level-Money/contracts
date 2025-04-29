@@ -11,7 +11,7 @@ interface ILevelMintingV2Structs {
         address beneficiary;
         address collateral_asset;
         uint256 collateral_amount;
-        uint256 lvlusd_amount;
+        uint256 min_lvlusd_amount;
     }
 }
 
@@ -21,10 +21,10 @@ interface ILevelMintingV2Events {
         address beneficiary,
         address indexed collateral_asset,
         uint256 indexed collateral_amount,
-        uint256 indexed lvlusd_amount
+        uint256 indexed min_lvlusd_amount
     );
 
-    event RedeemInitiated(address user, address asset, uint256 collateral_amount, uint256 lvlusd_amount);
+    event RedeemInitiated(address user, address asset, uint256 collateral_amount, uint256 min_lvlusd_amount);
 
     event RedeemCompleted(address user, address beneficiary, address asset, uint256 collateralAmount);
 
@@ -103,10 +103,10 @@ interface ILevelMintingV2 is ILevelMintingV2Events, ILevelMintingV2Errors, ILeve
     /// @notice Initiates the redemption process for lvlUSD
     /// @param asset The address of the asset to redeem for
     /// @param lvlusdAmount The amount of lvlUSD to redeem
-    /// @param expectedAmount The minimum amount of asset expected to receive
+    /// @param minAssetAmount The minimum amount of asset expected to receive
     /// @return First return value likely represents a redemption ID or status
     /// @return Second return value likely represents the actual amount to be redeemed
-    function initiateRedeem(address asset, uint256 lvlusdAmount, uint256 expectedAmount)
+    function initiateRedeem(address asset, uint256 lvlusdAmount, uint256 minAssetAmount)
         external
         returns (uint256, uint256);
 
