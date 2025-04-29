@@ -33,19 +33,35 @@ library StrategyLib {
     /// @notice Error thrown when a strategy is invalid
     error InvalidStrategy();
 
+    /// @notice Returns the total assets of the given strategies
+    /// @param configs The strategy configs. Reverts if the strategies have different base collateral
+    /// @param vault The vault address
+    /// @return assets_ The total assets of the given strategies, denominated in the common base collateral
     function getAssets(StrategyConfig[] memory configs, address vault) internal view returns (uint256 assets_) {
+        address baseCollateral;
+        if (configs.length > 0) {
+            baseCollateral = address(configs[0].baseCollateral);
+        }
+
         for (uint256 i = 0; i < configs.length; i++) {
+            if (baseCollateral != address(configs[i].baseCollateral)) {
+                revert InvalidStrategy();
+            }
             assets_ += getAssets(configs[i], vault);
         }
 
         return assets_;
     }
 
+    /// @notice Returns the total assets of the given strategy
+    /// @param config The strategy config
+    /// @param vault The vault address
+    /// @return assets_ The total assets of the given strategy, denominated in the strategy's base collateral
     function getAssets(StrategyConfig memory config, address vault) internal view returns (uint256 assets_) {
         IERC20Metadata receiptToken = IERC20Metadata(address(config.receiptToken));
 
         if (address(receiptToken) == address(0)) {
-            revert("StrategyLib: invalid strategy");
+            revert InvalidStrategy();
         }
 
         uint256 shares = receiptToken.balanceOf(vault);
