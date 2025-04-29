@@ -1,5 +1,5 @@
 # IVaultManager
-[Git Source](https://github.com/Level-Money/contracts/blob/0fa663cd541ef95fb08cd2849fd8cc2be3967548/src/v2/interfaces/level/IVaultManager.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/8db01e6152f39f954577b5bcc8ca6a9c0b59a8cd/src/v2/interfaces/level/IVaultManager.sol)
 
 **Inherits:**
 [IVaultManagerEvents](/src/v2/interfaces/level/IVaultManager.sol/interface.IVaultManagerEvents.md), [IVaultManagerErrors](/src/v2/interfaces/level/IVaultManager.sol/interface.IVaultManagerErrors.md)
