@@ -1,5 +1,5 @@
 # IRewardsManagerEvents
-[Git Source](https://github.com/Level-Money/contracts/blob/6210538f7de83f92b07f38679d7d19520c984a03/src/v2/interfaces/level/IRewardsManager.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/8db01e6152f39f954577b5bcc8ca6a9c0b59a8cd/src/v2/interfaces/level/IRewardsManager.sol)
 
 Interface for event definitions
 
@@ -95,4 +95,19 @@ event WithdrawDefaultFailed(address asset, uint256 collateralAmount);
 |----|----|-----------|
 |`asset`|`address`|The asset that was attempted to be withdrawn|
 |`collateralAmount`|`uint256`|The amount of collateral that was attempted to be withdrawn|
+
+### AllBaseCollateralUpdated
+Emitted when base collateral is added
+
+
+```solidity
+event AllBaseCollateralUpdated(address[] prevAllBaseCollateral, address[] newAllBaseCollateral);
+```
+
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`prevAllBaseCollateral`|`address[]`|The previous base collateral array|
+|`newAllBaseCollateral`|`address[]`|The new base collateral array|
 

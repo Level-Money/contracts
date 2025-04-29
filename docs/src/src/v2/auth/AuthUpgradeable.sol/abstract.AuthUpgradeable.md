@@ -1,11 +1,23 @@
 # AuthUpgradeable
-[Git Source](https://github.com/Level-Money/contracts/blob/6210538f7de83f92b07f38679d7d19520c984a03/src/v2/auth/AuthUpgradeable.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/8db01e6152f39f954577b5bcc8ca6a9c0b59a8cd/src/v2/auth/AuthUpgradeable.sol)
 
 **Inherits:**
 Initializable
 
 **Authors:**
 Solmate (https://github.com/transmissions11/solmate/blob/main/src/auth/Auth.sol), Modified from Dappsys (https://github.com/dapphub/ds-auth/blob/master/src/auth.sol), Modified for upgradeability
+
+.-==+=======+:
+:---=-::-==:
+.-:-==-:-==:
+.:::--::::::.     .--:-=--:--.       .:--:::--..
+.=++=++:::::..     .:::---::--.    ....::...:::.
+:::-::..::..      .::::-:::::.     ...::...:::.
+...::..::::..     .::::--::-:.    ....::...:::..
+............      ....:::..::.    ------:......
+...........     ........:....     .....::..:..    ======-......      ...........
+:------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
+.::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
 
 Provides a flexible and updatable auth pattern which is completely separate from application logic.
 

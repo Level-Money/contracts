@@ -1,8 +1,25 @@
 # VaultManager
-[Git Source](https://github.com/Level-Money/contracts/blob/6210538f7de83f92b07f38679d7d19520c984a03/src/v2/usd/VaultManager.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/8db01e6152f39f954577b5bcc8ca6a9c0b59a8cd/src/v2/usd/VaultManager.sol)
 
 **Inherits:**
-[VaultManagerStorage](/src/v2/usd/VaultManagerStorage.sol/abstract.VaultManagerStorage.md), Initializable, UUPSUpgradeable, [AuthUpgradeable](/src/v2/auth/AuthUpgradeable.sol/abstract.AuthUpgradeable.md), [PauserGuarded](/src/v2/common/guard/PauserGuarded.sol/abstract.PauserGuarded.md)
+[VaultManagerStorage](/src/v2/usd/VaultManagerStorage.sol/abstract.VaultManagerStorage.md), Initializable, UUPSUpgradeable, [AuthUpgradeable](/src/v2/auth/AuthUpgradeable.sol/abstract.AuthUpgradeable.md), [PauserGuardedUpgradable](/src/v2/common/guard/PauserGuardedUpgradable.sol/abstract.PauserGuardedUpgradable.md)
+
+**Author:**
+Level (https://level.money)
+
+.-==+=======+:
+:---=-::-==:
+.-:-==-:-==:
+.:::--::::::.     .--:-=--:--.       .:--:::--..
+.=++=++:::::..     .:::---::--.    ....::...:::.
+:::-::..::..      .::::-:::::.     ...::...:::.
+...::..::::..     .::::--::-:.    ....::...:::..
+............      ....:::..::.    ------:......
+...........     ........:....     .....::..:..    ======-......      ...........
+:------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
+.::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
+
+Contract for depositing and withdrawing into BoringVault
 
 
 ## Functions
@@ -24,7 +41,7 @@ function initialize(address admin_, address guard_, address vault_) external ini
 
 Deposits an amount of an asset to a specific strategy
 
-*only callable by STRATEGIST_ROLE*
+*Callable by STRATEGIST_ROLE*
 
 
 ```solidity
@@ -53,7 +70,7 @@ function deposit(address asset, address strategy, uint256 amount)
 
 Withdraws an amount of an asset from a specific strategy
 
-*only callable by STRATEGIST_ROLE*
+*Callable by STRATEGIST_ROLE*
 
 
 ```solidity
@@ -82,7 +99,7 @@ function withdraw(address asset, address strategy, uint256 amount)
 
 Deposits an amount of an asset to the default strategies
 
-*only callable by STRATEGIST_ROLE*
+*Callable by STRATEGIST_ROLE*
 
 
 ```solidity
@@ -106,7 +123,7 @@ function depositDefault(address asset, uint256 amount) external requiresAuth not
 
 Withdraws an amount of an asset from the default strategies
 
-*only callable by STRATEGIST_ROLE*
+*Callable by STRATEGIST_ROLE*
 
 
 ```solidity
@@ -135,7 +152,7 @@ function setGuard(address _guard) external requiresAuth;
 
 ### setVault
 
-Only callable by the owner (admin timelock)
+Sets the vault address
 
 *Restricted to admin timelock*
 
@@ -152,7 +169,7 @@ function setVault(address _vault) external requiresAuth;
 
 ### addAssetStrategy
 
-Only callable by the owner (admin timelock)
+Adds a new strategy for a specific asset with configuration
 
 *Restricted to admin timelock*
 
@@ -189,7 +206,7 @@ function removeAssetStrategy(address _asset, address _strategy) external require
 
 ### setDefaultStrategies
 
-Only callable by the owner (admin timelock)
+Sets the default strategies for a specific asset
 
 *Restricted to admin timelock*
 

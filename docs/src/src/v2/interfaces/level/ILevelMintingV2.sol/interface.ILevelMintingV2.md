@@ -1,5 +1,5 @@
 # ILevelMintingV2
-[Git Source](https://github.com/Level-Money/contracts/blob/6210538f7de83f92b07f38679d7d19520c984a03/src/v2/interfaces/level/ILevelMintingV2.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/8db01e6152f39f954577b5bcc8ca6a9c0b59a8cd/src/v2/interfaces/level/ILevelMintingV2.sol)
 
 **Inherits:**
 [ILevelMintingV2Events](/src/v2/interfaces/level/ILevelMintingV2.sol/interface.ILevelMintingV2Events.md), [ILevelMintingV2Errors](/src/v2/interfaces/level/ILevelMintingV2.sol/interface.ILevelMintingV2Errors.md), [ILevelMintingV2Structs](/src/v2/interfaces/level/ILevelMintingV2.sol/interface.ILevelMintingV2Structs.md)
@@ -37,7 +37,7 @@ Initiates the redemption process for lvlUSD
 
 
 ```solidity
-function initiateRedeem(address asset, uint256 lvlusdAmount, uint256 expectedAmount)
+function initiateRedeem(address asset, uint256 lvlusdAmount, uint256 minAssetAmount)
     external
     returns (uint256, uint256);
 ```
@@ -47,7 +47,7 @@ function initiateRedeem(address asset, uint256 lvlusdAmount, uint256 expectedAmo
 |----|----|-----------|
 |`asset`|`address`|The address of the asset to redeem for|
 |`lvlusdAmount`|`uint256`|The amount of lvlUSD to redeem|
-|`expectedAmount`|`uint256`|The minimum amount of asset expected to receive|
+|`minAssetAmount`|`uint256`|The minimum amount of asset expected to receive|
 
 **Returns**
 

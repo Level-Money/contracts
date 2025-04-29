@@ -1,8 +1,20 @@
 # StrictRolesAuthority
-[Git Source](https://github.com/Level-Money/contracts/blob/6210538f7de83f92b07f38679d7d19520c984a03/src/v2/auth/StrictRolesAuthority.sol)
+[Git Source](https://github.com/Level-Money/contracts/blob/8db01e6152f39f954577b5bcc8ca6a9c0b59a8cd/src/v2/auth/StrictRolesAuthority.sol)
 
 **Inherits:**
 RolesAuthority
+
+.-==+=======+:
+:---=-::-==:
+.-:-==-:-==:
+.:::--::::::.     .--:-=--:--.       .:--:::--..
+.=++=++:::::..     .:::---::--.    ....::...:::.
+:::-::..::..      .::::-:::::.     ...::...:::.
+...::..::::..     .::::--::-:.    ....::...:::..
+............      ....:::..::.    ------:......
+...........     ........:....     .....::..:..    ======-......      ...........
+:------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
+.::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
 
 An extension of RolesAuthority that enforces stricter role management rules
 
@@ -70,7 +82,7 @@ reverts: If caller is not the admin multisig
 
 
 ```solidity
-function removeUserRole(address user, uint8 role) public virtual requiresAuth;
+function removeUserRole(address user, uint8 role) external virtual requiresAuth;
 ```
 **Parameters**
 

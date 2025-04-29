@@ -1,5 +1,8 @@
-# PauserGuarded
-[Git Source](https://github.com/Level-Money/contracts/blob/8db01e6152f39f954577b5bcc8ca6a9c0b59a8cd/src/v2/common/guard/PauserGuarded.sol)
+# PauserGuardedUpgradable
+[Git Source](https://github.com/Level-Money/contracts/blob/8db01e6152f39f954577b5bcc8ca6a9c0b59a8cd/src/v2/common/guard/PauserGuardedUpgradable.sol)
+
+**Inherits:**
+Initializable
 
 .-==+=======+:
 :---=-::-==:
@@ -27,20 +30,31 @@ PauserGuard public guard;
 ```
 
 
-## Functions
-### constructor
-
-*Constructor to initialize the PauserGuard.*
+### __gap
+*This empty reserved space is put in place to allow future versions to add new
+variables without shifting down storage in the inheritance chain.
+See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps*
 
 
 ```solidity
-constructor(address _guard);
+uint256[35] private __gap;
+```
+
+
+## Functions
+### __PauserGuarded_init
+
+*Initializes the contract with a PauserGuard.*
+
+
+```solidity
+function __PauserGuarded_init(address _guard) internal onlyInitializing;
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`_guard`|`address`|The address of the PauserGuard to use.|
+|`_guard`|`address`|The guard that controls the pause state of the contract.|
 
 
 ### notPaused
