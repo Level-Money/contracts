@@ -5,6 +5,18 @@ import {PauserGuard} from "@level/src/v2/common/guard/PauserGuard.sol";
 import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
 
 /**
+ *                                     .-==+=======+:
+ *                                      :---=-::-==:
+ *                                      .-:-==-:-==:
+ *                    .:::--::::::.     .--:-=--:--.       .:--:::--..
+ *                   .=++=++:::::..     .:::---::--.    ....::...:::.
+ *                    :::-::..::..      .::::-:::::.     ...::...:::.
+ *                    ...::..::::..     .::::--::-:.    ....::...:::..
+ *                    ............      ....:::..::.    ------:......
+ *    ...........     ........:....     .....::..:..    ======-......      ...........
+ *    :------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
+ *    .::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
+ *
  * @title PauserGuarded
  * @notice An abstract controller that uses a PauserGuard
  * to control the pause state of the inheriting contract.

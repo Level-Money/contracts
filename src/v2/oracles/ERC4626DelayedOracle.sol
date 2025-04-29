@@ -7,8 +7,24 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 
 import {MathLib} from "@level/src/v2/common/libraries/MathLib.sol";
 
-// Adapted from https://github.com/Steakhouse-Financial/delayed-oracle/blob/main/src/DelayedERC4626Oracle.sol
-// Records the price of ERC4626 vault and returns the cached price
+/**
+ *                                     .-==+=======+:
+ *                                      :---=-::-==:
+ *                                      .-:-==-:-==:
+ *                    .:::--::::::.     .--:-=--:--.       .:--:::--..
+ *                   .=++=++:::::..     .:::---::--.    ....::...:::.
+ *                    :::-::..::..      .::::-:::::.     ...::...:::.
+ *                    ...::..::::..     .::::--::-:.    ....::...:::..
+ *                    ............      ....:::..::.    ------:......
+ *    ...........     ........:....     .....::..:..    ======-......      ...........
+ *    :------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
+ *    .::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
+ *
+ * @title ERC4626DelayedOracle
+ * @author Level (https://level.money)
+ * @notice Oracle contract for ERC4626 vaults. Records the price of ERC4626 vault and returns the cached price
+ * @dev Adapted from https://github.com/Steakhouse-Financial/delayed-oracle/blob/main/src/DelayedERC4626Oracle.sol
+ */
 contract ERC4626DelayedOracle is IERC4626Oracle {
     event Update(uint256 updatedAt, uint256 prevPrice, uint256 currPrice, uint256 nextPrice);
 

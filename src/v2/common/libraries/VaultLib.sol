@@ -9,17 +9,48 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IPool} from "@level/src/v2/interfaces/aave/IPool.sol";
 import {IPoolAddressesProvider} from "@level/src/v2/interfaces/aave/IPoolAddressesProvider.sol";
 
+/// @title VaultLib
+/// @author Level (https://level.money)
+/// @notice Library to manage vault operations, such as depositing into and withdrawing from strategies
 library VaultLib {
     // Immutable Aave v3 pool addresses provider
     address public constant AAVE_V3_POOL_ADDRESSES_PROVIDER = 0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e;
 
+    /// @notice Emitted when assets are deposited into Aave v3
+    /// @param vault The vault address
+    /// @param asset The asset address
+    /// @param amountDeposited The amount of assets deposited
+    /// @param sharesReceived The amount of shares received
     event DepositToAave(address indexed vault, address indexed asset, uint256 amountDeposited, uint256 sharesReceived);
+
+    /// @notice Emitted when assets are withdrawn from Aave v3
+    /// @param vault The vault address
+    /// @param asset The asset address
+    /// @param amountWithdrawn The amount of assets withdrawn
+    /// @param sharesSent The amount of shares sent
     event WithdrawFromAave(address indexed vault, address indexed asset, uint256 amountWithdrawn, uint256 sharesSent);
+
+    /// @notice Emitted when assets are deposited into Morpho
+    /// @param vault The vault address
+    /// @param asset The asset address
+    /// @param amountDeposited The amount of assets deposited
+    /// @param sharesReceived The amount of shares received
     event DepositToMorpho(
         address indexed vault, address indexed asset, uint256 amountDeposited, uint256 sharesReceived
     );
+
+    /// @notice Emitted when assets are withdrawn from Morpho
+    /// @param vault The vault address
+    /// @param asset The asset address
+    /// @param amountWithdrawn The amount of assets withdrawn
+    /// @param sharesSent The amount of shares sent
     event WithdrawFromMorpho(address indexed vault, address indexed asset, uint256 amountWithdrawn, uint256 sharesSent);
 
+    /// @notice Returns the total assets of the given strategies
+    /// @param vault The vault address
+    /// @param strategies The strategy configs
+    /// @param asset The asset address
+    /// @return total The total assets of the given strategies, denominated in the common base collateral
     function _getTotalAssets(BoringVault vault, StrategyConfig[] memory strategies, address asset)
         internal
         view
@@ -33,6 +64,12 @@ library VaultLib {
         return totalForAsset;
     }
 
+    /// @notice Withdraws assets from the given strategies
+    /// @dev Assumes that all strategies share the same `baseCollateral`
+    /// @param vault The vault address
+    /// @param strategies The strategy configs
+    /// @param amount The amount of assets to withdraw
+    /// @return withdrawn The amount of assets withdrawn, using the common baseCollateral's decimals
     function _withdrawBatch(BoringVault vault, StrategyConfig[] memory strategies, uint256 amount)
         internal
         returns (uint256 withdrawn)
@@ -62,7 +99,11 @@ library VaultLib {
         return withdrawn;
     }
 
-    // Deposit asset into the vault. Shares should be minted 1:1 with the underlying, and shares should be stored in the vault.
+    /// @notice Deposits assets into the given strategy
+    /// @param vault The vault address
+    /// @param config The strategy config
+    /// @param amount The amount of assets to deposit
+    /// @return deposited The amount of assets deposited
     function _deposit(BoringVault vault, StrategyConfig memory config, uint256 amount)
         internal
         returns (uint256 deposited)
@@ -76,7 +117,11 @@ library VaultLib {
         }
     }
 
-    // Withdraw asset from the vault. Shares should be burned 1:1 with the underlying, and shares should be taken from the vault.
+    /// @notice Withdraws assets from the given strategy
+    /// @param vault The vault address
+    /// @param config The strategy config
+    /// @param amount The amount of assets to withdraw
+    /// @return withdrawn The amount of assets withdrawn
     function _withdraw(BoringVault vault, StrategyConfig memory config, uint256 amount)
         internal
         returns (uint256 withdrawn)
@@ -90,9 +135,12 @@ library VaultLib {
         }
     }
 
-    /**
-     * @dev aTokens are not always 1:1 with the underlying asset; sometimes, it is off by one.
-     */
+    /// @notice Deposits assets into Aave v3
+    /// @dev aTokens are not always 1:1 with the underlying asset; sometimes, it is off by one.
+    /// @param vault The vault address
+    /// @param _config The strategy config
+    /// @param amount The amount of assets to deposit
+    /// @return deposited The amount of assets deposited
     function _depositToAave(BoringVault vault, StrategyConfig memory _config, uint256 amount)
         internal
         returns (uint256 deposited)
@@ -116,9 +164,12 @@ library VaultLib {
         return amount;
     }
 
-    /**
-     * @dev aTokens are not always 1:1 with the underlying asset; sometimes, it is off by one.
-     */
+    /// @notice Withdraws assets from Aave v3
+    /// @dev aTokens are not always 1:1 with the underlying asset; sometimes, it is off by one.
+    /// @param vault The vault address
+    /// @param _config The strategy config
+    /// @param amount The amount of assets to withdraw
+    /// @return withdrawn The amount of assets withdrawn
     function _withdrawFromAave(BoringVault vault, StrategyConfig memory _config, uint256 amount)
         internal
         returns (uint256 withdrawn)
@@ -144,11 +195,18 @@ library VaultLib {
         return withdrawn_;
     }
 
+    /// @notice Returns the Aave v3 pool address
+    /// @return pool_ The Aave v3 pool address
     function _getAaveV3Pool() internal view returns (address) {
         IPoolAddressesProvider provider = IPoolAddressesProvider(AAVE_V3_POOL_ADDRESSES_PROVIDER);
         return provider.getPool();
     }
 
+    /// @notice Deposits assets into Morpho
+    /// @param vault The vault address
+    /// @param _config The strategy config
+    /// @param amount The amount of assets to deposit
+    /// @return deposited The amount of assets deposited
     function _depositToMorpho(BoringVault vault, StrategyConfig memory _config, uint256 amount)
         internal
         returns (uint256 deposited)
@@ -168,6 +226,11 @@ library VaultLib {
         return amount;
     }
 
+    /// @notice Withdraws assets from Morpho
+    /// @param vault The vault address
+    /// @param _config The strategy config
+    /// @param amount The amount of assets to withdraw
+    /// @return withdrawn The amount of assets withdrawn
     function _withdrawFromMorpho(BoringVault vault, StrategyConfig memory _config, uint256 amount)
         internal
         returns (uint256 withdrawn)

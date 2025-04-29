@@ -5,6 +5,24 @@ import {IRewardsManager} from "@level/src/v2/interfaces/level/IRewardsManager.so
 import {BoringVault} from "@level/src/v2/usd/BoringVault.sol";
 import {StrategyConfig} from "@level/src/v2/common/libraries/StrategyLib.sol";
 
+/**
+ *                                     .-==+=======+:
+ *                                      :---=-::-==:
+ *                                      .-:-==-:-==:
+ *                    .:::--::::::.     .--:-=--:--.       .:--:::--..
+ *                   .=++=++:::::..     .:::---::--.    ....::...:::.
+ *                    :::-::..::..      .::::-:::::.     ...::...:::.
+ *                    ...::..::::..     .::::--::-:.    ....::...:::..
+ *                    ............      ....:::..::.    ------:......
+ *    ...........     ........:....     .....::..:..    ======-......      ...........
+ *    :------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
+ *    .::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
+ *
+ * @title RewardsManagerStorage
+ * @author Level (https://level.money)
+ * @notice Storage contract for RewardsManager. Separate to make it easier to discern upgrades.
+ * @dev Inherits interface from IRewardsManager
+ */
 abstract contract RewardsManagerStorage is IRewardsManager {
     BoringVault public vault;
 

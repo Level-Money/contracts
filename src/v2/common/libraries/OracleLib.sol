@@ -5,6 +5,8 @@ import {AggregatorV3Interface} from "@level/src/v2/interfaces/AggregatorV3Interf
 import {IERC4626Oracle} from "@level/src/v2/interfaces/level/IERC4626Oracle.sol";
 
 /// @title OracleLib
+/// @author Level (https://level.money)
+/// @notice Library to manage oracle operations
 library OracleLib {
     function getPriceAndDecimals(address oracle, uint256 heartBeat)
         internal

@@ -4,10 +4,25 @@ pragma solidity >=0.8.20;
 import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
 import {Authority} from "@solmate/src/auth/Auth.sol";
 
-/// @notice Provides a flexible and updatable auth pattern which is completely separate from application logic.
-/// @author Solmate (https://github.com/transmissions11/solmate/blob/main/src/auth/Auth.sol)
-/// @author Modified from Dappsys (https://github.com/dapphub/ds-auth/blob/master/src/auth.sol)
-/// @author Modified for upgradeability
+/**
+ *                                     .-==+=======+:
+ *                                      :---=-::-==:
+ *                                      .-:-==-:-==:
+ *                    .:::--::::::.     .--:-=--:--.       .:--:::--..
+ *                   .=++=++:::::..     .:::---::--.    ....::...:::.
+ *                    :::-::..::..      .::::-:::::.     ...::...:::.
+ *                    ...::..::::..     .::::--::-:.    ....::...:::..
+ *                    ............      ....:::..::.    ------:......
+ *    ...........     ........:....     .....::..:..    ======-......      ...........
+ *    :------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
+ *    .::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
+ *
+ * @title AuthUpgradeable
+ * @notice Provides a flexible and updatable auth pattern which is completely separate from application logic.
+ * @author Solmate (https://github.com/transmissions11/solmate/blob/main/src/auth/Auth.sol)
+ * @author Modified from Dappsys (https://github.com/dapphub/ds-auth/blob/master/src/auth.sol)
+ * @author Modified for upgradeability
+ */
 abstract contract AuthUpgradeable is Initializable {
     event OwnershipTransferred(address indexed user, address indexed newOwner);
 

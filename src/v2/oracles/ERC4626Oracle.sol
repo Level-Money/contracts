@@ -5,6 +5,23 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IERC4626Oracle} from "@level/src/v2/interfaces/level/IERC4626Oracle.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
+/**
+ *                                     .-==+=======+:
+ *                                      :---=-::-==:
+ *                                      .-:-==-:-==:
+ *                    .:::--::::::.     .--:-=--:--.       .:--:::--..
+ *                   .=++=++:::::..     .:::---::--.    ....::...:::.
+ *                    :::-::..::..      .::::-:::::.     ...::...:::.
+ *                    ...::..::::..     .::::--::-:.    ....::...:::..
+ *                    ............      ....:::..::.    ------:......
+ *    ...........     ........:....     .....::..:..    ======-......      ...........
+ *    :------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
+ *    .::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
+ *
+ * @title ERC4626Oracle
+ * @author Level (https://level.money)
+ * @notice Oracle contract for ERC4626 vaults. Returns the current `convertToAssets` value of a vault share
+ */
 contract ERC4626Oracle is IERC4626Oracle {
     IERC4626 public immutable vault;
 

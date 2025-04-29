@@ -16,6 +16,24 @@ interface BeforeTransferHook {
     function beforeTransfer(address from, address to, address operator) external view;
 }
 
+/**
+ *                                     .-==+=======+:
+ *                                      :---=-::-==:
+ *                                      .-:-==-:-==:
+ *                    .:::--::::::.     .--:-=--:--.       .:--:::--..
+ *                   .=++=++:::::..     .:::---::--.    ....::...:::.
+ *                    :::-::..::..      .::::-:::::.     ...::...:::.
+ *                    ...::..::::..     .::::--::-:.    ....::...:::..
+ *                    ............      ....:::..::.    ------:......
+ *    ...........     ........:....     .....::..:..    ======-......      ...........
+ *    :------:.:...   ...:+***++*#+     .------:---.    ...::::.:::...   .....:-----::.
+ *    .::::::::-:..   .::--..:-::..    .-=+===++=-==:   ...:::..:--:..   .:==+=++++++*:
+ *
+ * @title BoringVault
+ * @author Level (https://level.money)
+ * @notice The BoringVault contract is a simple contract that allows users to deposit and withdraw assets.
+ * @notice Forked from Veda's BoringVault standard. Adds PauserGuarded, method to recover ETH, and `setTokenAllowance`
+ */
 contract BoringVault is ERC20, Auth, ERC721Holder, ERC1155Holder, PauserGuarded {
     using Address for address;
     using SafeTransferLib for ERC20;
