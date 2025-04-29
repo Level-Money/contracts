@@ -29,8 +29,6 @@ contract RewardsManager is
     using MathLib for uint256;
     using StrategyLib for StrategyConfig;
 
-    uint256 public constant HEARTBEAT = 1 days;
-
     constructor() {
         _disableInitializers();
     }
@@ -44,10 +42,12 @@ contract RewardsManager is
 
     // ----- External --------
     /// @inheritdoc IRewardsManager
-    /// @dev The yieldAmount is the amount of yield to distribute. Should be in the redemption asset's precision.
-    function reward(address[] calldata assets, uint256 yieldAmount) external notPaused requiresAuth {
-        uint256 accrued = getAccruedYield(assets);
-        address redemptionAsset = assets[0];
+    function reward(address redemptionAsset, uint256 yieldAmount) external notPaused requiresAuth {
+        if (!_inAllBaseCollateral(redemptionAsset)) {
+            revert InvalidBaseCollateral();
+        }
+
+        uint256 accrued = getAccruedYield(allBaseCollateral);
 
         if (accrued == 0) {
             revert NotEnoughYield();
@@ -89,8 +89,8 @@ contract RewardsManager is
 
     /// @inheritdoc IRewardsManager
     function setAllStrategies(address asset, StrategyConfig[] memory strategies) external notPaused requiresAuth {
-        if (strategies.length == 0) {
-            revert NoStrategiesProvided();
+        if (!_inAllBaseCollateral(asset)) {
+            revert InvalidBaseCollateral();
         }
 
         for (uint256 i = 0; i < strategies.length; i++) {
@@ -104,11 +104,30 @@ contract RewardsManager is
         emit StrategiesUpdated(asset, strategies);
     }
 
+    /// @inheritdoc IRewardsManager
+    function setAllBaseCollateral(address[] calldata _allBaseCollateral) external notPaused requiresAuth {
+        if (_allBaseCollateral.length == 0) {
+            revert InvalidBaseCollateralArray();
+        }
+        emit AllBaseCollateralUpdated(allBaseCollateral, _allBaseCollateral);
+        allBaseCollateral = _allBaseCollateral;
+    }
+
+    function setGuard(address guard_) external requiresAuth {
+        _setGuard(guard_);
+    }
+
+    /// @inheritdoc IRewardsManager
+    function updateOracle(address collateral, address oracle) external notPaused requiresAuth {
+        if (collateral == address(0) || oracle == address(0)) revert InvalidAddress();
+        oracles[collateral] = oracle;
+    }
+
     //------- View functions ---------
 
     /// @inheritdoc IRewardsManager
     /// @dev the assets array should always be base tokens (USDC, USDT, etc.)
-    function getAccruedYield(address[] calldata assets) public returns (uint256 accrued) {
+    function getAccruedYield(address[] memory assets) public returns (uint256 accrued) {
         uint256 total;
 
         for (uint256 i = 0; i < assets.length; i++) {
@@ -156,7 +175,7 @@ contract RewardsManager is
         return allStrategies[asset];
     }
 
-    /// Returns the total assets in the vault for a given asset, to the asset's precision
+    /// @inheritdoc IRewardsManager
     function getTotalAssets(address asset) external view returns (uint256 assets) {
         StrategyConfig[] memory strategies = allStrategies[asset];
 
@@ -165,17 +184,19 @@ contract RewardsManager is
         return assets;
     }
 
-    // -------- SETTERS --------
-
-    function updateOracle(address collateral, address oracle) public requiresAuth {
-        if (collateral == address(0) || oracle == address(0)) revert InvalidAddress();
-        oracles[collateral] = oracle;
+    // ------- Internal -------------
+    /// @notice Checks if an asset is in the allBaseCollateral array
+    /// @param asset The asset to check
+    /// @return bool True if the asset is in the allBaseCollateral array, false otherwise
+    function _inAllBaseCollateral(address asset) internal view returns (bool) {
+        for (uint256 i = 0; i < allBaseCollateral.length; i++) {
+            if (allBaseCollateral[i] == asset) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // -------- Upgradeable --------
     function _authorizeUpgrade(address newImplementation) internal override requiresAuth {}
-
-    function setGuard(address guard_) external requiresAuth {
-        _setGuard(guard_);
-    }
 }

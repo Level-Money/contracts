@@ -13,6 +13,10 @@ abstract contract RewardsManagerStorage is IRewardsManager {
     mapping(address => StrategyConfig[]) public allStrategies;
     mapping(address => address) public oracles;
 
+    address[] public allBaseCollateral;
+
+    uint256 public constant HEARTBEAT = 1 days;
+
     constructor() {}
 
     /**
