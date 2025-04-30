@@ -104,8 +104,8 @@ interface ILevelMintingV2 is ILevelMintingV2Events, ILevelMintingV2Errors, ILeve
     /// @param asset The address of the asset to redeem for
     /// @param lvlusdAmount The amount of lvlUSD to redeem
     /// @param minAssetAmount The minimum amount of asset expected to receive
-    /// @return First return value likely represents a redemption ID or status
-    /// @return Second return value likely represents the actual amount to be redeemed
+    /// @return lvlUsdAmount The amount of lvlUSD redeemed
+    /// @return collateralAmount The amount of collateral redeemed
     function initiateRedeem(address asset, uint256 lvlusdAmount, uint256 minAssetAmount)
         external
         returns (uint256, uint256);
