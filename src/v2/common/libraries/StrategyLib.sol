@@ -67,12 +67,12 @@ library StrategyLib {
 
         uint256 shares = receiptToken.balanceOf(vault);
 
-        (int256 assetsForOneShare, uint256 decimals) =
+        (int256 assetsForOneShare, uint256 oracleDecimals) =
             OracleLib.getPriceAndDecimals(address(config.oracle), config.heartbeat);
 
-        assets_ = uint256(assetsForOneShare).mulDivDown(shares, 10 ** decimals);
+        assets_ = uint256(assetsForOneShare).mulDivDown(shares, 10 ** receiptToken.decimals());
 
-        return assets_.convertDecimalsDown(receiptToken.decimals(), config.baseCollateral.decimals());
+        return assets_.convertDecimalsDown(uint8(oracleDecimals), config.baseCollateral.decimals());
     }
 
     /// @notice Validate a strategy configuration
