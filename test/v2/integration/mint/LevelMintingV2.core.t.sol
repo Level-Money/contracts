@@ -531,6 +531,25 @@ contract LevelMintingV2CoreTests is Utils, Configurable {
         assertEq(levelMinting.userCooldown(normalUser.addr, address(config.tokens.usdc)), block.timestamp);
     }
 
+    // The amount of collateral that the user is set to receive should be added, not overwritten, when an existing redemption is in flight
+    function test_redeem_redemption_amount_override() public {
+        uint256 collateralAmount = 10e6;
+        uint256 mintAmount = 10e18;
+
+        ILevelMintingV2Structs.Order memory order_ = mint_setup_inffApprovals(
+            normalUser.addr, normalUser.addr, address(config.tokens.usdc), mintAmount, collateralAmount
+        );
+
+        vm.startPrank(normalUser.addr);
+        levelMinting.mint(order_);
+        levelMinting.initiateRedeem(address(config.tokens.usdc), 5e18, collateralAmount / 2);
+
+        vm.warp(block.timestamp + 300);
+        levelMinting.initiateRedeem(address(config.tokens.usdc), 5e18, collateralAmount / 2);
+
+        assertEq(levelMinting.pendingRedemption(normalUser.addr, address(config.tokens.usdc)), collateralAmount);
+    }
+
     // -------------------- MINT/REDEEM REVERT -------------------- //
 
     function test_mint_denylisted() public {
