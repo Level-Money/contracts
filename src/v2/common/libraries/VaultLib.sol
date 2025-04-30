@@ -190,7 +190,7 @@ library VaultLib {
 
         uint256 withdrawn_ = abi.decode(withdrawnRaw, (uint256));
 
-        emit WithdrawFromAave(address(vault), address(_config.baseCollateral), amount, shares);
+        emit WithdrawFromAave(address(vault), address(_config.baseCollateral), withdrawn_, shares);
 
         return withdrawn_;
     }

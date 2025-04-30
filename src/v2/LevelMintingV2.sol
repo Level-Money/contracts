@@ -225,7 +225,7 @@ contract LevelMintingV2 is
         if (denominatorDecimals > LVLUSD_DECIMAL) {
             return collateralAmount.mulDivDown(numerator, 10 ** (denominatorDecimals - LVLUSD_DECIMAL));
         } else {
-            return collateralAmount.mulDivDown(numerator * (10 ** (LVLUSD_DECIMAL - denominatorDecimals)), 1);
+            return collateralAmount * numerator * (10 ** (LVLUSD_DECIMAL - denominatorDecimals));
         }
     }
 
