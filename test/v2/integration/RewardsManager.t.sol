@@ -19,6 +19,10 @@ import {VaultLib} from "@level/src/v2/common/libraries/VaultLib.sol";
 import {BoringVault} from "@level/src/v2/usd/BoringVault.sol";
 import {IRewardsManagerErrors} from "@level/src/v2/interfaces/level/IRewardsManager.sol";
 import {MockOracle} from "@level/test/v2/mocks/MockOracle.sol";
+import {MockERC4626} from "@level/test/v2/mocks/MockERC4626.sol";
+import {IERC4626Oracle} from "@level/src/v2/interfaces/level/IERC4626Oracle.sol";
+import {ILevelMintingV2Structs} from "@level/src/v2/interfaces/level/ILevelMintingV2.sol";
+import {lvlUSD} from "@level/src/v1/lvlUSD.sol";
 
 contract RewardsManagerMainnetTests is Utils, Configurable {
     using SafeTransferLib for ERC20;
@@ -97,11 +101,51 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         vaultManager = config.levelContracts.vaultManager;
     }
 
-    function test_tooHighYieldAmount_reverts() public {
+    function test_tooHighYieldAmount_reverts(uint256 yieldAmount) public {
         vm.startPrank(strategist.addr);
 
+        // Transfer some aTokens to simulate yield
+        uint256 accrued = 1000e6; // 1000 USDC
+        config.tokens.aUsdc.transfer(address(rewardsManager.vault()), accrued);
+        config.tokens.aUsdt.transfer(address(rewardsManager.vault()), accrued);
+
+        // Get the actual accrued yield in the redemption asset's decimals
+        uint256 actualAccruedYield = rewardsManager.getAccruedYield(assets).convertDecimalsDown(
+            vaultManager.vault().decimals(), ERC20(assets[0]).decimals()
+        );
+
+        // Bound the fuzzed amount to be greater than the actual accrued yield
+        yieldAmount = bound(yieldAmount, actualAccruedYield + 1, type(uint256).max);
+
         vm.expectRevert(IRewardsManagerErrors.NotEnoughYield.selector);
-        rewardsManager.reward(assets[0], 1000e6);
+        rewardsManager.reward(assets[0], yieldAmount);
+    }
+
+    function test_appropriateYieldAmount_succeeds(uint256 yieldAmount) public {
+        vm.startPrank(strategist.addr);
+
+        uint256 treasuryUsdcBalanceBefore = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
+
+        // Transfer some aTokens to simulate yield
+        uint256 accrued = 1000e6; // 1000 USDC
+        config.tokens.aUsdc.transfer(address(rewardsManager.vault()), accrued);
+        config.tokens.aUsdt.transfer(address(rewardsManager.vault()), accrued);
+
+        // Get the actual accrued yield in the redemption asset's decimals
+        uint256 actualAccruedYield = rewardsManager.getAccruedYield(assets).convertDecimalsDown(
+            vaultManager.vault().decimals(), ERC20(assets[0]).decimals()
+        );
+
+        // Bound the fuzzed amount to be less than the actual accrued yield
+        yieldAmount = bound(yieldAmount, 0, actualAccruedYield - 1);
+
+        rewardsManager.reward(assets[0], yieldAmount);
+
+        uint256 treasuryUsdcBalanceAfter = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
+
+        assertApproxEqAbs(
+            treasuryUsdcBalanceAfter - treasuryUsdcBalanceBefore, yieldAmount, 2, "Accrued amount does not match"
+        );
     }
 
     function test_rewardYield_noYield_reverts() public {
@@ -253,6 +297,120 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         // Call getAccruedYield - should not revert
         uint256 yield = rewardsManager.getAccruedYield(assets);
         assertGt(yield, 0, "Should have accrued some yield");
+    }
+
+    function test_rewardYield_morphoYield_succeeds2(uint256 deposit) public {
+        deposit = bound(deposit, 2000, 500000e6);
+        deal(address(config.tokens.usdc), address(strategist.addr), deposit);
+
+        vm.startPrank(config.users.admin);
+        lvlUSD _lvlUSD = lvlUSD(address(config.tokens.lvlUsd));
+        _lvlUSD.setMinter(address(config.levelContracts.levelMintingV2));
+        vm.stopPrank();
+        uint256 treasuryUsdcBalanceBefore = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
+
+        // Create a mock vault to simulate Morpho and manipulate yield
+        MockERC4626 mockUsdcERC4626 = new MockERC4626(IERC20(address(config.tokens.usdc)));
+        IERC4626Oracle mockMorphoOracle =
+            IERC4626Oracle(config.levelContracts.erc4626OracleFactory.create(mockUsdcERC4626));
+        MockOracle mockOracle = new MockOracle(1e8, 8);
+
+        // Seed mock vault with USDC
+        mockUsdcERC4626.setConvertToAssetsOutput(10 ** mockUsdcERC4626.decimals());
+
+        // Set Morpho only as a default strategy
+        address[] memory defaultStrategies = new address[](1);
+        defaultStrategies[0] = address(mockUsdcERC4626);
+
+        StrategyConfig[] memory strategies = new StrategyConfig[](1);
+        strategies[0] = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdc,
+            receiptToken: ERC20(address(mockUsdcERC4626)),
+            oracle: mockMorphoOracle,
+            depositContract: address(mockUsdcERC4626),
+            withdrawContract: address(mockUsdcERC4626),
+            heartbeat: 1 days
+        });
+
+        address[] memory targets = new address[](4);
+        targets[0] = address(config.levelContracts.vaultManager);
+        targets[1] = address(config.levelContracts.vaultManager);
+        targets[2] = address(config.levelContracts.rewardsManager);
+        targets[3] = address(config.levelContracts.levelMintingV2);
+
+        bytes[] memory payloads = new bytes[](4);
+        payloads[0] = abi.encodeWithSelector(
+            VaultManager.addAssetStrategy.selector, address(config.tokens.usdc), address(mockUsdcERC4626), strategies[0]
+        );
+        payloads[1] = abi.encodeWithSignature(
+            "setDefaultStrategies(address,address[])", address(config.tokens.usdc), defaultStrategies
+        );
+        payloads[2] =
+            abi.encodeWithSelector(RewardsManager.setAllStrategies.selector, address(config.tokens.usdc), strategies);
+        payloads[3] = abi.encodeWithSignature(
+            "addOracle(address,address,bool)", address(config.tokens.usdc), address(mockOracle), false
+        );
+        _scheduleAndExecuteAdminActionBatch(
+            address(config.users.admin), address(config.levelContracts.adminTimelock), targets, payloads
+        );
+
+        vm.startPrank(strategist.addr);
+
+        // Approve USDC
+        ERC20(address(config.tokens.usdc)).safeApprove(address(config.levelContracts.boringVault), type(uint256).max);
+
+        // Use levelMinting to mint
+        config.levelContracts.levelMintingV2.mint(
+            ILevelMintingV2Structs.Order({
+                collateral_asset: address(config.tokens.usdc),
+                collateral_amount: deposit,
+                min_lvlusd_amount: 0,
+                beneficiary: address(strategist.addr)
+            })
+        );
+
+        // Check if assets are deposited in our mock vault
+        assertEq(
+            mockUsdcERC4626.balanceOf(address(vaultManager.vault())), deposit, "Assets not deposited in mock vault"
+        );
+
+        // Simulate yield by increasing the value of vault shares
+        uint256 yieldPrice = 1.1e6; // 10% yield
+        mockUsdcERC4626.setConvertToAssetsOutput(yieldPrice);
+
+        // Get the accrued yield in the redemption asset's decimals
+        uint256 actualAccruedYield = rewardsManager.getAccruedYield(assets).convertDecimalsDown(
+            vaultManager.vault().decimals(), ERC20(assets[0]).decimals()
+        );
+
+        // Calculate expected yield (10% of deposit)
+        uint256 expectedYield = deposit * 10 / 100;
+        assertApproxEqAbs(actualAccruedYield, expectedYield, 2, "Accrued yield does not match expected yield");
+
+        // Reward the yield
+        rewardsManager.reward(assets[0], actualAccruedYield);
+
+        uint256 treasuryUsdcBalanceAfter = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
+
+        assertApproxEqAbs(
+            treasuryUsdcBalanceAfter - treasuryUsdcBalanceBefore,
+            actualAccruedYield,
+            2,
+            "Rewarded amount does not match"
+        );
+
+        // Verify total assets are correct after reward
+        uint256 totalAssets = vaultManager.vault()._getTotalAssets(
+            rewardsManager.getAllStrategies(address(config.tokens.usdc)), address(config.tokens.usdc)
+        );
+
+        totalAssets += vaultManager.vault()._getTotalAssets(
+            rewardsManager.getAllStrategies(address(config.tokens.usdt)), address(config.tokens.usdt)
+        );
+
+        // Due to rounding, we allow for a 0.01% difference
+        assertApproxEqRel(totalAssets, 2 * INITIAL_BALANCE + deposit, 0.0001e18, "Total assets do not match");
     }
 
     // ------------- Internal Helpers -------------
