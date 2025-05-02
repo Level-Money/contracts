@@ -63,7 +63,7 @@ contract Mainnet is BaseConfig {
                 adminTimelock: TimelockController(payable(0x0798880E772009DDf6eF062F2Ef32c738119d086)),
                 erc4626OracleFactory: ERC4626OracleFactory(0xe0eEe186FD22485c2aDA2Eb3fc77d34D2Ae3Abd2),
                 pauserGuard: PauserGuard(0x9f3328E60Cb9418dBde038B54d588dFEA2C0B6f9),
-                levelReserveLens: LevelReserveLens(0x29759944834e08acE755dcEA71491413f7e2CBAD)
+                levelReserveLens: LevelReserveLens(0x29759944834e08acE755dcEA71491413f7e2CBAD) // update impl to: 0xF56c770c4E021848ac7D1DB67D48AA1B4b56e02f
             }),
             morphoVaults: MorphoVaults({
                 steakhouseUsdc: MetaMorphoVault({
