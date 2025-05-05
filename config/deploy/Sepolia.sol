@@ -43,7 +43,9 @@ contract Sepolia is BaseConfig {
             oracles: Oracles({
                 usdc: AggregatorV3Interface(0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E),
                 usdt: AggregatorV3Interface(address(0)),
-                ustb: AggregatorV3Interface(address(0))
+                ustb: AggregatorV3Interface(address(0)),
+                aUsdc: AggregatorV3Interface(address(0)),
+                aUsdt: AggregatorV3Interface(address(0))
             }),
             users: Users({
                 admin: 0xb2522DC238DEA8a821dEcE38a1d46eC5C4708256,

@@ -11,7 +11,7 @@ contract ContractNames {
     string public constant LevelUsdRewardsManagerName = "Level USD Rewards Manager V0.0";
 
     string public constant LevelUsdReserveDeployer = "Level USD Reserve Deployer V0.0";
-    string public constant LevelERC4626OracleFactoryName = "Level ERC4626 Oracle Factory V0.0";
+    string public constant LevelERC4626OracleFactoryName = "Level ERC4626 Oracle Factory V0.0.1";
     string public constant LevelMintingName = "Level Minting V2.0";
     string public constant LevelPauserGuardName = "Level Pauser Guard V0.0";
 }

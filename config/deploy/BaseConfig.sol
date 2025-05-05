@@ -94,6 +94,8 @@ contract BaseConfig {
         AggregatorV3Interface usdc;
         AggregatorV3Interface usdt;
         AggregatorV3Interface ustb;
+        AggregatorV3Interface aUsdc;
+        AggregatorV3Interface aUsdt;
     }
 
     Config public config;

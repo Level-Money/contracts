@@ -17,9 +17,6 @@ contract UpgradeLevelReserveLens is Configurable, DeploymentUtils, Script {
 
     Vm.Wallet public deployerWallet;
 
-    IERC20Metadata usdc = IERC20Metadata(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-    IERC20Metadata usdt = IERC20Metadata(0xdAC17F958D2ee523a2206206994597C13D831ec7);
-
     function setUp() external {
         uint256 _chainId = vm.envUint("CHAIN_ID");
 
@@ -29,6 +26,8 @@ contract UpgradeLevelReserveLens is Configurable, DeploymentUtils, Script {
     function setUp_(uint256 _chainId) public {
         chainId = _chainId;
         initConfig(_chainId);
+
+        deployerWallet.addr = msg.sender;
 
         vm.label(msg.sender, "Deployer EOA");
     }
@@ -52,7 +51,12 @@ contract UpgradeLevelReserveLens is Configurable, DeploymentUtils, Script {
     }
 
     function upgrade() public {
-        vm.startBroadcast(deployerWallet.privateKey);
+        if (deployerWallet.privateKey != 0) {
+            vm.startBroadcast(deployerWallet.privateKey);
+        } else {
+            vm.startBroadcast();
+        }
+
 
         console2.log("Deploying LevelReserveLens from address %s", deployerWallet.addr);
 
@@ -72,15 +76,15 @@ contract UpgradeLevelReserveLens is Configurable, DeploymentUtils, Script {
             "LevelReserveLens Implementation                   : https://etherscan.io/address/%s", address(impl)
         );
 
-        vm.startBroadcast(config.users.admin);
+        // vm.startBroadcast(config.users.admin);
 
-        console2.log("Upgrading LevelReserveLens from proxy %s", address(proxy));
-        // console2.log("Old implementation: %s", address(proxy.implementation()));
-        console2.log("New implementation: %s", address(impl));
+        // console2.log("Upgrading LevelReserveLens from proxy %s", address(proxy));
+        // // console2.log("Old implementation: %s", address(proxy.implementation()));
+        // console2.log("New implementation: %s", address(impl));
 
-        proxy.upgradeToAndCall(address(impl), "");
+        // proxy.upgradeToAndCall(address(impl), "");
 
-        vm.stopBroadcast();
+        // vm.stopBroadcast();
 
         // verify(impl);
     }
