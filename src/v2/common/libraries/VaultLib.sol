@@ -8,6 +8,8 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 import {IPool} from "@level/src/v2/interfaces/aave/IPool.sol";
 import {IPoolAddressesProvider} from "@level/src/v2/interfaces/aave/IPoolAddressesProvider.sol";
+import {ISuperstateToken} from "@level/src/v2/interfaces/superstate/ISuperstateToken.sol";
+import {IRedemption} from "@level/src/v2/interfaces/superstate/IRedemption.sol";
 
 /// @title VaultLib
 /// @author Level (https://level.money)
@@ -39,12 +41,44 @@ library VaultLib {
         address indexed vault, address indexed asset, uint256 amountDeposited, uint256 sharesReceived
     );
 
+    /// @notice Emitted when assets are deposited into Spark
+    /// @param vault The vault address
+    /// @param asset The asset address
+    /// @param amountDeposited The amount of assets deposited
+    /// @param sharesReceived The amount of shares received
+    event DepositToSpark(address indexed vault, address indexed asset, uint256 amountDeposited, uint256 sharesReceived);
+
+    /// @notice Emitted when assets are withdrawn from Spark
+    /// @param vault The vault address
+    /// @param asset The asset address
+    /// @param amountWithdrawn The amount of assets withdrawn
+    /// @param sharesSent The amount of shares sent
+    event WithdrawFromSpark(address indexed vault, address indexed asset, uint256 amountWithdrawn, uint256 sharesSent);
+
     /// @notice Emitted when assets are withdrawn from Morpho
     /// @param vault The vault address
     /// @param asset The asset address
     /// @param amountWithdrawn The amount of assets withdrawn
     /// @param sharesSent The amount of shares sent
     event WithdrawFromMorpho(address indexed vault, address indexed asset, uint256 amountWithdrawn, uint256 sharesSent);
+
+    /// @notice Emitted when assets are deposited into Superstate
+    /// @param vault The vault address
+    /// @param asset The asset address
+    /// @param amountDeposited The amount of assets deposited
+    /// @param sharesReceived The amount of shares received
+    event DepositToSuperstate(
+        address indexed vault, address indexed asset, uint256 amountDeposited, uint256 sharesReceived
+    );
+
+    /// @notice Emitted when assets are withdrawn from Superstate
+    /// @param vault The vault address
+    /// @param asset The asset address
+    /// @param amountWithdrawn The amount of assets withdrawn
+    /// @param sharesSent The amount of superstate token sent
+    event WithdrawFromSuperstate(
+        address indexed vault, address indexed asset, uint256 amountWithdrawn, uint256 sharesSent
+    );
 
     /// @notice Returns the total assets of the given strategies
     /// @param vault The vault address
@@ -112,6 +146,10 @@ library VaultLib {
             return _depositToAave(vault, config, amount);
         } else if (config.category == StrategyCategory.MORPHO) {
             return _depositToMorpho(vault, config, amount);
+        } else if (config.category == StrategyCategory.SPARK) {
+            return _depositToSpark(vault, config, amount);
+        } else if (config.category == StrategyCategory.SUPERSTATE) {
+            return _depositToSuperstate(vault, config, amount);
         } else {
             revert("VaultManager: unsupported strategy");
         }
@@ -130,6 +168,10 @@ library VaultLib {
             return _withdrawFromAave(vault, config, amount);
         } else if (config.category == StrategyCategory.MORPHO) {
             return _withdrawFromMorpho(vault, config, amount);
+        } else if (config.category == StrategyCategory.SPARK) {
+            return _withdrawFromSpark(vault, config, amount);
+        } else if (config.category == StrategyCategory.SUPERSTATE) {
+            return _withdrawFromSuperstate(vault, config, amount);
         } else {
             revert("VaultManager: unsupported strategy");
         }
@@ -252,6 +294,111 @@ library VaultLib {
         uint256 shares_ = abi.decode(sharesRaw, (uint256));
 
         emit WithdrawFromMorpho(address(vault), address(_config.baseCollateral), amount, shares_);
+
+        return amount;
+    }
+
+    /// @notice Deposits assets into Spark
+    /// @param vault The vault address
+    /// @param _config The strategy config
+    /// @param amount The amount of assets to deposit
+    /// @return deposited The amount of assets deposited
+    function _depositToSpark(BoringVault vault, StrategyConfig memory _config, uint256 amount)
+        internal
+        returns (uint256 deposited)
+    {
+        vault.setTokenAllowance(address(_config.baseCollateral), _config.depositContract, amount);
+
+        bytes memory sharesRaw = vault.manage(
+            address(_config.depositContract),
+            abi.encodeWithSignature("deposit(uint256,address,uint256,uint16)", amount, address(vault), 0, 181),
+            0
+        );
+
+        uint256 shares_ = abi.decode(sharesRaw, (uint256));
+
+        emit DepositToSpark(address(vault), address(_config.baseCollateral), amount, shares_);
+
+        return amount;
+    }
+
+    /// @notice Withdraws assets from Spark
+    /// @param vault The vault address
+    /// @param _config The strategy config
+    /// @param amount The amount of assets to withdraw
+    /// @return withdrawn The amount of assets withdrawn
+    function _withdrawFromSpark(BoringVault vault, StrategyConfig memory _config, uint256 amount)
+        internal
+        returns (uint256 withdrawn)
+    {
+        IERC4626 sparkVault = IERC4626(_config.withdrawContract);
+
+        uint256 sharesToRedeem = sparkVault.previewWithdraw(amount);
+
+        if (sharesToRedeem == 0) {
+            revert("VaultManager: amount must be greater than 0");
+        }
+
+        bytes memory sharesRaw = vault.manage(
+            address(_config.withdrawContract),
+            abi.encodeWithSignature("withdraw(uint256,address,address)", amount, address(vault), address(vault)),
+            0
+        );
+
+        uint256 shares_ = abi.decode(sharesRaw, (uint256));
+
+        emit WithdrawFromSpark(address(vault), address(_config.baseCollateral), amount, shares_);
+
+        return amount;
+    }
+
+    /// @notice Deposits assets into Superstate
+    /// @param vault The vault address
+    /// @param _config The strategy config
+    /// @param amount The amount of assets to deposit
+    /// @return deposited The amount of assets deposited
+    function _depositToSuperstate(BoringVault vault, StrategyConfig memory _config, uint256 amount)
+        internal
+        returns (uint256 deposited)
+    {
+        vault.setTokenAllowance(address(_config.baseCollateral), _config.depositContract, amount);
+        ISuperstateToken superstateToken = ISuperstateToken(_config.depositContract);
+        (uint256 superstateTokenOutAmount, uint256 stablecoinInAmountAfterFee,) =
+            superstateToken.calculateSuperstateTokenOut({inAmount: amount, stablecoin: address(_config.baseCollateral)});
+
+        bytes memory sharesRaw = vault.manage(
+            address(_config.depositContract),
+            abi.encodeWithSignature("subscribe(uint256,address)", amount, address(_config.baseCollateral)),
+            0
+        );
+
+        emit DepositToSuperstate(
+            address(vault), address(_config.baseCollateral), stablecoinInAmountAfterFee, superstateTokenOutAmount
+        );
+
+        return stablecoinInAmountAfterFee;
+    }
+
+    /// @notice Withdraws assets from Superstate
+    /// @param vault The vault address
+    /// @param _config The strategy config
+    /// @param amount The amount of assets to withdraw (USDC/USDT)
+    /// @return withdrawn The amount of assets withdrawn
+    function _withdrawFromSuperstate(BoringVault vault, StrategyConfig memory _config, uint256 amount)
+        internal
+        returns (uint256 withdrawn)
+    {
+        IRedemption redemption = IRedemption(_config.withdrawContract);
+
+        // Calculate the amount of superstate token to redeem
+        (uint256 superstateTokenInAmount,) = redemption.calculateUstbIn(amount);
+
+        // Approve the redemption contract to spend the superstate token
+        vault.setTokenAllowance(address(_config.receiptToken), address(redemption), superstateTokenInAmount);
+
+        vault.manage(address(redemption), abi.encodeWithSignature("redeem(uint256)", superstateTokenInAmount), 0);
+
+        emit WithdrawFromSuperstate(address(vault), address(_config.baseCollateral), amount, superstateTokenInAmount);
 
         return amount;
     }
