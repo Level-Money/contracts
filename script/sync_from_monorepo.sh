@@ -11,6 +11,7 @@ IGNORED_DIRS=(
     "docs"
     ".gitmodules"
     ".github"
+    "audits"
 )
 
 IGNORED_FILES=(
