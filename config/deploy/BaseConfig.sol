@@ -12,12 +12,14 @@ import {stdJson} from "forge-std/StdJson.sol";
 
 import {console2} from "forge-std/console2.sol";
 import {IPool} from "@level/src/v2/interfaces/aave/IPool.sol";
+import {IRedemption} from "@level/src/v2/interfaces/superstate/IRedemption.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ERC4626OracleFactory} from "@level/src/v2/oracles/ERC4626OracleFactory.sol";
 
 import {IMetaMorpho} from "@level/src/v2/interfaces/morpho/IMetaMorpho.sol";
 import {IMetaMorphoV1_1} from "@level/src/v2/interfaces/morpho/IMetaMorphoV1_1.sol";
 import {IERC4626Oracle} from "@level/src/v2/interfaces/level/IERC4626Oracle.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {AggregatorV3Interface} from "@level/src/v2/interfaces/AggregatorV3Interface.sol";
 import {IMulticall3} from "forge-std/interfaces/IMulticall3.sol";
 import {PauserGuard} from "@level/src/v2/common/guard/PauserGuard.sol";
@@ -35,6 +37,7 @@ contract BaseConfig {
         LevelContracts levelContracts;
         PeripheryContracts periphery;
         MorphoVaults morphoVaults;
+        SparkVaults sparkVaults;
         Oracles oracles;
     }
 
@@ -45,6 +48,16 @@ contract BaseConfig {
         ERC20 slvlUsd;
         ERC20 aUsdc;
         ERC20 aUsdt;
+        ERC20 ustb;
+    }
+
+    struct SparkVaults {
+        SparkVault sUSDC;
+    }
+
+    struct SparkVault {
+        IERC4626 vault;
+        IERC4626Oracle oracle;
     }
 
     struct Users {
@@ -88,12 +101,15 @@ contract BaseConfig {
         IPool aaveV3;
         IMulticall3 multicall3;
         LevelReserveLensMorphoOracle levelReserveLensMorphoOracle;
+        IRedemption ustbRedemptionIdle;
     }
 
     struct Oracles {
         AggregatorV3Interface usdc;
         AggregatorV3Interface usdt;
         AggregatorV3Interface ustb;
+        AggregatorV3Interface aUsdt;
+        AggregatorV3Interface aUsdc;
     }
 
     Config public config;

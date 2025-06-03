@@ -76,6 +76,7 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         _scheduleAndExecuteAdminActionBatch(
             address(config.users.admin), address(config.levelContracts.adminTimelock), targets, payloads
         );
+        _mockChainlinkCall(address(config.oracles.ustb), 105e5); // 10.5 USD per USTB
 
         deal(address(config.tokens.usdc), address(strategist.addr), INITIAL_BALANCE);
         deal(address(config.tokens.usdt), address(strategist.addr), INITIAL_BALANCE);
@@ -354,6 +355,7 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         _scheduleAndExecuteAdminActionBatch(
             address(config.users.admin), address(config.levelContracts.adminTimelock), targets, payloads
         );
+        _mockChainlinkCall(address(config.oracles.ustb), 105e5); // 10.5 USD per USTB
 
         vm.startPrank(strategist.addr);
 
@@ -469,10 +471,24 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         }
     }
 
+    // Need to mock chainlink call for ustb
+    // because vm.warp() makes it return stale prices
+    function _mockChainlinkCall(address chainLinkFeed, int256 price) internal {
+        AggregatorV3Interface chainlink = AggregatorV3Interface(chainLinkFeed);
+
+        uint80 roundId = 1;
+        uint256 startedAt = block.timestamp;
+        uint256 updatedAt = block.timestamp;
+        uint80 answeredInRound = 1;
+
+        vm.mockCall(
+            address(chainlink),
+            abi.encodeWithSelector(chainlink.latestRoundData.selector),
+            abi.encode(roundId, price, startedAt, updatedAt, answeredInRound)
+        );
+    }
+
     function _printBalance(address asset, address vault) internal {
         console2.log(vm.getLabel(asset), ERC20(asset).balanceOf(vault));
     }
-
-    // Test cases to add:
-    // - Test when morpho yield accrues
 }

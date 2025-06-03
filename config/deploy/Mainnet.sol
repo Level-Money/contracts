@@ -11,6 +11,7 @@ import {ERC20} from "@solmate/src/tokens/ERC20.sol";
 import {IPool} from "@level/src/v2/interfaces/aave/IPool.sol";
 import {ERC4626OracleFactory} from "@level/src/v2/oracles/ERC4626OracleFactory.sol";
 import {IERC4626Oracle} from "@level/src/v2/interfaces/level/IERC4626Oracle.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IMetaMorpho} from "@level/src/v2/interfaces/morpho/IMetaMorpho.sol";
 import {IMetaMorphoV1_1} from "@level/src/v2/interfaces/morpho/IMetaMorphoV1_1.sol";
 
@@ -21,6 +22,7 @@ import {PauserGuard} from "@level/src/v2/common/guard/PauserGuard.sol";
 import {StrictRolesAuthority} from "@level/src/v2/auth/StrictRolesAuthority.sol";
 import {LevelReserveLens} from "@level/src/v2/lens/LevelReserveLens.sol";
 import {LevelReserveLensMorphoOracle} from "@level/src/v1/lens/LevelReserveLensMorphoOracle.sol";
+import {IRedemption} from "@level/src/v2/interfaces/superstate/IRedemption.sol";
 
 contract Mainnet is BaseConfig {
     uint256 public constant chainId = 1;
@@ -38,12 +40,15 @@ contract Mainnet is BaseConfig {
                 lvlUsd: ERC20(0x7C1156E515aA1A2E851674120074968C905aAF37),
                 slvlUsd: ERC20(0x4737D9b4592B40d51e110b94c9C043c6654067Ae),
                 aUsdc: ERC20(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c),
-                aUsdt: ERC20(0x23878914EFE38d27C4D67Ab83ed1b93A74D4086a)
+                aUsdt: ERC20(0x23878914EFE38d27C4D67Ab83ed1b93A74D4086a),
+                ustb: ERC20(0x43415eB6ff9DB7E26A15b704e7A3eDCe97d31C4e)
             }),
             oracles: Oracles({
                 usdc: AggregatorV3Interface(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6),
                 usdt: AggregatorV3Interface(0x3E7d1eAB13ad0104d2750B8863b489D65364e32D),
-                ustb: AggregatorV3Interface(0x289B5036cd942e619E1Ee48670F98d214E745AAC)
+                ustb: AggregatorV3Interface(0x289B5036cd942e619E1Ee48670F98d214E745AAC),
+                aUsdt: AggregatorV3Interface(0x380adC857Cd3d0531C0821B5D52F34737C4eCDC4),
+                aUsdc: AggregatorV3Interface(0x95CCDE4C1bb3d56639d22185aa2f95EcfebD7F22)
             }),
             users: Users({
                 admin: 0x343ACce723339D5A417411D8Ff57fde8886E91dc,
@@ -53,20 +58,20 @@ contract Mainnet is BaseConfig {
                 hexagateGatekeepers: hexagateGatekeepers
             }),
             levelContracts: LevelContracts({
-                rolesAuthority: StrictRolesAuthority(address(0)),
-                levelMintingV2: LevelMintingV2(address(0)),
-                boringVault: BoringVault(payable(address(0))),
-                vaultManager: VaultManager(address(0)),
-                rewardsManager: RewardsManager(address(0)),
+                rolesAuthority: StrictRolesAuthority(0xc8425ACE617acA1dDcB09Cb7784b67403440098A),
+                levelMintingV2: LevelMintingV2(0x9136aB0294986267b71BeED86A75eeb3336d09E1),
+                boringVault: BoringVault(payable(0x834D9c7688ca1C10479931dE906bCC44879A0446)),
+                vaultManager: VaultManager(0x5f432430C515964C299bb4F277CdAb0fCC074E25),
+                rewardsManager: RewardsManager(0xBD05B8B22fE4ccf093a6206C63Cc39f02345E0DA),
                 adminTimelock: TimelockController(payable(0x0798880E772009DDf6eF062F2Ef32c738119d086)),
-                erc4626OracleFactory: ERC4626OracleFactory(address(0)),
-                pauserGuard: PauserGuard(address(0)),
-                levelReserveLens: LevelReserveLens(0x29759944834e08acE755dcEA71491413f7e2CBAD)
+                erc4626OracleFactory: ERC4626OracleFactory(0xe0eEe186FD22485c2aDA2Eb3fc77d34D2Ae3Abd2),
+                pauserGuard: PauserGuard(0x9f3328E60Cb9418dBde038B54d588dFEA2C0B6f9),
+                levelReserveLens: LevelReserveLens(0x29759944834e08acE755dcEA71491413f7e2CBAD) // update impl to: 0xF56c770c4E021848ac7D1DB67D48AA1B4b56e02f
             }),
             morphoVaults: MorphoVaults({
                 steakhouseUsdc: MetaMorphoVault({
                     vault: IMetaMorpho(0xBEEF01735c132Ada46AA9aA4c54623cAA92A64CB),
-                    oracle: IERC4626Oracle(address(0))
+                    oracle: IERC4626Oracle(0x9E42af55431E15fb25615a9E57B028117f0Bee5a)
                 }),
                 steakhouseUsdt: MetaMorphoVault({
                     vault: IMetaMorpho(0xbEef047a543E45807105E51A8BBEFCc5950fcfBa),
@@ -81,10 +86,17 @@ contract Mainnet is BaseConfig {
                     oracle: IERC4626Oracle(address(0))
                 })
             }),
+            sparkVaults: SparkVaults({
+                sUSDC: SparkVault({
+                    vault: IERC4626(0xBc65ad17c5C0a2A4D159fa5a503f4992c7B545FE),
+                    oracle: IERC4626Oracle(address(0))
+                })
+            }),
             periphery: PeripheryContracts({
                 aaveV3: IPool(0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2),
                 multicall3: IMulticall3(0xcA11bde05977b3631167028862bE2a173976CA11),
-                levelReserveLensMorphoOracle: LevelReserveLensMorphoOracle(0x625bB4f5133Ff9F6d43e21F15add35BE46387903)
+                levelReserveLensMorphoOracle: LevelReserveLensMorphoOracle(0x625bB4f5133Ff9F6d43e21F15add35BE46387903),
+                ustbRedemptionIdle: IRedemption(0x4c21B7577C8FE8b0B0669165ee7C8f67fa1454Cf)
             })
         });
 

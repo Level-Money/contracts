@@ -12,7 +12,9 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 enum StrategyCategory {
     UNDEFINED,
     AAVEV3,
-    MORPHO
+    MORPHO,
+    SPARK,
+    SUPERSTATE
 }
 
 struct StrategyConfig {
