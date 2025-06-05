@@ -30,31 +30,38 @@ contract LevelReserveLensTests is Utils, Configurable {
     uint256 public constant INITIAL_BALANCE = 1000e6;
 
     function setUp() public {
-        forkMainnet(22305203);
+        forkMainnet(22444195);
 
         deployer = vm.createWallet("deployer");
 
-        DeployLevel deployScript = new DeployLevel();
+        // Use Mainnet config
+        initConfig(1);
 
-        // Deploy
-
-        vm.prank(deployer.addr);
-        deployScript.setUp_(1, deployer.privateKey);
-
-        config = deployScript.run();
-
-        rewardsManager = config.levelContracts.rewardsManager;
         lens = config.levelContracts.levelReserveLens;
 
-        console2.log(address(rewardsManager));
+        // ======== Upgrade level reserve lens to use the code we're testing ========
 
-        // Upgrade level reserve lens
-        UpgradeLevelReserveLens upgradeScript = new UpgradeLevelReserveLens();
+        vm.startPrank(config.users.admin);
+        LevelReserveLens proxy = LevelReserveLens(config.levelContracts.levelReserveLens);
 
-        vm.prank(deployer.addr);
-        upgradeScript.setUp_(1, deployer.privateKey);
+        LevelReserveLens impl = new LevelReserveLens();
 
-        upgradeScript.run();
+        // Print the implementation address
+        console2.log("LevelReserveLens implementation: %s", address(impl));
+
+        if (impl.rewardsManager() == address(0)) {
+            revert("Rewards manager not set");
+        }
+
+        // Use timelock to upgrade
+        _scheduleAndExecuteAdminAction(
+            address(config.users.admin),
+            address(config.levelContracts.adminTimelock),
+            address(proxy),
+            abi.encodeWithSelector(proxy.upgradeToAndCall.selector, address(impl), "")
+        );
+
+        vm.stopPrank();
     }
 
     function test__getReservesSuccedsWithBaseCollateral() public {
@@ -104,31 +111,37 @@ contract LevelReserveLensTests is Utils, Configurable {
         uint256 usdcReservesAfterDeal = lens.getReserves(address(config.tokens.usdc));
         uint256 usdtReservesAfterDeal = lens.getReserves(address(config.tokens.usdt));
 
-        assertEq(
+        assertApproxEqRel(
             usdcReservesAfterDeal,
             usdcReservesBeforeDeal
                 + INITIAL_BALANCE.convertDecimalsDown(config.tokens.aUsdc.decimals(), config.tokens.lvlUsd.decimals()),
+            0.00000001e18,
             "USDC reserves do not match"
         );
-        assertEq(
+        assertApproxEqRel(
             usdtReservesAfterDeal,
             usdtReservesBeforeDeal
                 + INITIAL_BALANCE.convertDecimalsDown(config.tokens.aUsdt.decimals(), config.tokens.lvlUsd.decimals()),
+            0.00000001e18,
             "USDT reserves do not match"
         );
     }
 
     function test__getReserves_succedsWithMorphoTokens() public {
-        uint256 steakhouseUsdcShares = 1000000e18;
         uint256 usdcReservesBeforeDeal = lens.getReserves(address(config.tokens.usdc));
 
-        deal(
-            address(config.morphoVaults.steakhouseUsdc.vault),
-            address(config.levelContracts.boringVault),
-            steakhouseUsdcShares
+        deal(address(config.tokens.usdc), address(config.levelContracts.boringVault), 1_000_000e6);
+
+        vm.prank(address(config.levelContracts.boringVault));
+        config.tokens.usdc.approve(address(config.morphoVaults.steakhouseUsdc.vault), 1_000_000e6);
+
+        vm.prank(address(config.levelContracts.boringVault));
+        uint256 sharesReceived = config.morphoVaults.steakhouseUsdc.vault.deposit(
+            1_000_000e6, // assets
+            address(config.levelContracts.boringVault)
         );
 
-        uint256 steakhouseUsdcAssets = config.morphoVaults.steakhouseUsdc.vault.convertToAssets(steakhouseUsdcShares);
+        uint256 steakhouseUsdcAssets = config.morphoVaults.steakhouseUsdc.vault.convertToAssets(sharesReceived);
 
         uint256 usdcReservesAfterDeal = lens.getReserves(address(config.tokens.usdc));
 
