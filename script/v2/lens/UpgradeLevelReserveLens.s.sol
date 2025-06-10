@@ -11,6 +11,7 @@ import {Configurable} from "@level/config/Configurable.sol";
 import {Upgrades} from "@openzeppelin-upgrades/src/Upgrades.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 import {console2} from "forge-std/console2.sol";
+import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 
 contract UpgradeLevelReserveLens is Configurable, DeploymentUtils, Script {
     uint256 public chainId;
@@ -72,13 +73,24 @@ contract UpgradeLevelReserveLens is Configurable, DeploymentUtils, Script {
             "LevelReserveLens Implementation                   : https://etherscan.io/address/%s", address(impl)
         );
 
+        // Call timelock to upgrade the proxy
         vm.startBroadcast(config.users.admin);
+        console2.log("Scheduling upgrade of LevelReserveLens from proxy %s", address(proxy));
+        TimelockController timelock = TimelockController(payable(config.levelContracts.adminTimelock));
+        timelock.schedule(
+            address(proxy),
+            0,
+            abi.encodeWithSelector(proxy.upgradeToAndCall.selector, address(impl), ""),
+            bytes32(0),
+            0,
+            5 days
+        );
 
-        console2.log("Upgrading LevelReserveLens from proxy %s", address(proxy));
-        // console2.log("Old implementation: %s", address(proxy.implementation()));
-        console2.log("New implementation: %s", address(impl));
+        vm.warp(block.timestamp + 5 days);
 
-        proxy.upgradeToAndCall(address(impl), "");
+        timelock.execute(
+            address(proxy), 0, abi.encodeWithSelector(proxy.upgradeToAndCall.selector, address(impl), ""), bytes32(0), 0
+        );
 
         vm.stopBroadcast();
 

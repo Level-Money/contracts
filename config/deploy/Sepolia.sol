@@ -11,6 +11,7 @@ import {ERC20} from "@solmate/src/tokens/ERC20.sol";
 import {IPool} from "@level/src/v2/interfaces/aave/IPool.sol";
 import {ERC4626OracleFactory} from "@level/src/v2/oracles/ERC4626OracleFactory.sol";
 import {IERC4626Oracle} from "@level/src/v2/interfaces/level/IERC4626Oracle.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IMetaMorpho} from "@level/src/v2/interfaces/morpho/IMetaMorpho.sol";
 import {IMetaMorphoV1_1} from "@level/src/v2/interfaces/morpho/IMetaMorphoV1_1.sol";
 
@@ -22,6 +23,9 @@ import {StrictRolesAuthority} from "@level/src/v2/auth/StrictRolesAuthority.sol"
 
 import {LevelReserveLens} from "@level/src/v2/lens/LevelReserveLens.sol";
 import {LevelReserveLensMorphoOracle} from "@level/src/v1/lens/LevelReserveLensMorphoOracle.sol";
+import {IRedemption} from "@level/src/v2/interfaces/superstate/IRedemption.sol";
+import {ISwapRouter} from "@level/src/v2/interfaces/uniswap/ISwapRouter.sol";
+import {SwapManager} from "@level/src/v2/usd/SwapManager.sol";
 
 contract Sepolia is BaseConfig {
     uint256 public constant chainId = 11155111;
@@ -38,12 +42,17 @@ contract Sepolia is BaseConfig {
                 lvlUsd: ERC20(0xd770C092e4AcA4Cdb187829C350062C43F6f79EB),
                 slvlUsd: ERC20(0xeFE4aB4013beca790A957e12330C7283AB97a047),
                 aUsdc: ERC20(address(0)),
-                aUsdt: ERC20(address(0))
+                aUsdt: ERC20(address(0)),
+                ustb: ERC20(0x39727692cF58137Bd8c401eFE87Cc8A190D62ead),
+                wrappedM: ERC20(address(0))
             }),
             oracles: Oracles({
                 usdc: AggregatorV3Interface(0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E),
                 usdt: AggregatorV3Interface(address(0)),
-                ustb: AggregatorV3Interface(address(0))
+                ustb: AggregatorV3Interface(0x732d3C7515356eAB22E3F3DcA183c5c65102d518),
+                aUsdc: AggregatorV3Interface(address(0)),
+                aUsdt: AggregatorV3Interface(address(0)),
+                mNav: AggregatorV3Interface(address(0))
             }),
             users: Users({
                 admin: 0xb2522DC238DEA8a821dEcE38a1d46eC5C4708256,
@@ -61,7 +70,8 @@ contract Sepolia is BaseConfig {
                 adminTimelock: TimelockController(payable(0x980bF41Dc21fA48BE87a421002c18a6c803d480C)),
                 erc4626OracleFactory: ERC4626OracleFactory(0xe9D32Aade0228A8de8E54b48b8020DA2907449fb),
                 pauserGuard: PauserGuard(0xABf29A4a281f6ea06883DedeA962127f9b0621f9),
-                levelReserveLens: LevelReserveLens(address(0))
+                levelReserveLens: LevelReserveLens(address(0)),
+                swapManager: SwapManager(address(0))
             }),
             morphoVaults: MorphoVaults({
                 steakhouseUsdc: MetaMorphoVault({
@@ -72,10 +82,18 @@ contract Sepolia is BaseConfig {
                 re7Usdc: MetaMorphoV1_1Vault({vault: IMetaMorphoV1_1(address(0)), oracle: IERC4626Oracle(address(0))}),
                 steakhouseUsdtLite: MetaMorphoV1_1Vault({vault: IMetaMorphoV1_1(address(0)), oracle: IERC4626Oracle(address(0))})
             }),
+            sparkVaults: SparkVaults({
+                sUsdc: ERC4626Vault({vault: IERC4626(address(0)), oracle: IERC4626Oracle(address(0))})
+            }),
+            umbrellaVaults: UmbrellaVaults({
+                waUsdcStakeToken: ERC4626Vault({vault: IERC4626(address(0)), oracle: IERC4626Oracle(address(0))})
+            }),
             periphery: PeripheryContracts({
                 aaveV3: IPool(0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951),
                 multicall3: IMulticall3(0xcA11bde05977b3631167028862bE2a173976CA11),
-                levelReserveLensMorphoOracle: LevelReserveLensMorphoOracle(address(0))
+                levelReserveLensMorphoOracle: LevelReserveLensMorphoOracle(address(0)),
+                ustbRedemptionIdle: IRedemption(0xd33d340CdbEf8E879C827199BD7D9705b21e18c9),
+                uniswapV3Router: ISwapRouter(address(0))
             })
         });
 
