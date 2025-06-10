@@ -9,3 +9,4 @@ forge-std/=lib/forge-std/src/
 @openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
 @solmate=lib/solmate
 @openzeppelin-upgrades/=lib/openzeppelin-foundry-upgrades/
+@uniswap-v3-core/=lib/v3-core/contracts/

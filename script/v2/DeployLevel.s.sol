@@ -16,6 +16,7 @@ import {Script} from "forge-std/Script.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {console2} from "forge-std/console2.sol";
 import {AaveTokenOracle} from "@level/src/v2/oracles/AaveTokenOracle.sol";
+import {CappedOneDollarOracle} from "@level/src/v2/oracles/CappedOneDollarOracle.sol";
 import {VaultManager} from "@level/src/v2/usd/VaultManager.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -32,6 +33,8 @@ import {AggregatorV3Interface} from "@level/src/v2/interfaces/AggregatorV3Interf
 import {ERC20} from "@solmate/src/tokens/ERC20.sol";
 import {PauserGuard} from "@level/src/v2/common/guard/PauserGuard.sol";
 import {StrictRolesAuthority} from "@level/src/v2/auth/StrictRolesAuthority.sol";
+import {SwapManager} from "@level/src/v2/usd/SwapManager.sol";
+import {SwapConfig} from "@level/src/v2/usd/SwapManagerStorage.sol";
 
 /**
  * Kitchen sink deployment script; deploy the entire protocol in one go.
@@ -46,11 +49,15 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
     Vm.Wallet public deployerWallet;
 
     StrategyConfig public aUsdcConfig;
+    StrategyConfig public sUsdcConfig;
     StrategyConfig public aUsdtConfig;
     StrategyConfig public steakhouseUsdcConfig;
     StrategyConfig public steakhouseUsdtConfig;
     StrategyConfig public re7UsdcConfig;
     StrategyConfig public steakhouseUsdtLiteConfig;
+    StrategyConfig public ustbConfig;
+    StrategyConfig public mConfig;
+    // StrategyConfig public umbrellaConfig;
 
     function setUp() external {
         uint256 _chainId = vm.envUint("CHAIN_ID");
@@ -109,6 +116,7 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         deployRewardsManager();
         deployLevelMintingV2();
         deployERC4626OracleFactory();
+        deploySwapManager();
         configurePauseGroups();
 
         AaveTokenOracle aUsdcOracle = new AaveTokenOracle(address(config.tokens.usdc));
@@ -117,11 +125,31 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         AaveTokenOracle aUsdtOracle = new AaveTokenOracle(address(config.tokens.usdt));
         vm.label(address(aUsdtOracle), "AaveUsdtTokenOracle");
 
+        CappedOneDollarOracle mNavOracle = new CappedOneDollarOracle(address(config.oracles.mNav));
+        vm.label(address(mNavOracle), "CappedMNavOracle");
+
         // Deploy oracles
-        if (address(config.morphoVaults.steakhouseUsdc.oracle) == address(0)) {
-            config.morphoVaults.steakhouseUsdc.oracle =
-                deployERC4626Oracle(config.morphoVaults.steakhouseUsdc.vault, 4 hours);
+        if (
+            address(config.morphoVaults.steakhouseUsdc.oracle) == address(0)
+                || address(config.morphoVaults.steakhouseUsdc.oracle).code.length == 0
+        ) {
+            config.morphoVaults.steakhouseUsdc.oracle = deployERC4626Oracle(config.morphoVaults.steakhouseUsdc.vault);
         }
+
+        if (
+            address(config.sparkVaults.sUsdc.oracle) == address(0)
+                || address(config.sparkVaults.sUsdc.oracle).code.length == 0
+        ) {
+            config.sparkVaults.sUsdc.oracle = deployERC4626Oracle(config.sparkVaults.sUsdc.vault);
+        }
+
+        // if (
+        //     address(config.umbrellaVaults.waUsdcStakeToken.oracle) == address(0)
+        //         || address(config.umbrellaVaults.waUsdcStakeToken.oracle).code.length == 0
+        // ) {
+        //     config.umbrellaVaults.waUsdcStakeToken.oracle =
+        //         deployERC4626Oracle(config.umbrellaVaults.waUsdcStakeToken.vault, 4 hours);
+        // }
 
         aUsdcConfig = StrategyConfig({
             category: StrategyCategory.AAVEV3,
@@ -130,6 +158,16 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             oracle: AggregatorV3Interface(address(aUsdcOracle)),
             depositContract: address(config.periphery.aaveV3),
             withdrawContract: address(config.periphery.aaveV3),
+            heartbeat: 1 days
+        });
+
+        sUsdcConfig = StrategyConfig({
+            category: StrategyCategory.SPARK,
+            baseCollateral: config.tokens.usdc,
+            receiptToken: ERC20(address(config.sparkVaults.sUsdc.vault)),
+            oracle: config.sparkVaults.sUsdc.oracle,
+            depositContract: address(config.sparkVaults.sUsdc.vault),
+            withdrawContract: address(config.sparkVaults.sUsdc.vault),
             heartbeat: 1 days
         });
 
@@ -143,6 +181,16 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             heartbeat: 1 days
         });
 
+        ustbConfig = StrategyConfig({
+            category: StrategyCategory.SUPERSTATE,
+            baseCollateral: config.tokens.usdc,
+            receiptToken: config.tokens.ustb,
+            oracle: config.oracles.ustb,
+            depositContract: address(config.tokens.ustb),
+            withdrawContract: address(config.periphery.ustbRedemptionIdle),
+            heartbeat: 1 days
+        });
+
         steakhouseUsdcConfig = StrategyConfig({
             category: StrategyCategory.MORPHO,
             baseCollateral: config.tokens.usdc,
@@ -153,9 +201,33 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             heartbeat: 1 days
         });
 
-        StrategyConfig[] memory usdcConfigs = new StrategyConfig[](2);
+        mConfig = StrategyConfig({
+            category: StrategyCategory.M0,
+            baseCollateral: config.tokens.usdc,
+            receiptToken: config.tokens.wrappedM,
+            oracle: AggregatorV3Interface(address(mNavOracle)),
+            depositContract: address(config.levelContracts.swapManager),
+            withdrawContract: address(config.levelContracts.swapManager),
+            heartbeat: 26 hours
+        });
+
+        // umbrellaConfig = StrategyConfig({
+        //     category: StrategyCategory.AAVEV3_UMBRELLA,
+        //     baseCollateral: config.tokens.aUsdc,
+        //     receiptToken: ERC20(address(config.umbrellaVaults.waUsdcStakeToken.vault)),
+        //     oracle: config.umbrellaVaults.waUsdcStakeToken.oracle,
+        //     depositContract: address(config.umbrellaVaults.waUsdcStakeToken.vault),
+        //     withdrawContract: address(config.umbrellaVaults.waUsdcStakeToken.vault),
+        //     heartbeat: 1 days
+        // });
+
+        StrategyConfig[] memory usdcConfigs = new StrategyConfig[](5);
         usdcConfigs[0] = aUsdcConfig;
         usdcConfigs[1] = steakhouseUsdcConfig;
+        usdcConfigs[2] = sUsdcConfig;
+        usdcConfigs[3] = ustbConfig;
+        usdcConfigs[4] = mConfig;
+        // usdcConfigs[5] = umbrellaConfig;
 
         StrategyConfig[] memory usdtConfigs = new StrategyConfig[](1);
         usdtConfigs[0] = aUsdtConfig;
@@ -230,6 +302,16 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             address(config.levelContracts.vaultManager),
             bytes4(abi.encodeWithSignature("withdrawDefault(address,uint256)"))
         );
+        _setRoleCapabilityIfNotExists(
+            STRATEGIST_ROLE,
+            address(config.levelContracts.vaultManager),
+            bytes4(abi.encodeWithSignature("modifyAaveUmbrellaCooldownOperator(address,address,bool)"))
+        );
+        _setRoleCapabilityIfNotExists(
+            STRATEGIST_ROLE,
+            address(config.levelContracts.vaultManager),
+            bytes4(abi.encodeWithSignature("modifyAaveUmbrellaRewardsClaimer(address,address,bool)"))
+        );
 
         _setRoleIfNotExists(address(config.levelContracts.levelMintingV2), STRATEGIST_ROLE);
         _setRoleIfNotExists(address(config.users.operator), STRATEGIST_ROLE);
@@ -291,6 +373,40 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         _setRoleIfNotExists(config.users.hexagateGatekeepers[0], PAUSER_ROLE);
         _setRoleIfNotExists(config.users.hexagateGatekeepers[1], PAUSER_ROLE);
 
+        // --------------- Setup SwapManager
+
+        // A tick range of [-10, 10] means price must stay between $0.999 and $1.001
+        // Allows only a ±0.1% movement from the $1 peg
+        // This is a conservative range that allows for some flexibility while maintaining stability
+
+        // Apart from the price range, we also enforce a max slippage tolerace of 0.05%
+
+        config.levelContracts.swapManager.setSwapConfig(
+            address(config.tokens.usdc),
+            address(config.tokens.wrappedM),
+            SwapConfig({
+                pool: 0x970A7749EcAA4394C8B2Bf5F2471F41FD6b79288, // wM/USDC pool
+                fee: 100, //0.01%
+                tickLower: -10,
+                tickUpper: 10,
+                slippageBps: 5, //0.05%
+                active: true
+            })
+        );
+
+        config.levelContracts.swapManager.setSwapConfig(
+            address(config.tokens.wrappedM),
+            address(config.tokens.usdc),
+            SwapConfig({
+                pool: 0x970A7749EcAA4394C8B2Bf5F2471F41FD6b79288, // wM/USDC pool
+                fee: 100, //0.01%
+                tickLower: -10,
+                tickUpper: 10,
+                slippageBps: 5, //0.05%
+                active: true
+            })
+        );
+
         //------------- Add Aave as a strategy
         config.levelContracts.vaultManager.addAssetStrategy(
             address(config.tokens.usdc), address(config.periphery.aaveV3), aUsdcConfig
@@ -309,10 +425,43 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             );
         }
 
+        //--------------- Add Spark as a strategy
+        if (address(config.sparkVaults.sUsdc.vault) == address(0)) {
+            revert("Spark USDC vaults not deployed");
+        } else {
+            config.levelContracts.vaultManager.addAssetStrategy(
+                address(config.tokens.usdc), address(config.sparkVaults.sUsdc.vault), sUsdcConfig
+            );
+        }
+
+        //--------------- Add Superstate as a strategy
+        config.levelContracts.vaultManager.addAssetStrategy(
+            address(config.tokens.usdc), address(config.tokens.ustb), ustbConfig
+        );
+
+        //--------------- Add M as a strategy
+        config.levelContracts.vaultManager.addAssetStrategy(
+            address(config.tokens.usdc),
+            address(config.tokens.wrappedM), // We add the receipt token here and not the deposit contract
+            mConfig
+        );
+
+        //--------------- Add Umbrella as a strategy
+        // if (address(config.umbrellaVaults.waUsdcStakeToken.vault) == address(0)) {
+        //     revert("Umbrella USDC vaults not deployed");
+        // } else {
+        //     config.levelContracts.vaultManager.addAssetStrategy(
+        //         address(config.tokens.usdc), address(config.umbrellaVaults.waUsdcStakeToken.vault), umbrellaConfig
+        //     );
+        // }
+
         // Add Aave as a default strategy
-        address[] memory usdcDefaultStrategies = new address[](2);
+        address[] memory usdcDefaultStrategies = new address[](5);
         usdcDefaultStrategies[0] = address(config.periphery.aaveV3);
         usdcDefaultStrategies[1] = address(config.morphoVaults.steakhouseUsdc.vault);
+        usdcDefaultStrategies[2] = address(config.sparkVaults.sUsdc.vault);
+        usdcDefaultStrategies[3] = address(config.tokens.ustb);
+        usdcDefaultStrategies[4] = address(config.tokens.wrappedM);
 
         address[] memory usdtDefaultStrategies = new address[](1);
         usdtDefaultStrategies[0] = address(config.periphery.aaveV3);
@@ -383,6 +532,8 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         config.levelContracts.levelMintingV2.addMintableAsset(address(config.tokens.aUsdc));
         config.levelContracts.levelMintingV2.addMintableAsset(address(config.tokens.aUsdt));
         config.levelContracts.levelMintingV2.addMintableAsset(address(config.morphoVaults.steakhouseUsdc.vault));
+        // config.levelContracts.levelMintingV2.addMintableAsset(address(config.sparkVaults.sUsdc.vault));
+        config.levelContracts.levelMintingV2.addMintableAsset(address(config.tokens.ustb));
 
         config.levelContracts.levelMintingV2.addRedeemableAsset(address(config.tokens.usdc));
         config.levelContracts.levelMintingV2.addRedeemableAsset(address(config.tokens.usdt));
@@ -394,13 +545,18 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         config.levelContracts.levelMintingV2.addOracle(
             address(config.morphoVaults.steakhouseUsdc.vault), address(config.morphoVaults.steakhouseUsdc.oracle), true
         );
+        // config.levelContracts.levelMintingV2.addOracle(
+        //     address(config.sparkVaults.sUsdc.vault), address(config.sparkVaults.sUsdc.oracle), true
+        // );
+        config.levelContracts.levelMintingV2.addOracle(address(config.tokens.ustb), address(config.oracles.ustb), true);
 
         config.levelContracts.levelMintingV2.setHeartBeat(address(config.tokens.usdc), 1 days);
         config.levelContracts.levelMintingV2.setHeartBeat(address(config.tokens.usdt), 1 days);
         config.levelContracts.levelMintingV2.setHeartBeat(address(config.tokens.aUsdc), 1 days);
         config.levelContracts.levelMintingV2.setHeartBeat(address(config.tokens.aUsdt), 1 days);
         config.levelContracts.levelMintingV2.setHeartBeat(address(config.morphoVaults.steakhouseUsdc.vault), 4 hours);
-
+        // config.levelContracts.levelMintingV2.setHeartBeat(address(config.sparkVaults.sUsdc.vault), 4 hours);
+        config.levelContracts.levelMintingV2.setHeartBeat(address(config.tokens.ustb), 1 days);
         config.levelContracts.levelMintingV2.setCooldownDuration(5 minutes);
 
         // ------------ Setup StrictRolesAuthority
@@ -432,8 +588,41 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         return config;
     }
 
+    function deploySwapManager() public returns (SwapManager) {
+        if (
+            address(config.levelContracts.swapManager) != address(0)
+                && address(config.levelContracts.swapManager).code.length > 0
+        ) {
+            return config.levelContracts.swapManager;
+        }
+
+        if (address(config.levelContracts.rolesAuthority) == address(0)) {
+            revert("RolesAuthority must be deployed first");
+        }
+
+        bytes memory constructorArgs = abi.encodeWithSignature(
+            "initialize(address,address)", deployerWallet.addr, address(config.periphery.uniswapV3Router)
+        );
+
+        SwapManager _swapManager = new SwapManager{salt: convertNameToBytes32(LevelUsdSwapManagerName)}();
+        ERC1967Proxy _swapManagerProxy = new ERC1967Proxy{salt: convertNameToBytes32(LevelUsdSwapManagerName)}(
+            address(_swapManager), constructorArgs
+        );
+
+        vm.label(address(_swapManagerProxy), LevelUsdSwapManagerName);
+
+        config.levelContracts.swapManager = SwapManager(address(_swapManagerProxy));
+
+        config.levelContracts.swapManager.setAuthority(config.levelContracts.rolesAuthority);
+
+        return config.levelContracts.swapManager;
+    }
+
     function deployRolesAuthority() public returns (StrictRolesAuthority) {
-        if (address(config.levelContracts.rolesAuthority) != address(0)) {
+        if (
+            address(config.levelContracts.rolesAuthority) != address(0)
+                && address(config.levelContracts.rolesAuthority).code.length > 0
+        ) {
             return config.levelContracts.rolesAuthority;
         }
 
@@ -450,7 +639,10 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
     }
 
     function deployAdminTimelock() public returns (TimelockController) {
-        if (address(config.levelContracts.adminTimelock) != address(0)) {
+        if (
+            address(config.levelContracts.adminTimelock) != address(0)
+                && address(config.levelContracts.adminTimelock).code.length > 0
+        ) {
             return config.levelContracts.adminTimelock;
         }
 
@@ -468,7 +660,10 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
     }
 
     function deployBoringVault() public returns (BoringVault) {
-        if (address(config.levelContracts.boringVault) != address(0)) {
+        if (
+            address(config.levelContracts.boringVault) != address(0)
+                && address(config.levelContracts.boringVault).code.length > 0
+        ) {
             return config.levelContracts.boringVault;
         }
 
@@ -493,7 +688,10 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
     }
 
     function deployVaultManager() public returns (VaultManager) {
-        if (address(config.levelContracts.vaultManager) != address(0)) {
+        if (
+            address(config.levelContracts.vaultManager) != address(0)
+                && address(config.levelContracts.vaultManager).code.length > 0
+        ) {
             return config.levelContracts.vaultManager;
         }
 
@@ -530,7 +728,10 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
     }
 
     function deployRewardsManager() public returns (RewardsManager) {
-        if (address(config.levelContracts.rewardsManager) != address(0)) {
+        if (
+            address(config.levelContracts.rewardsManager) != address(0)
+                && address(config.levelContracts.rewardsManager).code.length > 0
+        ) {
             return config.levelContracts.rewardsManager;
         }
 
@@ -570,7 +771,10 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
     }
 
     function deployERC4626OracleFactory() public returns (ERC4626OracleFactory) {
-        if (address(config.levelContracts.erc4626OracleFactory) != address(0)) {
+        if (
+            address(config.levelContracts.erc4626OracleFactory) != address(0)
+                && address(config.levelContracts.erc4626OracleFactory).code.length > 0
+        ) {
             return config.levelContracts.erc4626OracleFactory;
         }
 
@@ -583,7 +787,19 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         return config.levelContracts.erc4626OracleFactory;
     }
 
-    function deployERC4626Oracle(IERC4626 vault, uint256 delay) public returns (IERC4626Oracle) {
+    function deployERC4626DelayedOracle(IERC4626 vault, uint256 delay) public returns (IERC4626Oracle) {
+        if (address(config.levelContracts.erc4626OracleFactory) == address(0)) {
+            revert("ERC4626OracleFactory must be deployed first");
+        }
+
+        IERC4626Oracle _erc4626Oracle =
+            IERC4626Oracle(config.levelContracts.erc4626OracleFactory.createDelayed(vault, delay));
+        vm.label(address(_erc4626Oracle), string.concat(vault.name(), " Oracle"));
+
+        return _erc4626Oracle;
+    }
+
+    function deployERC4626Oracle(IERC4626 vault) public returns (IERC4626Oracle) {
         if (address(config.levelContracts.erc4626OracleFactory) == address(0)) {
             revert("ERC4626OracleFactory must be deployed first");
         }
@@ -595,7 +811,10 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
     }
 
     function deployLevelMintingV2() public returns (LevelMintingV2) {
-        if (address(config.levelContracts.levelMintingV2) != address(0)) {
+        if (
+            address(config.levelContracts.levelMintingV2) != address(0)
+                && address(config.levelContracts.levelMintingV2).code.length > 0
+        ) {
             return config.levelContracts.levelMintingV2;
         }
 
@@ -642,7 +861,10 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
     }
 
     function deployPauserGuard() public returns (PauserGuard) {
-        if (address(config.levelContracts.pauserGuard) != address(0)) {
+        if (
+            address(config.levelContracts.pauserGuard) != address(0)
+                && address(config.levelContracts.pauserGuard).code.length > 0
+        ) {
             return config.levelContracts.pauserGuard;
         }
 
@@ -660,6 +882,12 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
     }
 
     function configurePauseGroups() public {
+        if (config.levelContracts.pauserGuard.owner() == address(config.levelContracts.adminTimelock)) {
+            // PauserGuard is already configured
+            console2.log("PauserGuard is already configured");
+            return;
+        }
+
         if (address(config.levelContracts.pauserGuard) == address(0)) {
             revert("PauserGuard must be deployed first");
         }
@@ -864,6 +1092,10 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             config.levelContracts.pauserGuard.transferOwnership(address(config.levelContracts.adminTimelock));
         }
 
+        if (config.levelContracts.swapManager.owner() == deployerWallet.addr) {
+            config.levelContracts.swapManager.transferOwnership(address(config.levelContracts.adminTimelock));
+        }
+
         if (
             config.levelContracts.adminTimelock.hasRole(
                 config.levelContracts.adminTimelock.DEFAULT_ADMIN_ROLE(), deployerWallet.addr
@@ -888,6 +1120,7 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
         _printDeployedContracts(
             chainId, LevelERC4626OracleFactoryName, address(config.levelContracts.erc4626OracleFactory)
         );
+        _printDeployedContracts(chainId, LevelUsdSwapManagerName, address(config.levelContracts.swapManager));
     }
 
     // Exclude from coverage

@@ -100,8 +100,7 @@ contract DeployTestnet is Configurable, DeploymentUtils, Script {
 
         // Deploy oracles
         if (address(config.morphoVaults.steakhouseUsdc.oracle) == address(0)) {
-            config.morphoVaults.steakhouseUsdc.oracle =
-                deployERC4626Oracle(config.morphoVaults.steakhouseUsdc.vault, 4 hours);
+            config.morphoVaults.steakhouseUsdc.oracle = deployERC4626Oracle(config.morphoVaults.steakhouseUsdc.vault);
         }
 
         steakhouseUsdcConfig = StrategyConfig({
@@ -439,8 +438,6 @@ contract DeployTestnet is Configurable, DeploymentUtils, Script {
             return config.levelContracts.erc4626OracleFactory;
         }
 
-        bytes memory creationCode;
-
         ERC4626OracleFactory _erc4626OracleFactory =
             new ERC4626OracleFactory{salt: convertNameToBytes32(LevelERC4626OracleFactoryName)}();
 
@@ -450,7 +447,19 @@ contract DeployTestnet is Configurable, DeploymentUtils, Script {
         return config.levelContracts.erc4626OracleFactory;
     }
 
-    function deployERC4626Oracle(IERC4626 vault, uint256 delay) public returns (IERC4626Oracle) {
+    function deployERC4626DelayedOracle(IERC4626 vault, uint256 delay) public returns (IERC4626Oracle) {
+        if (address(config.levelContracts.erc4626OracleFactory) == address(0)) {
+            revert("ERC4626OracleFactory must be deployed first");
+        }
+
+        IERC4626Oracle _erc4626Oracle =
+            IERC4626Oracle(config.levelContracts.erc4626OracleFactory.createDelayed(vault, delay));
+        vm.label(address(_erc4626Oracle), string.concat(vault.name(), " Oracle"));
+
+        return _erc4626Oracle;
+    }
+
+    function deployERC4626Oracle(IERC4626 vault) public returns (IERC4626Oracle) {
         if (address(config.levelContracts.erc4626OracleFactory) == address(0)) {
             revert("ERC4626OracleFactory must be deployed first");
         }

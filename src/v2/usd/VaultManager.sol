@@ -183,6 +183,52 @@ contract VaultManager is
         emit DefaultStrategiesSet(_asset, strategies);
     }
 
+    // ------- Aave Umbrella ---------
+
+    /// @notice Approve or revoke an address to be able to start the cooldown of boring vault on Umbrella
+    /// @param operator The address to approve or revoke
+    /// @param umbrellaVault The umbrella vault to modify the cooldown operator for
+    /// @param isApproved Whether to approve or revoke the operator
+    /// @dev callable only by the STRATEGIST_ROLE (e.g. operator)
+    /// @dev will emit a CooldownOnBehalfChanged event from the umbrella vault
+    /// @dev if an approved operator calls cooldown during an ongoing cooldown, the timer will start over
+    function modifyAaveUmbrellaCooldownOperator(address operator, address umbrellaVault, bool isApproved)
+        external
+        requiresAuth
+    {
+        if (operator == address(0) || umbrellaVault == address(0)) {
+            revert InvalidOperatorOrUmbrellaVault();
+        }
+
+        vault.manage(
+            address(umbrellaVault),
+            abi.encodeWithSignature("setCooldownOperator(address,bool)", operator, isApproved),
+            0
+        );
+    }
+
+    /// @notice Approve or revoke an address to be able to claim rewards from Aave Umbrella on behalf of the vault
+    /// @param rewardsClaimer The address to approve or revoke
+    /// @param umbrellaRewardsController The umbrella rewards controller of Aave Umbrella
+    /// @param isApproved Whether to approve or revoke the rewards claimer
+    /// @dev callable only by the STRATEGIST_ROLE (e.g. operator)
+    /// @dev will emit a ClaimerSet event from the umbrella rewards controller
+    function modifyAaveUmbrellaRewardsClaimer(
+        address rewardsClaimer,
+        address umbrellaRewardsController,
+        bool isApproved
+    ) external requiresAuth {
+        if (rewardsClaimer == address(0) || umbrellaRewardsController == address(0)) {
+            revert InvalidOperatorOrUmbrellaVault();
+        }
+
+        vault.manage(
+            address(umbrellaRewardsController),
+            abi.encodeWithSignature("setClaimer(address,bool)", rewardsClaimer, isApproved),
+            0
+        );
+    }
+
     // ------- Internal ------------
     /// @notice Internal function to deposit an asset into the vault
     /// @param asset The address of the asset to deposit

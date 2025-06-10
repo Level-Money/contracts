@@ -57,6 +57,7 @@ interface IVaultManagerErrors {
     error StrategyAlreadyExists();
     error StrategyDoesNotExist();
     error NoStrategiesProvided();
+    error InvalidOperatorOrUmbrellaVault();
 }
 
 /// @title IVaultManager

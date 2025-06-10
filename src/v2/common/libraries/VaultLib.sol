@@ -5,9 +5,13 @@ import {ERC20} from "@solmate/src/tokens/ERC20.sol";
 import {BoringVault} from "@level/src/v2/usd/BoringVault.sol";
 import {StrategyLib, StrategyConfig, StrategyCategory} from "@level/src/v2/common/libraries/StrategyLib.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
-
 import {IPool} from "@level/src/v2/interfaces/aave/IPool.sol";
 import {IPoolAddressesProvider} from "@level/src/v2/interfaces/aave/IPoolAddressesProvider.sol";
+import {ISuperstateToken} from "@level/src/v2/interfaces/superstate/ISuperstateToken.sol";
+import {IRedemption} from "@level/src/v2/interfaces/superstate/IRedemption.sol";
+import {ISwapRouter} from "@level/src/v2/interfaces/uniswap/ISwapRouter.sol";
+import {IERC4626StataToken} from "@level/src/v2/interfaces/aave/IERC4626StataToken.sol";
+import {IERC4626StakeToken} from "@level/src/v2/interfaces/aave/IERC4626StakeToken.sol";
 
 /// @title VaultLib
 /// @author Level (https://level.money)
@@ -39,12 +43,76 @@ library VaultLib {
         address indexed vault, address indexed asset, uint256 amountDeposited, uint256 sharesReceived
     );
 
+    /// @notice Emitted when assets are deposited into Spark
+    /// @param vault The vault address
+    /// @param asset The asset address
+    /// @param amountDeposited The amount of assets deposited
+    /// @param sharesReceived The amount of shares received
+    event DepositToSpark(address indexed vault, address indexed asset, uint256 amountDeposited, uint256 sharesReceived);
+
+    /// @notice Emitted when assets are withdrawn from Spark
+    /// @param vault The vault address
+    /// @param asset The asset address
+    /// @param amountWithdrawn The amount of assets withdrawn
+    /// @param sharesSent The amount of shares sent
+    event WithdrawFromSpark(address indexed vault, address indexed asset, uint256 amountWithdrawn, uint256 sharesSent);
+
     /// @notice Emitted when assets are withdrawn from Morpho
     /// @param vault The vault address
     /// @param asset The asset address
     /// @param amountWithdrawn The amount of assets withdrawn
     /// @param sharesSent The amount of shares sent
     event WithdrawFromMorpho(address indexed vault, address indexed asset, uint256 amountWithdrawn, uint256 sharesSent);
+
+    /// @notice Emitted when assets are deposited into Superstate
+    /// @param vault The vault address
+    /// @param asset The asset address
+    /// @param amountDeposited The amount of assets deposited
+    /// @param sharesReceived The amount of shares received
+    event DepositToSuperstate(
+        address indexed vault, address indexed asset, uint256 amountDeposited, uint256 sharesReceived
+    );
+
+    /// @notice Emitted when assets are withdrawn from Superstate
+    /// @param vault The vault address
+    /// @param asset The asset address
+    /// @param amountWithdrawn The amount of assets withdrawn
+    /// @param sharesSent The amount of superstate token sent
+    event WithdrawFromSuperstate(
+        address indexed vault, address indexed asset, uint256 amountWithdrawn, uint256 sharesSent
+    );
+
+    /// @notice Emitted when assets are deposited into M
+    /// @param vault The vault address
+    /// @param asset The asset address
+    /// @param amountDeposited The amount of assets deposited
+    /// @param sharesReceived The amount of shares received
+    event DepositToM0(address indexed vault, address indexed asset, uint256 amountDeposited, uint256 sharesReceived);
+
+    /// @notice Emitted when assets are withdrawn from M
+    /// @param vault The vault address
+    /// @param asset The asset address
+    /// @param amountWithdrawn The amount of assets withdrawn
+    /// @param sharesSent The amount of shares sent
+    event WithdrawFromM0(address indexed vault, address indexed asset, uint256 amountWithdrawn, uint256 sharesSent);
+
+    /// @notice Emitted when assets are staked to Aave Umbrella
+    /// @param vault The vault address
+    /// @param asset The asset address
+    /// @param amountStaked The amount of assets staked
+    /// @param sharesReceived The amount of shares received
+    event StakeToAaveUmbrella(
+        address indexed vault, address indexed asset, uint256 amountStaked, uint256 sharesReceived
+    );
+
+    /// @notice Emitted when assets are unstaked from Aave Umbrella
+    /// @param vault The vault address
+    /// @param asset The asset address
+    /// @param amountUnstaked The amount of assets unstaked
+    /// @param sharesSent The amount of shares sent
+    event UnstakeFromAaveUmbrella(
+        address indexed vault, address indexed asset, uint256 amountUnstaked, uint256 sharesSent
+    );
 
     /// @notice Returns the total assets of the given strategies
     /// @param vault The vault address
@@ -112,6 +180,14 @@ library VaultLib {
             return _depositToAave(vault, config, amount);
         } else if (config.category == StrategyCategory.MORPHO) {
             return _depositToMorpho(vault, config, amount);
+        } else if (config.category == StrategyCategory.SPARK) {
+            return _depositToSpark(vault, config, amount);
+        } else if (config.category == StrategyCategory.SUPERSTATE) {
+            return _depositToSuperstate(vault, config, amount);
+        } else if (config.category == StrategyCategory.M0) {
+            return _depositToM0(vault, config, amount);
+        } else if (config.category == StrategyCategory.AAVEV3_UMBRELLA) {
+            return _stakeToAaveUmbrella(vault, config, amount);
         } else {
             revert("VaultManager: unsupported strategy");
         }
@@ -130,6 +206,14 @@ library VaultLib {
             return _withdrawFromAave(vault, config, amount);
         } else if (config.category == StrategyCategory.MORPHO) {
             return _withdrawFromMorpho(vault, config, amount);
+        } else if (config.category == StrategyCategory.SPARK) {
+            return _withdrawFromSpark(vault, config, amount);
+        } else if (config.category == StrategyCategory.SUPERSTATE) {
+            return _withdrawFromSuperstate(vault, config, amount);
+        } else if (config.category == StrategyCategory.M0) {
+            return _withdrawFromM0(vault, config, amount);
+        } else if (config.category == StrategyCategory.AAVEV3_UMBRELLA) {
+            return _unstakeFromAaveUmbrella(vault, config, amount);
         } else {
             revert("VaultManager: unsupported strategy");
         }
@@ -254,5 +338,283 @@ library VaultLib {
         emit WithdrawFromMorpho(address(vault), address(_config.baseCollateral), amount, shares_);
 
         return amount;
+    }
+
+    /// @notice Deposits assets into Spark
+    /// @param vault The vault address
+    /// @param _config The strategy config
+    /// @param amount The amount of assets to deposit
+    /// @return deposited The amount of assets deposited
+    function _depositToSpark(BoringVault vault, StrategyConfig memory _config, uint256 amount)
+        internal
+        returns (uint256 deposited)
+    {
+        vault.setTokenAllowance(address(_config.baseCollateral), _config.depositContract, amount);
+
+        bytes memory sharesRaw = vault.manage(
+            address(_config.depositContract),
+            abi.encodeWithSignature("deposit(uint256,address,uint256,uint16)", amount, address(vault), 0, 181),
+            0
+        );
+
+        uint256 shares_ = abi.decode(sharesRaw, (uint256));
+
+        emit DepositToSpark(address(vault), address(_config.baseCollateral), amount, shares_);
+
+        return amount;
+    }
+
+    /// @notice Withdraws assets from Spark
+    /// @param vault The vault address
+    /// @param _config The strategy config
+    /// @param amount The amount of assets to withdraw
+    /// @return withdrawn The amount of assets withdrawn
+    function _withdrawFromSpark(BoringVault vault, StrategyConfig memory _config, uint256 amount)
+        internal
+        returns (uint256 withdrawn)
+    {
+        IERC4626 sparkVault = IERC4626(_config.withdrawContract);
+
+        uint256 sharesToRedeem = sparkVault.previewWithdraw(amount);
+
+        if (sharesToRedeem == 0) {
+            revert("VaultManager: amount must be greater than 0");
+        }
+
+        bytes memory sharesRaw = vault.manage(
+            address(_config.withdrawContract),
+            abi.encodeWithSignature("withdraw(uint256,address,address)", amount, address(vault), address(vault)),
+            0
+        );
+
+        uint256 shares_ = abi.decode(sharesRaw, (uint256));
+
+        emit WithdrawFromSpark(address(vault), address(_config.baseCollateral), amount, shares_);
+
+        return amount;
+    }
+
+    /// @notice Deposits assets into Superstate
+    ///
+    /// @dev In the future, Superstate may charge fees on deposits.
+    /// This will reduce the effective amount of base collateral received in USTB.
+    /// This could temporarily reduce backing and lead to slight undercollateralization.
+    /// However, such losses are expected to be recovered over time
+    /// through the yield generated by the Superstate assets
+    ///
+    /// @param vault The vault address
+    /// @param _config The strategy config
+    /// @param amount The amount of assets to deposit
+    /// @return deposited The amount of assets deposited
+    function _depositToSuperstate(BoringVault vault, StrategyConfig memory _config, uint256 amount)
+        internal
+        returns (uint256 deposited)
+    {
+        vault.setTokenAllowance(address(_config.baseCollateral), _config.depositContract, amount);
+        ISuperstateToken superstateToken = ISuperstateToken(_config.depositContract);
+        (uint256 superstateTokenOutAmount, uint256 stablecoinInAmountAfterFee,) =
+            superstateToken.calculateSuperstateTokenOut({inAmount: amount, stablecoin: address(_config.baseCollateral)});
+
+        vault.manage(
+            address(_config.depositContract),
+            abi.encodeWithSignature("subscribe(uint256,address)", amount, address(_config.baseCollateral)),
+            0
+        );
+
+        emit DepositToSuperstate(
+            address(vault), address(_config.baseCollateral), stablecoinInAmountAfterFee, superstateTokenOutAmount
+        );
+
+        return stablecoinInAmountAfterFee;
+    }
+
+    /// @notice Withdraws assets from Superstate
+    ///
+    /// @dev In the future, Superstate may apply fees on redemptions, reducing the amount of collateral received.
+    /// Any such loss should be offset by the yield earned while the assets were held in Superstate.
+    ///
+    /// @param vault The vault address
+    /// @param _config The strategy config
+    /// @param amount The amount of assets to withdraw (USDC/USDT)
+    /// @return withdrawn The amount of assets withdrawn
+    function _withdrawFromSuperstate(BoringVault vault, StrategyConfig memory _config, uint256 amount)
+        internal
+        returns (uint256 withdrawn)
+    {
+        IRedemption redemption = IRedemption(_config.withdrawContract);
+
+        // Calculate the amount of superstate token to redeem
+        (uint256 superstateTokenInAmount,) = redemption.calculateUstbIn(amount);
+
+        // Approve the redemption contract to spend the superstate token
+        vault.setTokenAllowance(address(_config.receiptToken), address(redemption), superstateTokenInAmount);
+
+        vault.manage(address(redemption), abi.encodeWithSignature("redeem(uint256)", superstateTokenInAmount), 0);
+
+        emit WithdrawFromSuperstate(address(vault), address(_config.baseCollateral), amount, superstateTokenInAmount);
+
+        return amount;
+    }
+
+    /// @notice Deposits assets into M
+    ///
+    /// @dev The swap is subject to slippage, which may result in receiving fewer receipt tokens (e.g., wM)
+    /// than the deposit amount. This slippage may lead to temporary undercollateralization.
+    /// However, the loss is expected to be recovered over time through the yield generated by the wM position.
+    ///
+    /// @param vault The vault address
+    /// @param _config The strategy config
+    /// @param amount The amount of assets to deposit
+    /// @return deposited The amount of assets deposited
+    function _depositToM0(BoringVault vault, StrategyConfig memory _config, uint256 amount)
+        internal
+        returns (uint256 deposited)
+    {
+        address baseCollateral = address(_config.baseCollateral);
+        address wrappedM = address(_config.receiptToken);
+        address swapManager = address(_config.depositContract);
+
+        // Approve vault to move USDC → SwapManager
+        vault.setTokenAllowance(baseCollateral, swapManager, amount);
+
+        uint256 before = ERC20(wrappedM).balanceOf(address(vault));
+
+        vault.manage(
+            swapManager,
+            abi.encodeWithSignature(
+                "swap(address,address,uint256,address)", baseCollateral, wrappedM, amount, address(vault)
+            ),
+            0
+        );
+
+        uint256 afterBal = ERC20(wrappedM).balanceOf(address(vault));
+        deposited = afterBal - before;
+
+        emit DepositToM0(address(vault), baseCollateral, amount, deposited);
+
+        return deposited;
+    }
+
+    /// @notice Withdraws assets from M
+    ///
+    /// @dev The withdrawal is subject to slippage, which may result in receiving slightly less base collateral
+    /// than the wM amount. This may temporarily reduce collateral backing. However, the shortfall should be
+    /// offset by the yield earned while holding the wM receipt tokens.
+    ///
+    /// @param vault The vault address
+    /// @param _config The strategy config
+    /// @param amount The amount of assets to withdraw
+    /// @return withdrawn The amount of assets withdrawn
+    function _withdrawFromM0(BoringVault vault, StrategyConfig memory _config, uint256 amount)
+        internal
+        returns (uint256 withdrawn)
+    {
+        address baseCollateral = address(_config.baseCollateral);
+        address wrappedM = address(_config.receiptToken);
+        address swapManager = address(_config.depositContract);
+
+        // Approve vault to move wM → SwapManager
+        vault.setTokenAllowance(wrappedM, swapManager, amount);
+
+        uint256 before = ERC20(baseCollateral).balanceOf(address(vault));
+
+        vault.manage(
+            swapManager,
+            abi.encodeWithSignature(
+                "swap(address,address,uint256,address)", wrappedM, baseCollateral, amount, address(vault)
+            ),
+            0
+        );
+
+        uint256 afterBal = ERC20(baseCollateral).balanceOf(address(vault));
+        withdrawn = afterBal - before;
+
+        emit WithdrawFromM0(address(vault), baseCollateral, amount, withdrawn);
+
+        return withdrawn;
+    }
+
+    /// @notice Stakes wrapped aTokens into Aave Umbrella
+    /// @param vault The vault address
+    /// @param _config The strategy config
+    /// @param amount The amount of assets to stake
+    /// @return staked The amount of assets staked
+    function _stakeToAaveUmbrella(BoringVault vault, StrategyConfig memory _config, uint256 amount)
+        internal
+        returns (uint256 staked)
+    {
+        IERC4626StakeToken stakeToken = IERC4626StakeToken(_config.depositContract);
+
+        // Wrap the aTokens
+        IERC4626StataToken stataToken = IERC4626StataToken(stakeToken.asset());
+        vault.setTokenAllowance(address(_config.baseCollateral), address(stataToken), amount);
+        bytes memory sharesRaw = vault.manage(
+            address(stataToken), abi.encodeWithSignature("depositATokens(uint256,address)", amount, address(vault)), 0
+        );
+        uint256 shares = abi.decode(sharesRaw, (uint256));
+
+        // Stake waTokens with Aave Umbrella
+        vault.setTokenAllowance(address(stataToken), address(_config.depositContract), shares);
+        bytes memory stakedRaw = vault.manage(
+            address(_config.depositContract),
+            abi.encodeWithSignature("deposit(uint256,address)", shares, address(vault)),
+            0
+        );
+
+        uint256 staked_ = abi.decode(stakedRaw, (uint256));
+
+        emit StakeToAaveUmbrella(address(vault), address(_config.baseCollateral), amount, staked_);
+
+        return staked_;
+    }
+
+    /// @notice Unstakes waTokens from Aave Umbrella
+    /// @param vault The vault address
+    /// @param _config The strategy config
+    /// @param amount The amount of assets to unstake
+    /// @return unstaked The amount of assets unstaked
+    function _unstakeFromAaveUmbrella(BoringVault vault, StrategyConfig memory _config, uint256 amount)
+        internal
+        returns (uint256 unstaked)
+    {
+        // Get cooldown snapshot
+        IERC4626StakeToken stakeToken = IERC4626StakeToken(_config.depositContract);
+        IERC4626StataToken stataToken = IERC4626StataToken(stakeToken.asset());
+        IERC4626StakeToken.CooldownSnapshot memory cooldownSnapshot = stakeToken.getStakerCooldown(address(vault));
+
+        if (
+            block.timestamp > cooldownSnapshot.endOfCooldown
+                && block.timestamp - cooldownSnapshot.endOfCooldown <= cooldownSnapshot.withdrawalWindow
+        ) {
+            if (amount > cooldownSnapshot.amount) {
+                amount = cooldownSnapshot.amount;
+            }
+
+            // We're in the withdrawal window
+            bytes memory unstakedRaw = vault.manage(
+                address(stakeToken),
+                abi.encodeWithSignature("redeem(uint256,address,address)", amount, address(vault), address(vault)),
+                0
+            );
+
+            uint256 wrappedATokens = abi.decode(unstakedRaw, (uint256));
+
+            bytes memory aTokensRaw = vault.manage(
+                address(stataToken),
+                abi.encodeWithSignature(
+                    "redeemATokens(uint256,address,address)", wrappedATokens, address(vault), address(vault)
+                ),
+                0
+            );
+
+            uint256 aTokens = abi.decode(aTokensRaw, (uint256));
+
+            emit UnstakeFromAaveUmbrella(address(vault), address(_config.baseCollateral), amount, aTokens);
+
+            return aTokens;
+        } else {
+            // We're not in the withdrawal window, need to call cooldown
+            revert("VaultManager: not in withdrawal window, call cooldown first");
+        }
     }
 }

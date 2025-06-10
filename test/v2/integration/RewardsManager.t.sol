@@ -23,6 +23,7 @@ import {MockERC4626} from "@level/test/v2/mocks/MockERC4626.sol";
 import {IERC4626Oracle} from "@level/src/v2/interfaces/level/IERC4626Oracle.sol";
 import {ILevelMintingV2Structs} from "@level/src/v2/interfaces/level/ILevelMintingV2.sol";
 import {lvlUSD} from "@level/src/v1/lvlUSD.sol";
+import {CappedOneDollarOracle} from "@level/src/v2/oracles/CappedOneDollarOracle.sol";
 
 contract RewardsManagerMainnetTests is Utils, Configurable {
     using SafeTransferLib for ERC20;
@@ -76,6 +77,8 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         _scheduleAndExecuteAdminActionBatch(
             address(config.users.admin), address(config.levelContracts.adminTimelock), targets, payloads
         );
+        _mockChainlinkCall(address(config.oracles.ustb), 105e5); // 10.5 USD per USTB
+        _mockChainlinkCall(address(config.oracles.mNav), 1e8); // 1 USD per wrappedM
 
         deal(address(config.tokens.usdc), address(strategist.addr), INITIAL_BALANCE);
         deal(address(config.tokens.usdt), address(strategist.addr), INITIAL_BALANCE);
@@ -354,6 +357,7 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         _scheduleAndExecuteAdminActionBatch(
             address(config.users.admin), address(config.levelContracts.adminTimelock), targets, payloads
         );
+        _mockChainlinkCall(address(config.oracles.ustb), 105e5); // 10.5 USD per USTB
 
         vm.startPrank(strategist.addr);
 
@@ -413,6 +417,27 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         assertApproxEqRel(totalAssets, 2 * INITIAL_BALANCE + deposit, 0.0001e18, "Total assets do not match");
     }
 
+    function test_customMNavOracle_succeeds() public {
+        // wrappedM oracle should return 1 USD
+        CappedOneDollarOracle mNavOracle = new CappedOneDollarOracle(address(config.oracles.mNav));
+
+        // Get latest price from the oracle
+        (, int256 price,,,) = mNavOracle.latestRoundData();
+        assertEq(price, 1e8, "Price should be 1 USD");
+
+        _mockChainlinkCall(address(config.oracles.mNav), 105e6); // 1.05 USD per M
+
+        // Get latest price from the oracle
+        (, price,,,) = mNavOracle.latestRoundData();
+        assertEq(price, 1e8, "Price should be 1 USD");
+
+        _mockChainlinkCall(address(config.oracles.mNav), 99e6); // 0.99 USD per M
+
+        // Get latest price from the oracle
+        (, price,,,) = mNavOracle.latestRoundData();
+        assertEq(price, 99e6, "Price should be 0.99 USD");
+    }
+
     // ------------- Internal Helpers -------------
 
     function _getAssetsInStrategy(address asset, address strategy) public view returns (uint256) {
@@ -469,10 +494,24 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         }
     }
 
+    // Need to mock chainlink call for ustb
+    // because vm.warp() makes it return stale prices
+    function _mockChainlinkCall(address chainLinkFeed, int256 price) internal {
+        AggregatorV3Interface chainlink = AggregatorV3Interface(chainLinkFeed);
+
+        uint80 roundId = 1;
+        uint256 startedAt = block.timestamp;
+        uint256 updatedAt = block.timestamp;
+        uint80 answeredInRound = 1;
+
+        vm.mockCall(
+            address(chainlink),
+            abi.encodeWithSelector(chainlink.latestRoundData.selector),
+            abi.encode(roundId, price, startedAt, updatedAt, answeredInRound)
+        );
+    }
+
     function _printBalance(address asset, address vault) internal {
         console2.log(vm.getLabel(asset), ERC20(asset).balanceOf(vault));
     }
-
-    // Test cases to add:
-    // - Test when morpho yield accrues
 }
