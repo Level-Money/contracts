@@ -302,16 +302,6 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             address(config.levelContracts.vaultManager),
             bytes4(abi.encodeWithSignature("withdrawDefault(address,uint256)"))
         );
-        _setRoleCapabilityIfNotExists(
-            STRATEGIST_ROLE,
-            address(config.levelContracts.vaultManager),
-            bytes4(abi.encodeWithSignature("modifyAaveUmbrellaCooldownOperator(address,address,bool)"))
-        );
-        _setRoleCapabilityIfNotExists(
-            STRATEGIST_ROLE,
-            address(config.levelContracts.vaultManager),
-            bytes4(abi.encodeWithSignature("modifyAaveUmbrellaRewardsClaimer(address,address,bool)"))
-        );
 
         _setRoleIfNotExists(address(config.levelContracts.levelMintingV2), STRATEGIST_ROLE);
         _setRoleIfNotExists(address(config.users.operator), STRATEGIST_ROLE);
@@ -600,8 +590,15 @@ contract DeployLevel is Configurable, DeploymentUtils, Script {
             revert("RolesAuthority must be deployed first");
         }
 
+        if (address(config.levelContracts.pauserGuard) == address(0)) {
+            revert("PauserGuard must be deployed first");
+        }
+
         bytes memory constructorArgs = abi.encodeWithSignature(
-            "initialize(address,address)", deployerWallet.addr, address(config.periphery.uniswapV3Router)
+            "initialize(address,address,address)",
+            deployerWallet.addr,
+            address(config.periphery.uniswapV3Router),
+            address(config.levelContracts.pauserGuard)
         );
 
         SwapManager _swapManager = new SwapManager{salt: convertNameToBytes32(LevelUsdSwapManagerName)}();

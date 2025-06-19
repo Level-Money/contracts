@@ -60,8 +60,19 @@ contract DeploySwapManager is Configurable, DeploymentUtils, Script {
 
         console2.log("Deploying SwapManager from address %s", deployerWallet.addr);
 
+        if (address(config.levelContracts.pauserGuard) == address(0)) {
+            revert("PauserGuard must be deployed first");
+        }
+
+        if (address(config.levelContracts.rolesAuthority) == address(0)) {
+            revert("RolesAuthority must be deployed first");
+        }
+
         bytes memory constructorArgs = abi.encodeWithSignature(
-            "initialize(address,address)", deployerWallet.addr, address(config.periphery.uniswapV3Router)
+            "initialize(address,address,address)",
+            deployerWallet.addr,
+            address(config.periphery.uniswapV3Router),
+            address(config.levelContracts.pauserGuard)
         );
 
         SwapManager _swapManager = new SwapManager{salt: convertNameToBytes32(LevelUsdSwapManagerName)}();
