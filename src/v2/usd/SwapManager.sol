@@ -9,6 +9,7 @@ import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable
 import {UUPSUpgradeable} from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {AuthUpgradeable} from "@level/src/v2/auth/AuthUpgradeable.sol";
 import {SwapConfig} from "./SwapManagerStorage.sol";
+import {PauserGuardedUpgradable} from "@level/src/v2/common/guard/PauserGuardedUpgradable.sol";
 
 /**
  *                                     .-==+=======+:
@@ -28,7 +29,7 @@ import {SwapConfig} from "./SwapManagerStorage.sol";
  * @notice Manages token swaps using Uniswap V3 pools with configurable parameters
  * @dev This contract is upgradeable and uses UUPS pattern
  */
-contract SwapManager is SwapManagerStorage, Initializable, UUPSUpgradeable, AuthUpgradeable {
+contract SwapManager is SwapManagerStorage, Initializable, UUPSUpgradeable, AuthUpgradeable, PauserGuardedUpgradable {
     /// @notice Constructor that disables initializers
     constructor() {
         _disableInitializers();
@@ -37,9 +38,11 @@ contract SwapManager is SwapManagerStorage, Initializable, UUPSUpgradeable, Auth
     /// @notice Initializes the contract with admin and swap router addresses
     /// @param admin_ The address of the admin who can manage the contract
     /// @param swapRouter_ The address of the Uniswap V3 Swap Router
-    function initialize(address admin_, address swapRouter_) external initializer {
+    /// @param guard_ The address of the guard that controls the pause state of the contract
+    function initialize(address admin_, address swapRouter_, address guard_) external initializer {
         __UUPSUpgradeable_init();
         __Auth_init(admin_, address(0));
+        __PauserGuarded_init(guard_);
         swapRouter = ISwapRouter(swapRouter_);
     }
 
@@ -48,7 +51,11 @@ contract SwapManager is SwapManagerStorage, Initializable, UUPSUpgradeable, Auth
     /// @param tokenOut The address of the output token
     /// @param config The swap configuration parameters
     /// @dev Only callable by authorized addresses
-    function setSwapConfig(address tokenIn, address tokenOut, SwapConfig memory config) external requiresAuth {
+    function setSwapConfig(address tokenIn, address tokenOut, SwapConfig memory config)
+        external
+        requiresAuth
+        notPaused
+    {
         // add access control here
         require(config.pool != address(0), "Invalid pool");
         swapConfigs[tokenIn][tokenOut] = config;
@@ -66,6 +73,7 @@ contract SwapManager is SwapManagerStorage, Initializable, UUPSUpgradeable, Auth
     /// use the slippage in the pair's swap config.
     function swap(address tokenIn, address tokenOut, uint256 amountIn, address recipient)
         external
+        notPaused
         returns (uint256 amountOut)
     {
         SwapConfig memory config = swapConfigs[tokenIn][tokenOut];

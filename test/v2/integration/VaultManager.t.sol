@@ -23,6 +23,7 @@ import {UpgradeVaultManager} from "@level/script/v2/usd/UpgradeVaultManager.s.so
 import {DeploySwapManager} from "@level/script/v2/usd/DeploySwapManager.s.sol";
 import {IERC4626StataToken} from "@level/src/v2/interfaces/aave/IERC4626StataToken.sol";
 import {IERC4626StakeToken} from "@level/src/v2/interfaces/aave/IERC4626StakeToken.sol";
+import {CappedOneDollarOracle} from "@level/src/v2/oracles/CappedOneDollarOracle.sol";
 
 contract VaultManagerMainnetTests is Utils, Configurable {
     using SafeTransferLib for ERC20;
@@ -61,18 +62,12 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         deploySwapManager.setUp_(1, deployer.privateKey);
         config = deploySwapManager.run();
 
-        UpgradeVaultManager upgradeScript = new UpgradeVaultManager();
-
-        // Deploy
-
-        vm.prank(deployer.addr);
-        upgradeScript.setUp_(1, deployer.privateKey, config);
-
-        config = upgradeScript.run();
+        _upgradeVaultManager();
 
         // Setup strategist
         vm.prank(config.users.admin);
         _setupVaultsForTests();
+        _setupTreasuriesForTests();
 
         address[] memory targets = new address[](2);
         targets[0] = address(config.levelContracts.rolesAuthority);
@@ -150,6 +145,60 @@ contract VaultManagerMainnetTests is Utils, Configurable {
                 heartbeat: heartbeat
             });
         }
+    }
+
+    function _upgradeVaultManager() internal {
+        VaultManager impl = new VaultManager();
+        vm.prank(address(config.levelContracts.adminTimelock));
+        config.levelContracts.vaultManager.upgradeToAndCall(address(impl), "");
+    }
+
+    function _setupTreasuriesForTests() internal {
+        CappedOneDollarOracle mNavOracle = new CappedOneDollarOracle(address(config.oracles.mNav));
+
+        StrategyConfig memory ustbConfig = StrategyConfig({
+            category: StrategyCategory.SUPERSTATE,
+            baseCollateral: config.tokens.usdc,
+            receiptToken: config.tokens.ustb,
+            oracle: config.oracles.ustb,
+            depositContract: address(config.tokens.ustb),
+            withdrawContract: address(config.periphery.ustbRedemptionIdle),
+            heartbeat: 1 days
+        });
+
+        StrategyConfig memory mConfig = StrategyConfig({
+            category: StrategyCategory.M0,
+            baseCollateral: config.tokens.usdc,
+            receiptToken: config.tokens.wrappedM,
+            oracle: AggregatorV3Interface(address(mNavOracle)),
+            depositContract: address(config.levelContracts.swapManager),
+            withdrawContract: address(config.levelContracts.swapManager),
+            heartbeat: 26 hours
+        });
+
+        address[] memory targets = new address[](2);
+        targets[0] = address(config.levelContracts.vaultManager);
+        targets[1] = address(config.levelContracts.vaultManager);
+
+        bytes[] memory payloads = new bytes[](2);
+        // Add ustb as a strategy
+        payloads[0] = abi.encodeWithSelector(
+            config.levelContracts.vaultManager.addAssetStrategy.selector,
+            address(config.tokens.usdc),
+            address(config.tokens.ustb),
+            ustbConfig
+        );
+        // Add m as a strategy
+        payloads[1] = abi.encodeWithSelector(
+            config.levelContracts.vaultManager.addAssetStrategy.selector,
+            address(config.tokens.usdc),
+            address(config.tokens.wrappedM),
+            mConfig
+        );
+
+        _scheduleAndExecuteAdminActionBatch(
+            address(config.users.admin), address(config.levelContracts.adminTimelock), targets, payloads
+        );
     }
 
     function _setupVaultsForTests() internal {
@@ -269,7 +318,7 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         usdtDefaultStrategies[1] = address(config.morphoVaults.steakhouseUsdt.vault);
         usdtDefaultStrategies[2] = address(config.morphoVaults.steakhouseUsdtLite.vault);
 
-        address[] memory targets = new address[](7);
+        address[] memory targets = new address[](9);
         targets[0] = address(config.levelContracts.vaultManager);
         targets[1] = address(config.levelContracts.vaultManager);
         targets[2] = address(config.levelContracts.vaultManager);
@@ -277,8 +326,10 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         targets[4] = address(config.levelContracts.vaultManager);
         targets[5] = address(config.levelContracts.vaultManager);
         targets[6] = address(config.levelContracts.vaultManager);
+        targets[7] = address(config.levelContracts.rolesAuthority);
+        targets[8] = address(config.levelContracts.rolesAuthority);
 
-        bytes[] memory payloads = new bytes[](7);
+        bytes[] memory payloads = new bytes[](9);
         payloads[0] = abi.encodeWithSelector(
             VaultManager.addAssetStrategy.selector,
             address(config.tokens.usdc),
@@ -314,6 +365,22 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         );
         payloads[6] = abi.encodeWithSelector(
             VaultManager.setDefaultStrategies.selector, address(config.tokens.usdt), usdtDefaultStrategies
+        );
+        // Add cooldown operator capability to strategist role
+        payloads[7] = abi.encodeWithSelector(
+            config.levelContracts.rolesAuthority.setRoleCapability.selector,
+            STRATEGIST_ROLE,
+            address(config.levelContracts.vaultManager),
+            bytes4(abi.encodeWithSignature("modifyAaveUmbrellaCooldownOperator(address,address,bool)")),
+            true
+        );
+        // Add rewards claimer capability to strategist role
+        payloads[8] = abi.encodeWithSelector(
+            config.levelContracts.rolesAuthority.setRoleCapability.selector,
+            STRATEGIST_ROLE,
+            address(config.levelContracts.vaultManager),
+            bytes4(abi.encodeWithSignature("modifyAaveUmbrellaRewardsClaimer(address,address,bool)")),
+            true
         );
 
         _scheduleAndExecuteAdminActionBatch(

@@ -24,6 +24,8 @@ import {IERC4626Oracle} from "@level/src/v2/interfaces/level/IERC4626Oracle.sol"
 import {ILevelMintingV2Structs} from "@level/src/v2/interfaces/level/ILevelMintingV2.sol";
 import {lvlUSD} from "@level/src/v1/lvlUSD.sol";
 import {CappedOneDollarOracle} from "@level/src/v2/oracles/CappedOneDollarOracle.sol";
+import {ISuperstateToken} from "@level/src/v2/interfaces/superstate/ISuperstateToken.sol";
+import {IAllowListV2} from "@level/src/v2/interfaces/superstate/IAllowListV2.sol";
 
 contract RewardsManagerMainnetTests is Utils, Configurable {
     using SafeTransferLib for ERC20;
@@ -39,6 +41,8 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
 
     uint256 public constant INITIAL_BALANCE = 100_000_000e6;
     uint256 public constant INITIAL_SHARES = 200_000_000e18;
+
+    address public constant USTB_CHAINLINK_FEED = 0xE4fA682f94610cCd170680cc3B045d77D9E528a8;
 
     address[] public assets;
 
@@ -436,6 +440,105 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         // Get latest price from the oracle
         (, price,,,) = mNavOracle.latestRoundData();
         assertEq(price, 99e6, "Price should be 0.99 USD");
+    }
+
+    function test_sparkYield_succeeds(uint256 deposit) public {
+        deposit = bound(deposit, 1000, 1_000_000e6);
+
+        // Deposit some USDC into the spark vault
+        vm.prank(strategist.addr);
+        vaultManager.deposit(address(config.tokens.usdc), address(config.sparkVaults.sUsdc.vault), deposit);
+
+        // Preview deposit
+        uint256 expectedShares = config.sparkVaults.sUsdc.vault.convertToShares(deposit);
+
+        // Ensure we have the expected shares
+        assertEq(config.sparkVaults.sUsdc.vault.balanceOf(address(vaultManager.vault())), expectedShares);
+
+        // Get the accrued yield in the redemption asset's decimals
+        uint256 accruedYield = rewardsManager.getAccruedYield(assets);
+
+        // Accrued yield should be 0 at this point
+        assertApproxEqAbs(accruedYield, 0, 1, "Accrued yield should be 0");
+
+        // Travel to the future to get yield
+        vm.warp(block.timestamp + 10 days);
+
+        // Avoid stale prices
+        _mockChainlinkCall(address(config.oracles.ustb), 105e5); // 10.5 USD per USTB
+        _mockChainlinkCall(address(config.oracles.mNav), 1e8); // 1 USD per wrappedM
+
+        // Get the accrued yield in the redemption asset's decimals
+        accruedYield = rewardsManager.getAccruedYield(assets);
+
+        // Yield should be non-zero
+        assertGt(accruedYield, 0, "Accrued yield should be non-zero");
+
+        uint256 treasuryUsdcBalanceBefore = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
+
+        // Fuzz a yield amount between 0 and the accrued yield
+        uint256 yieldAmount;
+        yieldAmount = bound(yieldAmount, 1, accruedYield);
+
+        // Reward the yield
+        vm.prank(strategist.addr);
+        rewardsManager.reward(assets[0], yieldAmount);
+
+        uint256 treasuryUsdcBalanceAfter = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
+
+        assertApproxEqAbs(
+            treasuryUsdcBalanceAfter - treasuryUsdcBalanceBefore, yieldAmount, 2, "Rewarded amount does not match"
+        );
+    }
+
+    function test_ustbYield_succeeds(uint256 deposit) public {
+        deposit = bound(deposit, 1000, 1_000_000e6);
+
+        _mockChainlinkCall(USTB_CHAINLINK_FEED, 105e5); // 10.5 USD per USTB
+
+        (uint256 superstateTokenOutAmount,,) = ISuperstateToken(address(config.tokens.ustb)).calculateSuperstateTokenOut(
+            deposit, address(config.tokens.usdc)
+        );
+
+        // Superstate Allowlist V2 on Mainnet
+        IAllowListV2 allowList = IAllowListV2(0x02f1fA8B196d21c7b733EB2700B825611d8A38E5);
+        address[] memory addresses = new address[](1);
+        addresses[0] = address(config.levelContracts.boringVault);
+
+        vm.prank(allowList.owner());
+        allowList.setProtocolAddressPermissions(addresses, "USTB", true);
+
+        // Deposit some USDC into the ustb vault
+        vm.prank(strategist.addr);
+        vaultManager.deposit(address(config.tokens.usdc), address(config.tokens.ustb), deposit);
+
+        // Ensure we have the expected USTB
+        assertEq(config.tokens.ustb.balanceOf(address(vaultManager.vault())), superstateTokenOutAmount);
+
+        // Overtime, the USTB NAV will increase, and we will get yield
+        _mockChainlinkCall(address(config.oracles.ustb), 107e5); // 10.7 USD per USTB
+
+        // Get the accrued yield in the redemption asset's decimals
+        uint256 accruedYield = rewardsManager.getAccruedYield(assets);
+
+        // Yield should be non-zero
+        assertGt(accruedYield, 0, "Accrued yield should be non-zero");
+
+        uint256 treasuryUsdcBalanceBefore = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
+
+        // Fuzz a yield amount between 0 and the accrued yield
+        uint256 yieldAmount;
+        yieldAmount = bound(yieldAmount, 1, accruedYield);
+
+        // Reward the yield
+        vm.prank(strategist.addr);
+        rewardsManager.reward(assets[0], yieldAmount);
+
+        uint256 treasuryUsdcBalanceAfter = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
+
+        assertApproxEqAbs(
+            treasuryUsdcBalanceAfter - treasuryUsdcBalanceBefore, yieldAmount, 2, "Rewarded amount does not match"
+        );
     }
 
     // ------------- Internal Helpers -------------

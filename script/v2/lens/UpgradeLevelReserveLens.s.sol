@@ -73,26 +73,41 @@ contract UpgradeLevelReserveLens is Configurable, DeploymentUtils, Script {
             "LevelReserveLens Implementation                   : https://etherscan.io/address/%s", address(impl)
         );
 
-        // Call timelock to upgrade the proxy
-        vm.startBroadcast(config.users.admin);
-        console2.log("Scheduling upgrade of LevelReserveLens from proxy %s", address(proxy));
-        TimelockController timelock = TimelockController(payable(config.levelContracts.adminTimelock));
-        timelock.schedule(
-            address(proxy),
-            0,
-            abi.encodeWithSelector(proxy.upgradeToAndCall.selector, address(impl), ""),
-            bytes32(0),
-            0,
-            5 days
-        );
+        bool isTesting = vm.activeFork() != uint256(0);
 
-        vm.warp(block.timestamp + 5 days);
+        // Only execute timelock operations in test environment
+        if (isTesting) {
+            // Call timelock to upgrade the proxy
+            vm.startBroadcast(config.users.admin);
+            console2.log("Scheduling upgrade of LevelReserveLens from proxy %s", address(proxy));
 
-        timelock.execute(
-            address(proxy), 0, abi.encodeWithSelector(proxy.upgradeToAndCall.selector, address(impl), ""), bytes32(0), 0
-        );
+            TimelockController timelock = TimelockController(payable(config.levelContracts.adminTimelock));
+            timelock.schedule(
+                address(proxy),
+                0,
+                abi.encodeWithSelector(proxy.upgradeToAndCall.selector, address(impl), ""),
+                bytes32(0),
+                0,
+                5 days
+            );
 
-        vm.stopBroadcast();
+            vm.warp(block.timestamp + 5 days);
+
+            timelock.execute(
+                address(proxy),
+                0,
+                abi.encodeWithSelector(proxy.upgradeToAndCall.selector, address(impl), ""),
+                bytes32(0),
+                0
+            );
+
+            console2.log("=====> LevelReserveLens upgraded ....");
+            console2.log(
+                "LevelReserveLens Proxy address                  : https://etherscan.io/address/%s", address(proxy)
+            );
+
+            vm.stopBroadcast();
+        }
 
         // verify(impl);
     }

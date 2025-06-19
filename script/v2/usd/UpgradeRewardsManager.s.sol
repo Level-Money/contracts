@@ -68,32 +68,9 @@ contract UpgradeRewardsManager is Configurable, DeploymentUtils, Script {
         console2.log("=====> RewardsManager deployed ....");
         console2.log("RewardsManager Implementation                   : https://etherscan.io/address/%s", address(impl));
 
-        vm.startBroadcast(config.users.admin);
-
-        console2.log("Upgrading RewardsManager from proxy %s", address(proxy));
-        console2.log("New implementation: %s", address(impl));
-
-        try proxy.upgradeToAndCall(address(impl), "") {
-            console2.log("Upgrade successful!");
-        } catch {
-            revert UpgradeFailed();
-        }
-
-        vm.stopBroadcast();
-
-        // verify(impl);
-
-        /*   STEPS AFTER UPGRADE
-
-        - Add all strategies
-
-        StrategyConfig[] memory usdcConfigs = new StrategyConfig[](3);
-        usdcConfigs[0] = aUsdcConfig;
-        usdcConfigs[1] = steakhouseUsdcConfig;
-        usdcConfigs[2] = sUsdcConfig;
-
-        config.levelContracts.rewardsManager.setAllStrategies(address(config.tokens.usdc), usdcConfigs);
-        */
+        // Since RewardsManager is owned by timelock, we cannot directly upgrade the proxy
+        // For a real deployment, use the above implementation address to externally schedule a proxy upgrade
+        // through the timelock.
     }
 
     function verify(RewardsManager manager) public view {
