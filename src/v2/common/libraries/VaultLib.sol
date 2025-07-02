@@ -543,13 +543,36 @@ library VaultLib {
         internal
         returns (uint256 staked)
     {
-        IERC4626StakeToken stakeToken = IERC4626StakeToken(_config.depositContract);
+        // config.baseCollateral is the USDC/USDT token
+        // config.depositContract is the Aave Umbrella contract (stwaToken)
+        // config.receiptToken is also stwaToken
 
-        // Wrap the aTokens
+        // Supply baseCollateral to Aave in order to get aToken
+        IERC4626StakeToken stakeToken = IERC4626StakeToken(_config.depositContract);
         IERC4626StataToken stataToken = IERC4626StataToken(stakeToken.asset());
-        vault.setTokenAllowance(address(_config.baseCollateral), address(stataToken), amount);
+        address aToken = stataToken.aToken();
+
+        address aaveV3 = _getAaveV3Pool();
+        vault.setTokenAllowance(address(_config.baseCollateral), aaveV3, amount);
+        uint256 sharesBefore = ERC20(aToken).balanceOf(address(vault));
+
+        vault.manage(
+            address(aaveV3),
+            abi.encodeWithSignature(
+                "supply(address,uint256,address,uint16)", address(_config.baseCollateral), amount, address(vault), 0
+            ),
+            0
+        );
+
+        uint256 sharesAfter = ERC20(aToken).balanceOf(address(vault));
+        uint256 aTokenBalance = sharesAfter - sharesBefore;
+
+        // Wrap the aTokens into waTokens
+        vault.setTokenAllowance(aToken, address(stataToken), aTokenBalance);
         bytes memory sharesRaw = vault.manage(
-            address(stataToken), abi.encodeWithSignature("depositATokens(uint256,address)", amount, address(vault)), 0
+            address(stataToken),
+            abi.encodeWithSignature("depositATokens(uint256,address)", aTokenBalance, address(vault)),
+            0
         );
         uint256 shares = abi.decode(sharesRaw, (uint256));
 

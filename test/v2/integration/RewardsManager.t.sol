@@ -11,6 +11,7 @@ import {VaultManager} from "@level/src/v2/usd/VaultManager.sol";
 import {RewardsManager} from "@level/src/v2/usd/RewardsManager.sol";
 import {SafeTransferLib} from "@solmate/src/utils/SafeTransferLib.sol";
 import {ERC4626} from "@solmate/src/tokens/ERC4626.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {MathLib} from "@level/src/v2/common/libraries/MathLib.sol";
 import {StrategyConfig, StrategyLib, StrategyCategory} from "@level/src/v2/common/libraries/StrategyLib.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -26,6 +27,7 @@ import {lvlUSD} from "@level/src/v1/lvlUSD.sol";
 import {CappedOneDollarOracle} from "@level/src/v2/oracles/CappedOneDollarOracle.sol";
 import {ISuperstateToken} from "@level/src/v2/interfaces/superstate/ISuperstateToken.sol";
 import {IAllowListV2} from "@level/src/v2/interfaces/superstate/IAllowListV2.sol";
+import {AaveUmbrellaOracle} from "@level/src/v2/oracles/AaveUmbrellaOracle.sol";
 
 contract RewardsManagerMainnetTests is Utils, Configurable {
     using SafeTransferLib for ERC20;
@@ -47,21 +49,24 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
     address[] public assets;
 
     function setUp() public {
-        forkMainnet(22305203);
+        forkMainnet(22664895);
 
         deployer = vm.createWallet("deployer");
         strategist = vm.createWallet("strategist");
 
-        DeployLevel deployScript = new DeployLevel();
-
-        // Deploy
-
-        vm.prank(deployer.addr);
-        deployScript.setUp_(1, deployer.privateKey);
-
-        config = deployScript.run();
+        initConfig(1);
+        _upgradeRewardsManager();
+        _upgradeVaultManager();
 
         mockOracle = new MockOracle(1e8, 8);
+
+        // Since we are using a fork, the vault has exisiting balances of various strategies
+        // The tests are designed according to zero initial balances
+        _resetTokenBalance(config.tokens.aUsdc, address(config.levelContracts.boringVault));
+        _resetTokenBalance(config.tokens.aUsdt, address(config.levelContracts.boringVault));
+        _resetTokenBalance(
+            ERC20(address(config.morphoVaults.steakhouseUsdc.vault)), address(config.levelContracts.boringVault)
+        );
 
         // Setup strategist
         address[] memory targets = new address[](4);
@@ -299,21 +304,124 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         vm.startPrank(strategist.addr);
         uint256 accrued = 1000e6;
         config.tokens.aUsdc.transfer(address(rewardsManager.vault()), accrued);
-        console2.log("Transferring aUSDC to vault");
 
         // Call getAccruedYield - should not revert
         uint256 yield = rewardsManager.getAccruedYield(assets);
         assertGt(yield, 0, "Should have accrued some yield");
     }
 
-    function test_rewardYield_morphoYield_succeeds2(uint256 deposit) public {
-        deposit = bound(deposit, 2000, 500000e6);
+    function test_rewardYield_aaveUmbrellaYield_succeeds(uint256 deposit) public {
+        deposit = bound(deposit, 1e6, 500_000e6);
         deal(address(config.tokens.usdc), address(strategist.addr), deposit);
 
-        vm.startPrank(config.users.admin);
-        lvlUSD _lvlUSD = lvlUSD(address(config.tokens.lvlUsd));
-        _lvlUSD.setMinter(address(config.levelContracts.levelMintingV2));
-        vm.stopPrank();
+        // Set Umbrella as a default strategy
+        address[] memory defaultStrategies = new address[](1);
+        defaultStrategies[0] = address(config.umbrellaVaults.waUsdcStakeToken.vault);
+
+        // Set oracle
+        if (address(config.umbrellaVaults.waUsdcStakeToken.oracle) == address(0)) {
+            AaveUmbrellaOracle oracle = new AaveUmbrellaOracle(config.umbrellaVaults.waUsdcStakeToken.vault);
+            config.umbrellaVaults.waUsdcStakeToken.oracle = IERC4626Oracle(address(oracle));
+        }
+
+        StrategyConfig[] memory strategies = new StrategyConfig[](1);
+        strategies[0] = StrategyConfig({
+            category: StrategyCategory.AAVEV3_UMBRELLA,
+            baseCollateral: config.tokens.usdc,
+            receiptToken: ERC20(address(config.umbrellaVaults.waUsdcStakeToken.vault)),
+            oracle: config.umbrellaVaults.waUsdcStakeToken.oracle,
+            depositContract: address(config.umbrellaVaults.waUsdcStakeToken.vault),
+            withdrawContract: address(config.umbrellaVaults.waUsdcStakeToken.vault),
+            heartbeat: 1 days
+        });
+
+        address[] memory targets = new address[](4);
+        targets[0] = address(config.levelContracts.vaultManager);
+        targets[1] = address(config.levelContracts.vaultManager);
+        targets[2] = address(config.levelContracts.rewardsManager);
+        targets[3] = address(config.levelContracts.levelMintingV2);
+
+        bytes[] memory payloads = new bytes[](4);
+        // VaultManager.addAssetStrategy
+        payloads[0] = abi.encodeWithSelector(
+            VaultManager.addAssetStrategy.selector,
+            address(config.tokens.usdc),
+            address(config.umbrellaVaults.waUsdcStakeToken.vault),
+            strategies[0]
+        );
+        // VaultManager.setDefaultStrategies
+        payloads[1] = abi.encodeWithSignature(
+            "setDefaultStrategies(address,address[])", address(config.tokens.usdc), defaultStrategies
+        );
+        // RewardsManager.setAllStrategies
+        payloads[2] =
+            abi.encodeWithSelector(RewardsManager.setAllStrategies.selector, address(config.tokens.usdc), strategies);
+        payloads[3] = abi.encodeWithSignature(
+            "addOracle(address,address,bool)", address(config.tokens.usdc), address(mockOracle), false
+        );
+
+        _scheduleAndExecuteAdminActionBatch(
+            address(config.users.admin), address(config.levelContracts.adminTimelock), targets, payloads
+        );
+
+        vm.startPrank(strategist.addr);
+
+        // Approve USDC
+        ERC20(address(config.tokens.usdc)).safeApprove(address(config.levelContracts.boringVault), type(uint256).max);
+
+        uint256 vaultSharesBefore = vaultManager.vault().balanceOf(address(vaultManager.vault()));
+
+        // Use levelMinting to mint
+        config.levelContracts.levelMintingV2.mint(
+            ILevelMintingV2Structs.Order({
+                collateral_asset: address(config.tokens.usdc),
+                collateral_amount: deposit,
+                min_lvlusd_amount: 0,
+                beneficiary: address(strategist.addr)
+            })
+        );
+
+        uint256 vaultSharesAfter = vaultManager.vault().balanceOf(address(vaultManager.vault()));
+
+        // Expected waUsdc balance after depositing aUsdc
+        // This will also be the stk-waUsdc balance as waUsdc and stk-waUsdc are 1:1
+        uint256 expectedWrappedBalance =
+            IERC4626(config.umbrellaVaults.waUsdcStakeToken.vault.asset()).previewDeposit(deposit);
+
+        // Ensure that the vault has the correct amount of assets
+        assertApproxEqAbs(
+            config.umbrellaVaults.waUsdcStakeToken.vault.balanceOf(address(vaultManager.vault())),
+            expectedWrappedBalance,
+            1,
+            "Vault should have the correct amount of assets"
+        );
+
+        assertApproxEqRel(
+            vaultSharesAfter - vaultSharesBefore,
+            deposit.convertDecimalsDown(ERC20(address(config.tokens.usdc)).decimals(), vaultManager.vault().decimals()),
+            0.0001e18,
+            "Vault shares do not match"
+        );
+
+        // Get assets in strategy
+        uint256 assetsInUmbrella =
+            _getAssetsInStrategy(address(config.tokens.usdc), address(config.umbrellaVaults.waUsdcStakeToken.vault));
+
+        assertApproxEqRel(assetsInUmbrella, deposit, 0.0001e18, "Assets in strategy do not match");
+
+        vm.warp(block.timestamp + 100 days);
+
+        // Get Accrued yield
+        uint256 accruedYield = rewardsManager.getAccruedYield(assets).convertDecimalsDown(
+            vaultManager.vault().decimals(), ERC20(assets[0]).decimals()
+        );
+        assertGt(accruedYield, 0, "Accrued yield should be greater than 0");
+    }
+
+    function test_rewardYield_morphoYield_succeeds2(uint256 deposit) public {
+        deposit = bound(deposit, 2000, 500_000e6);
+        deal(address(config.tokens.usdc), address(strategist.addr), deposit);
+
         uint256 treasuryUsdcBalanceBefore = config.tokens.usdc.balanceOf(config.users.protocolTreasury);
 
         // Create a mock vault to simulate Morpho and manipulate yield
@@ -442,8 +550,47 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         assertEq(price, 99e6, "Price should be 0.99 USD");
     }
 
+    function test_aaveUmbrellaOracle_succeeds() public {
+        AaveUmbrellaOracle oracle = new AaveUmbrellaOracle(config.umbrellaVaults.waUsdcStakeToken.vault);
+        (, int256 price,,,) = oracle.latestRoundData(); // Price of 1 stwaToken in USD
+        assertGt(price, 1e6, "Price should be greater than 1 USD");
+    }
+
     function test_sparkYield_succeeds(uint256 deposit) public {
         deposit = bound(deposit, 1000, 1_000_000e6);
+
+        if (address(config.sparkVaults.sUsdc.oracle) == address(0)) {
+            config.sparkVaults.sUsdc.oracle = deployERC4626Oracle(config.sparkVaults.sUsdc.vault, 4 hours);
+        }
+
+        // Add spark as a strategy
+        StrategyConfig[] memory strategies = new StrategyConfig[](1);
+        strategies[0] = StrategyConfig({
+            category: StrategyCategory.SPARK,
+            baseCollateral: config.tokens.usdc,
+            receiptToken: ERC20(address(config.sparkVaults.sUsdc.vault)),
+            oracle: config.sparkVaults.sUsdc.oracle,
+            depositContract: address(config.sparkVaults.sUsdc.vault),
+            withdrawContract: address(config.sparkVaults.sUsdc.vault),
+            heartbeat: 1 days
+        });
+
+        address[] memory targets = new address[](2);
+        targets[0] = address(config.levelContracts.vaultManager);
+        targets[1] = address(config.levelContracts.rewardsManager);
+
+        bytes[] memory payloads = new bytes[](2);
+        payloads[0] = abi.encodeWithSelector(
+            VaultManager.addAssetStrategy.selector,
+            address(config.tokens.usdc),
+            address(config.sparkVaults.sUsdc.vault),
+            strategies[0]
+        );
+        payloads[1] =
+            abi.encodeWithSelector(RewardsManager.setAllStrategies.selector, address(config.tokens.usdc), strategies);
+        _scheduleAndExecuteAdminActionBatch(
+            address(config.users.admin), address(config.levelContracts.adminTimelock), targets, payloads
+        );
 
         // Deposit some USDC into the spark vault
         vm.prank(strategist.addr);
@@ -463,10 +610,6 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
 
         // Travel to the future to get yield
         vm.warp(block.timestamp + 10 days);
-
-        // Avoid stale prices
-        _mockChainlinkCall(address(config.oracles.ustb), 105e5); // 10.5 USD per USTB
-        _mockChainlinkCall(address(config.oracles.mNav), 1e8); // 1 USD per wrappedM
 
         // Get the accrued yield in the redemption asset's decimals
         accruedYield = rewardsManager.getAccruedYield(assets);
@@ -493,6 +636,35 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
 
     function test_ustbYield_succeeds(uint256 deposit) public {
         deposit = bound(deposit, 1000, 1_000_000e6);
+
+        // Add ustb as a strategy
+        StrategyConfig[] memory strategies = new StrategyConfig[](1);
+        strategies[0] = StrategyConfig({
+            category: StrategyCategory.SUPERSTATE,
+            baseCollateral: config.tokens.usdc,
+            receiptToken: config.tokens.ustb,
+            oracle: config.oracles.ustb,
+            depositContract: address(config.tokens.ustb),
+            withdrawContract: address(config.periphery.ustbRedemptionIdle),
+            heartbeat: 1 days
+        });
+
+        address[] memory targets = new address[](2);
+        targets[0] = address(config.levelContracts.vaultManager);
+        targets[1] = address(config.levelContracts.rewardsManager);
+
+        bytes[] memory payloads = new bytes[](2);
+        payloads[0] = abi.encodeWithSelector(
+            VaultManager.addAssetStrategy.selector,
+            address(config.tokens.usdc),
+            address(config.tokens.ustb),
+            strategies[0]
+        );
+        payloads[1] =
+            abi.encodeWithSelector(RewardsManager.setAllStrategies.selector, address(config.tokens.usdc), strategies);
+        _scheduleAndExecuteAdminActionBatch(
+            address(config.users.admin), address(config.levelContracts.adminTimelock), targets, payloads
+        );
 
         _mockChainlinkCall(USTB_CHAINLINK_FEED, 105e5); // 10.5 USD per USTB
 
@@ -616,5 +788,41 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
 
     function _printBalance(address asset, address vault) internal {
         console2.log(vm.getLabel(asset), ERC20(asset).balanceOf(vault));
+    }
+
+    function deployERC4626Oracle(IERC4626 vault, uint256 delay) public returns (IERC4626Oracle) {
+        if (address(config.levelContracts.erc4626OracleFactory) == address(0)) {
+            revert("ERC4626OracleFactory must be deployed first");
+        }
+
+        IERC4626Oracle _erc4626Oracle = IERC4626Oracle(config.levelContracts.erc4626OracleFactory.create(vault));
+        vm.label(address(_erc4626Oracle), string.concat(vault.name(), " Oracle"));
+
+        return _erc4626Oracle;
+    }
+
+    function _upgradeRewardsManager() internal {
+        RewardsManager impl = new RewardsManager();
+        vm.prank(address(config.levelContracts.adminTimelock));
+        config.levelContracts.rewardsManager.upgradeToAndCall(address(impl), "");
+    }
+
+    function _upgradeVaultManager() internal {
+        VaultManager impl = new VaultManager();
+        vm.prank(address(config.levelContracts.adminTimelock));
+        config.levelContracts.vaultManager.upgradeToAndCall(address(impl), "");
+    }
+
+    function _resetTokenBalance(ERC20 token, address account) internal {
+        uint256 balance = token.balanceOf(account);
+        if (balance == 0) {
+            return;
+        }
+
+        // In case of tokens like aUsdc, we cannot use deal() to reset the balance
+
+        vm.prank(account);
+        token.transfer(strategist.addr, balance);
+        return;
     }
 }
