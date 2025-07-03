@@ -656,16 +656,17 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         assertApproxEqAbs(balance, expectedStakedBalance, 1, "Wrong amount of stk-waToken");
     }
 
-    function test_wrappingOfaUsdcToWaUsdc_succeeds(uint256 deposit) public {
+    function test_wrappingOfUsdcToWaUsdc_succeeds(uint256 deposit) public {
         deposit = bound(deposit, 1e3, INITIAL_BALANCE);
+        deal(address(config.tokens.usdc), strategist.addr, deposit);
         vm.startPrank(strategist.addr);
 
-        IERC4626StataToken stataToken = IERC4626StataToken(config.umbrellaVaults.waUsdcStakeToken.vault.asset());
+        IERC4626 stataToken = IERC4626(config.umbrellaVaults.waUsdcStakeToken.vault.asset());
 
         uint256 expectedWrappedBalance = IERC4626(address(stataToken)).previewDeposit(deposit);
 
-        config.tokens.aUsdc.approve(address(stataToken), deposit);
-        stataToken.depositATokens(deposit, strategist.addr);
+        config.tokens.usdc.approve(address(stataToken), deposit);
+        stataToken.deposit(deposit, strategist.addr);
 
         // Check we received the correct amount of waUsdc
         assertEq(IERC4626(address(stataToken)).balanceOf(strategist.addr), expectedWrappedBalance);
@@ -682,10 +683,7 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         deposit = bound(deposit, 1e3, INITIAL_BALANCE);
         vm.startPrank(strategist.addr);
 
-        // Need to get some aUsdc into the vault
-        config.tokens.aUsdc.transfer(address(config.levelContracts.boringVault), deposit);
-
-        // Deposit aUsdc into the vault
+        // Deposit USDC into the vault
         vaultManager.deposit(
             address(config.tokens.usdc), address(config.umbrellaVaults.waUsdcStakeToken.vault), deposit
         );
@@ -705,13 +703,17 @@ contract VaultManagerMainnetTests is Utils, Configurable {
 
         vm.startPrank(strategist.addr);
         // Withdraw from the vault
-        vaultManager.withdraw(
+        uint256 withdrawn = vaultManager.withdraw(
             address(config.tokens.usdc), address(config.umbrellaVaults.waUsdcStakeToken.vault), deposit
         );
 
-        // Check we received the correct amount of aUsdc
-        assertGe(
-            config.tokens.aUsdc.balanceOf(address(config.levelContracts.boringVault)), deposit, "Wrong amount of aUsdc"
+        assertApproxEqAbs(withdrawn, deposit, 1, "Wrong amount of withdrawn");
+
+        assertApproxEqAbs(
+            config.tokens.usdc.balanceOf(address(config.levelContracts.boringVault)),
+            INITIAL_BALANCE,
+            1,
+            "Wrong amount of usdc after withdrawal"
         );
     }
 

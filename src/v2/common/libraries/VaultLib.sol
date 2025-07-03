@@ -546,45 +546,24 @@ library VaultLib {
         // config.baseCollateral is the USDC/USDT token
         // config.depositContract is the Aave Umbrella contract (stwaToken)
         // config.receiptToken is also stwaToken
-
-        // Supply baseCollateral to Aave in order to get aToken
         IERC4626StakeToken stakeToken = IERC4626StakeToken(_config.depositContract);
-        IERC4626StataToken stataToken = IERC4626StataToken(stakeToken.asset());
-        address aToken = stataToken.aToken();
+        IERC4626 stataToken = IERC4626(stakeToken.asset());
 
-        address aaveV3 = _getAaveV3Pool();
-        vault.setTokenAllowance(address(_config.baseCollateral), aaveV3, amount);
-        uint256 sharesBefore = ERC20(aToken).balanceOf(address(vault));
-
-        vault.manage(
-            address(aaveV3),
-            abi.encodeWithSignature(
-                "supply(address,uint256,address,uint16)", address(_config.baseCollateral), amount, address(vault), 0
-            ),
-            0
-        );
-
-        uint256 sharesAfter = ERC20(aToken).balanceOf(address(vault));
-        uint256 aTokenBalance = sharesAfter - sharesBefore;
-
-        // Wrap the aTokens into waTokens
-        vault.setTokenAllowance(aToken, address(stataToken), aTokenBalance);
+        // Convert Token to waToken
+        vault.setTokenAllowance(address(_config.baseCollateral), address(stataToken), amount);
         bytes memory sharesRaw = vault.manage(
-            address(stataToken),
-            abi.encodeWithSignature("depositATokens(uint256,address)", aTokenBalance, address(vault)),
-            0
+            address(stataToken), abi.encodeWithSignature("deposit(uint256,address)", amount, address(vault)), 0
         );
-        uint256 shares = abi.decode(sharesRaw, (uint256));
+
+        uint256 waTokenBalance = abi.decode(sharesRaw, (uint256)); // waToken
 
         // Stake waTokens with Aave Umbrella
-        vault.setTokenAllowance(address(stataToken), address(_config.depositContract), shares);
+        vault.setTokenAllowance(address(stataToken), address(stakeToken), waTokenBalance);
         bytes memory stakedRaw = vault.manage(
-            address(_config.depositContract),
-            abi.encodeWithSignature("deposit(uint256,address)", shares, address(vault)),
-            0
+            address(stakeToken), abi.encodeWithSignature("deposit(uint256,address)", waTokenBalance, address(vault)), 0
         );
 
-        uint256 staked_ = abi.decode(stakedRaw, (uint256));
+        uint256 staked_ = abi.decode(stakedRaw, (uint256)); // st-waToken
 
         emit StakeToAaveUmbrella(address(vault), address(_config.baseCollateral), amount, staked_);
 
@@ -594,7 +573,7 @@ library VaultLib {
     /// @notice Unstakes waTokens from Aave Umbrella
     /// @param vault The vault address
     /// @param _config The strategy config
-    /// @param amount The amount of assets to unstake
+    /// @param amount The amount of assets to unstake (USDC/USDT)
     /// @return unstaked The amount of assets unstaked
     function _unstakeFromAaveUmbrella(BoringVault vault, StrategyConfig memory _config, uint256 amount)
         internal
@@ -602,39 +581,47 @@ library VaultLib {
     {
         // Get cooldown snapshot
         IERC4626StakeToken stakeToken = IERC4626StakeToken(_config.depositContract);
-        IERC4626StataToken stataToken = IERC4626StataToken(stakeToken.asset());
+        IERC4626 stataToken = IERC4626(stakeToken.asset()); // waToken
+        // cooldownSnapshot.amount is st-waToken
         IERC4626StakeToken.CooldownSnapshot memory cooldownSnapshot = stakeToken.getStakerCooldown(address(vault));
 
         if (
             block.timestamp > cooldownSnapshot.endOfCooldown
                 && block.timestamp - cooldownSnapshot.endOfCooldown <= cooldownSnapshot.withdrawalWindow
         ) {
-            if (amount > cooldownSnapshot.amount) {
-                amount = cooldownSnapshot.amount;
+            // How much waToken needs to be withdrawn to get the given amount of USDC/USDT
+            uint256 waTokenAmount = stataToken.previewWithdraw(amount);
+
+            // Check cooldown limits
+            uint256 maxWithdrawal = stakeToken.maxWithdraw(address(vault));
+            if (waTokenAmount > maxWithdrawal) {
+                waTokenAmount = maxWithdrawal;
             }
 
             // We're in the withdrawal window
             bytes memory unstakedRaw = vault.manage(
                 address(stakeToken),
-                abi.encodeWithSignature("redeem(uint256,address,address)", amount, address(vault), address(vault)),
+                abi.encodeWithSignature(
+                    "withdraw(uint256,address,address)", waTokenAmount, address(vault), address(vault)
+                ),
                 0
             );
 
             uint256 wrappedATokens = abi.decode(unstakedRaw, (uint256));
 
-            bytes memory aTokensRaw = vault.manage(
+            bytes memory tokensRaw = vault.manage(
                 address(stataToken),
                 abi.encodeWithSignature(
-                    "redeemATokens(uint256,address,address)", wrappedATokens, address(vault), address(vault)
+                    "redeem(uint256,address,address)", wrappedATokens, address(vault), address(vault)
                 ),
                 0
             );
 
-            uint256 aTokens = abi.decode(aTokensRaw, (uint256));
+            uint256 tokens = abi.decode(tokensRaw, (uint256));
 
-            emit UnstakeFromAaveUmbrella(address(vault), address(_config.baseCollateral), amount, aTokens);
+            emit UnstakeFromAaveUmbrella(address(vault), address(_config.baseCollateral), amount, tokens);
 
-            return aTokens;
+            return tokens;
         } else {
             // We're not in the withdrawal window, need to call cooldown
             revert("VaultManager: not in withdrawal window, call cooldown first");
