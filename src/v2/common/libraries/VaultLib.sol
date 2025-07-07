@@ -145,23 +145,25 @@ library VaultLib {
         uint256 strategyBalance;
         uint256 remainingAmount = amount;
         withdrawn = 0;
+        uint256 i = 0;
 
-        for (uint256 i; i < strategies.length; i++) {
+        while (i < strategies.length && remainingAmount > 0) {
             StrategyConfig memory config = strategies[i];
 
             strategyBalance = StrategyLib.getAssets(config, address(vault));
 
             if (strategyBalance == 0) {
+                i++;
                 continue;
             }
             if (remainingAmount > strategyBalance) {
                 withdrawn += _withdraw(vault, config, strategyBalance);
-                remainingAmount -= strategyBalance;
             } else {
                 withdrawn += _withdraw(vault, config, remainingAmount);
-
-                break;
             }
+
+            remainingAmount = amount - withdrawn;
+            i++;
         }
 
         return withdrawn;
