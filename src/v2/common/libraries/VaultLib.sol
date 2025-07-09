@@ -162,10 +162,10 @@ library VaultLib {
                 withdrawn += _withdraw(vault, config, remainingAmount);
             }
 
-            if (withdrawn > remainingAmount) {
+            if (withdrawn > amount) {
                 remainingAmount = 0;
             } else {
-            remainingAmount = amount - withdrawn;
+                remainingAmount = amount - withdrawn;
             }
 
             i++;
