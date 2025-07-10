@@ -348,6 +348,11 @@ library VaultLib {
     }
 
     /// @notice Deposits assets into Spark
+    ///
+    /// @dev In the future, Spark may charge fees on deposits.
+    /// Depositing into spark inclues PSM fees for converting between USDC, DAI, and USDS
+    /// These are all currently set to 0, but may change in the future.
+    ///
     /// @param vault The vault address
     /// @param _config The strategy config
     /// @param amount The amount of assets to deposit
@@ -372,6 +377,11 @@ library VaultLib {
     }
 
     /// @notice Withdraws assets from Spark
+    ///
+    /// @dev In the future, Spark may charge fees on withdrawals.
+    /// Withdrawing from spark includes PSM fees for converting between USDC, DAI, and USDS
+    /// These are all currently set to 0, but may change in the future.
+    ///
     /// @param vault The vault address
     /// @param _config The strategy config
     /// @param amount The amount of assets to withdraw
