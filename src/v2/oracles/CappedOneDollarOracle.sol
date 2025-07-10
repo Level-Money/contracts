@@ -22,11 +22,15 @@ import {AggregatorV3Interface} from "@level/src/v2/interfaces/AggregatorV3Interf
  * @notice Oracle that returns the lower of 1 dollar or the price from another oracle
  */
 contract CappedOneDollarOracle is AggregatorV3Interface {
-    uint8 public constant override decimals = 8;
+    error InvalidExternalOracle();
+
+    uint8 public immutable decimals;
     AggregatorV3Interface public immutable externalOracle;
 
     constructor(address _externalOracle) {
+        if (_externalOracle == address(0)) revert InvalidExternalOracle();
         externalOracle = AggregatorV3Interface(_externalOracle);
+        decimals = externalOracle.decimals();
     }
 
     function description() external pure override returns (string memory) {
@@ -45,8 +49,8 @@ contract CappedOneDollarOracle is AggregatorV3Interface {
     {
         (roundId, answer, startedAt, updatedAt, answeredInRound) = externalOracle.getRoundData(_roundId);
 
-        // Cap the price at $1.00 (1e8)
-        int256 capped = answer < 1e8 ? answer : int256(1e8);
+        // Cap the price at $1.00 (10 ** decimals)
+        int256 capped = answer < int256(10 ** decimals) ? answer : int256(10 ** decimals);
 
         return (roundId, capped, startedAt, updatedAt, answeredInRound);
     }
@@ -60,8 +64,8 @@ contract CappedOneDollarOracle is AggregatorV3Interface {
         (uint80 extRoundId, int256 extAnswer, uint256 extStartedAt, uint256 extUpdatedAt, uint80 extAnsweredInRound) =
             externalOracle.latestRoundData();
 
-        // Cap the price at $1.00 (1e8)
-        int256 capped = extAnswer < 1e8 ? extAnswer : int256(1e8);
+        // Cap the price at $1.00 (10 ** decimals)
+        int256 capped = extAnswer < int256(10 ** decimals) ? extAnswer : int256(10 ** decimals);
 
         return (extRoundId, capped, extStartedAt, extUpdatedAt, extAnsweredInRound);
     }
