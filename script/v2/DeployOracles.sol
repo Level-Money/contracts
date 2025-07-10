@@ -6,6 +6,7 @@ import {Vm} from "forge-std/Vm.sol";
 import {CappedOneDollarOracle} from "@level/src/v2/oracles/CappedOneDollarOracle.sol";
 import {IERC4626Oracle} from "@level/src/v2/interfaces/level/IERC4626Oracle.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {AaveUmbrellaOracle} from "@level/src/v2/oracles/AaveUmbrellaOracle.sol";
 
 import {DeploymentUtils} from "@level/script/v2/DeploymentUtils.s.sol";
 import {Configurable} from "@level/config/Configurable.sol";
@@ -66,8 +67,8 @@ contract DeployOracles is Configurable, DeploymentUtils, Script {
         console2.log("sUsdcOracle deployed to: %s", address(config.sparkVaults.sUsdc.oracle));
 
         // Deploy waUsdcStakeTokenOracle
-        config.umbrellaVaults.waUsdcStakeToken.oracle =
-            deployERC4626Oracle(config.umbrellaVaults.waUsdcStakeToken.vault);
+        AaveUmbrellaOracle oracle = new AaveUmbrellaOracle(config.umbrellaVaults.waUsdcStakeToken.vault);
+        config.umbrellaVaults.waUsdcStakeToken.oracle = IERC4626Oracle(address(oracle));
         console2.log("waUsdcStakeTokenOracle deployed to: %s", address(config.umbrellaVaults.waUsdcStakeToken.oracle));
 
         vm.stopBroadcast();

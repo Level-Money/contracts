@@ -24,6 +24,7 @@ import {DeploySwapManager} from "@level/script/v2/usd/DeploySwapManager.s.sol";
 import {IERC4626StataToken} from "@level/src/v2/interfaces/aave/IERC4626StataToken.sol";
 import {IERC4626StakeToken} from "@level/src/v2/interfaces/aave/IERC4626StakeToken.sol";
 import {CappedOneDollarOracle} from "@level/src/v2/oracles/CappedOneDollarOracle.sol";
+import {AaveUmbrellaOracle} from "@level/src/v2/oracles/AaveUmbrellaOracle.sol";
 
 contract VaultManagerMainnetTests is Utils, Configurable {
     using SafeTransferLib for ERC20;
@@ -242,8 +243,8 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         }
 
         if (address(config.umbrellaVaults.waUsdcStakeToken.oracle) == address(0)) {
-            config.umbrellaVaults.waUsdcStakeToken.oracle =
-                deployERC4626Oracle(config.umbrellaVaults.waUsdcStakeToken.vault, 4 hours);
+            AaveUmbrellaOracle oracle = new AaveUmbrellaOracle(config.umbrellaVaults.waUsdcStakeToken.vault);
+            config.umbrellaVaults.waUsdcStakeToken.oracle = IERC4626Oracle(address(oracle));
         }
 
         //--------------- Add test Morpho vaults as strategies
@@ -299,7 +300,7 @@ contract VaultManagerMainnetTests is Utils, Configurable {
 
         umbrellaConfig = StrategyConfig({
             category: StrategyCategory.AAVEV3_UMBRELLA,
-            baseCollateral: config.tokens.aUsdc,
+            baseCollateral: config.tokens.usdc,
             receiptToken: ERC20(address(config.umbrellaVaults.waUsdcStakeToken.vault)),
             oracle: config.umbrellaVaults.waUsdcStakeToken.oracle,
             depositContract: address(config.umbrellaVaults.waUsdcStakeToken.vault),
@@ -634,17 +635,16 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         deposit = bound(deposit, 1e3, INITIAL_BALANCE);
         vm.startPrank(strategist.addr);
 
-        // Need to get some aUsdc into the vault
-        config.tokens.aUsdc.transfer(address(config.levelContracts.boringVault), deposit);
-
-        // Deposit aUsdc into the vault
+        // Deposit USDC into the vault
         vaultManager.deposit(
             address(config.tokens.usdc), address(config.umbrellaVaults.waUsdcStakeToken.vault), deposit
         );
 
+        // Expected waUsdc balance after depositing aUsdc
         uint256 expectedWrappedBalance =
             IERC4626(config.umbrellaVaults.waUsdcStakeToken.vault.asset()).previewDeposit(deposit);
 
+        // Expected stk-waToken balance after depositing waUsdc
         uint256 expectedStakedBalance =
             config.umbrellaVaults.waUsdcStakeToken.vault.previewDeposit(expectedWrappedBalance);
 
@@ -656,22 +656,25 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         assertApproxEqAbs(balance, expectedStakedBalance, 1, "Wrong amount of stk-waToken");
     }
 
-    function test_wrappingOfaUsdcToWaUsdc_succeeds(uint256 deposit) public {
+    function test_wrappingOfUsdcToWaUsdc_succeeds(uint256 deposit) public {
         deposit = bound(deposit, 1e3, INITIAL_BALANCE);
+        deal(address(config.tokens.usdc), strategist.addr, deposit);
         vm.startPrank(strategist.addr);
 
-        uint256 aUsdcBalance = config.tokens.aUsdc.balanceOf(strategist.addr);
-        console2.log("aUsdcBalance", aUsdcBalance);
-
-        IERC4626StataToken stataToken = IERC4626StataToken(config.umbrellaVaults.waUsdcStakeToken.vault.asset());
+        IERC4626 stataToken = IERC4626(config.umbrellaVaults.waUsdcStakeToken.vault.asset());
 
         uint256 expectedWrappedBalance = IERC4626(address(stataToken)).previewDeposit(deposit);
 
-        config.tokens.aUsdc.approve(address(stataToken), deposit);
-        stataToken.depositATokens(deposit, strategist.addr);
+        config.tokens.usdc.approve(address(stataToken), deposit);
+        stataToken.deposit(deposit, strategist.addr);
 
         // Check we received the correct amount of waUsdc
         assertEq(IERC4626(address(stataToken)).balanceOf(strategist.addr), expectedWrappedBalance);
+        assertLt(
+            IERC4626(address(stataToken)).balanceOf(strategist.addr),
+            deposit,
+            "waUsdc balance should be less than deposit"
+        );
 
         vm.stopPrank();
     }
@@ -680,10 +683,7 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         deposit = bound(deposit, 1e3, INITIAL_BALANCE);
         vm.startPrank(strategist.addr);
 
-        // Need to get some aUsdc into the vault
-        config.tokens.aUsdc.transfer(address(config.levelContracts.boringVault), deposit);
-
-        // Deposit aUsdc into the vault
+        // Deposit USDC into the vault
         vaultManager.deposit(
             address(config.tokens.usdc), address(config.umbrellaVaults.waUsdcStakeToken.vault), deposit
         );
@@ -703,13 +703,17 @@ contract VaultManagerMainnetTests is Utils, Configurable {
 
         vm.startPrank(strategist.addr);
         // Withdraw from the vault
-        vaultManager.withdraw(
+        uint256 withdrawn = vaultManager.withdraw(
             address(config.tokens.usdc), address(config.umbrellaVaults.waUsdcStakeToken.vault), deposit
         );
 
-        // Check we received the correct amount of aUsdc
-        assertGe(
-            config.tokens.aUsdc.balanceOf(address(config.levelContracts.boringVault)), deposit, "Wrong amount of aUsdc"
+        assertApproxEqAbs(withdrawn, deposit, 1, "Wrong amount of withdrawn");
+
+        assertApproxEqAbs(
+            config.tokens.usdc.balanceOf(address(config.levelContracts.boringVault)),
+            INITIAL_BALANCE,
+            1,
+            "Wrong amount of usdc after withdrawal"
         );
     }
 

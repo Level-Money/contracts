@@ -91,7 +91,7 @@ contract SwapManager is SwapManagerStorage, Initializable, UUPSUpgradeable, Auth
         IERC20(tokenIn).approve(address(swapRouter), amountIn);
 
         // Calculate slippage min out
-        uint256 minOut = (amountIn * (10_000 - config.slippageBps)) / 10_000;
+        uint256 minOut = (amountIn * (10_000 - config.slippageBps) + 10_000 - 1) / 10_000; // Round up
 
         // Build params
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
@@ -99,7 +99,7 @@ contract SwapManager is SwapManagerStorage, Initializable, UUPSUpgradeable, Auth
             tokenOut: tokenOut,
             fee: config.fee,
             recipient: recipient,
-            deadline: block.timestamp + 60,
+            deadline: block.timestamp,
             amountIn: amountIn,
             amountOutMinimum: minOut,
             sqrtPriceLimitX96: 0
