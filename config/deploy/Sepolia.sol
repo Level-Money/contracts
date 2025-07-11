@@ -52,7 +52,8 @@ contract Sepolia is BaseConfig {
                 ustb: AggregatorV3Interface(0x732d3C7515356eAB22E3F3DcA183c5c65102d518),
                 aUsdc: AggregatorV3Interface(address(0)),
                 aUsdt: AggregatorV3Interface(address(0)),
-                mNav: AggregatorV3Interface(address(0))
+                mNav: AggregatorV3Interface(address(0)),
+                cappedMNav: AggregatorV3Interface(address(0))
             }),
             users: Users({
                 admin: 0xb2522DC238DEA8a821dEcE38a1d46eC5C4708256,

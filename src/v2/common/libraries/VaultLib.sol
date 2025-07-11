@@ -509,7 +509,7 @@ library VaultLib {
 
         emit DepositToM0(address(vault), baseCollateral, amount, deposited);
 
-        return deposited;
+        return amount;
     }
 
     /// @notice Withdraws assets from M
@@ -584,7 +584,7 @@ library VaultLib {
 
         emit StakeToAaveUmbrella(address(vault), address(_config.baseCollateral), amount, staked_);
 
-        return staked_;
+        return amount;
     }
 
     /// @notice Unstakes waTokens from Aave Umbrella
@@ -629,14 +629,14 @@ library VaultLib {
             bytes memory tokensRaw = vault.manage(
                 address(stataToken),
                 abi.encodeWithSignature(
-                    "redeem(uint256,address,address)", wrappedATokens, address(vault), address(vault)
+                    "redeem(uint256,address,address)", waTokenAmount, address(vault), address(vault)
                 ),
                 0
             );
 
             uint256 tokens = abi.decode(tokensRaw, (uint256));
 
-            emit UnstakeFromAaveUmbrella(address(vault), address(_config.baseCollateral), amount, tokens);
+            emit UnstakeFromAaveUmbrella(address(vault), address(_config.baseCollateral), amount, wrappedATokens);
 
             return tokens;
         } else {

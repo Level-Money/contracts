@@ -3,13 +3,16 @@ pragma solidity ^0.8.19;
 
 import {IUniswapV3Pool} from "@uniswap-v3-core/interfaces/IUniswapV3Pool.sol";
 import {ISwapRouter} from "@level/src/v2/interfaces/uniswap/ISwapRouter.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+
 import {SwapManagerStorage} from "./SwapManagerStorage.sol";
 import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {AuthUpgradeable} from "@level/src/v2/auth/AuthUpgradeable.sol";
 import {SwapConfig} from "./SwapManagerStorage.sol";
 import {PauserGuardedUpgradable} from "@level/src/v2/common/guard/PauserGuardedUpgradable.sol";
+import {OracleLib} from "@level/src/v2/common/libraries/OracleLib.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  *                                     .-==+=======+:
@@ -61,6 +64,22 @@ contract SwapManager is SwapManagerStorage, Initializable, UUPSUpgradeable, Auth
         swapConfigs[tokenIn][tokenOut] = config;
     }
 
+    /// @notice Adds an oracle to the swap manager
+    /// @param token The address of the token to add an oracle for
+    /// @param oracle The address of the oracle to add
+    /// @dev Only callable by authorized addresses
+    function addOracle(address token, address oracle) public requiresAuth {
+        oracles[token] = oracle;
+    }
+
+    /// @notice Sets the heart beat for a token
+    /// @param token The address of the token to set the heart beat for
+    /// @param heartBeat The heart beat to set
+    /// @dev Only callable by authorized addresses
+    function setHeartBeat(address token, uint256 heartBeat) public requiresAuth {
+        heartbeats[token] = heartBeat;
+    }
+
     /// @notice Executes a token swap using the configured parameters
     /// @param tokenIn The address of the input token
     /// @param tokenOut The address of the output token
@@ -86,12 +105,39 @@ contract SwapManager is SwapManagerStorage, Initializable, UUPSUpgradeable, Auth
         uint128 liquidity = IUniswapV3Pool(config.pool).liquidity();
         require(liquidity > 0, "SwapManager: No liquidity");
 
+        IERC20Metadata tokenInMetadata = IERC20Metadata(tokenIn);
+        IERC20Metadata tokenOutMetadata = IERC20Metadata(tokenOut);
+
         // Transfer & approve
-        IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
-        IERC20(tokenIn).approve(address(swapRouter), amountIn);
+        tokenInMetadata.transferFrom(msg.sender, address(this), amountIn);
+        tokenInMetadata.approve(address(swapRouter), amountIn);
+
+        (int256 inputTokenPrice, uint256 inputPriceDecimals) =
+            OracleLib.getPriceAndDecimals(oracles[tokenIn], heartbeats[tokenIn]);
+
+        (int256 outputTokenPrice, uint256 outputPriceDecimals) =
+            OracleLib.getPriceAndDecimals(oracles[tokenOut], heartbeats[tokenOut]);
+
+        require(inputTokenPrice > 0 && outputTokenPrice > 0, "SwapManager: Invalid oracle price");
+
+        uint8 tokenInDecimals = tokenInMetadata.decimals();
+        uint8 tokenOutDecimals = tokenOutMetadata.decimals();
+
+        // Normalize amountIn to 1e18
+        uint256 amountInNormalized = Math.mulDiv(amountIn, 1e18, 10 ** tokenInDecimals);
+
+        // Normalize oracle prices to 1e18
+        uint256 inputPriceNormalized = Math.mulDiv(uint256(inputTokenPrice), 1e18, 10 ** inputPriceDecimals);
+        uint256 outputPriceNormalized = Math.mulDiv(uint256(outputTokenPrice), 1e18, 10 ** outputPriceDecimals);
+
+        // Calculate expected output amount (in 1e18 units)
+        uint256 expectedOutNormalized = (amountInNormalized * inputPriceNormalized) / outputPriceNormalized;
+
+        // Scale expectedOut back to tokenOut decimals
+        uint256 adjustedOutAmount = Math.mulDiv(expectedOutNormalized, 10 ** tokenOutDecimals, 1e18);
 
         // Calculate slippage min out
-        uint256 minOut = (amountIn * (10_000 - config.slippageBps) + 10_000 - 1) / 10_000; // Round up
+        uint256 minOut = (adjustedOutAmount * (10_000 - config.slippageBps) + 10_000 - 1) / 10_000; // Round up
 
         // Build params
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({

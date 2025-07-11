@@ -121,6 +121,7 @@ contract BaseConfig {
         AggregatorV3Interface aUsdt;
         AggregatorV3Interface aUsdc;
         AggregatorV3Interface mNav;
+        AggregatorV3Interface cappedMNav;
     }
 
     Config public config;

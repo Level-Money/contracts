@@ -33,6 +33,10 @@ abstract contract SwapManagerStorage {
     /// @notice The Uniswap V3 SwapRouter contract instance
     ISwapRouter public swapRouter;
 
+    // collateral token address to chainlink oracle address map
+    mapping(address => address) public oracles;
+    mapping(address => uint256) public heartbeats;
+
     /// @notice Mapping of token pairs to their swap configurations
     /// @dev First address is token0, second address is token1
     mapping(address => mapping(address => SwapConfig)) public swapConfigs;
