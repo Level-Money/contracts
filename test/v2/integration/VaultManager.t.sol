@@ -20,11 +20,13 @@ import {IERC4626Oracle} from "@level/src/v2/interfaces/level/IERC4626Oracle.sol"
 import {AggregatorV3Interface} from "@level/src/v2/interfaces/AggregatorV3Interface.sol";
 import {IAllowListV2} from "@level/src/v2/interfaces/superstate/IAllowListV2.sol";
 import {UpgradeVaultManager} from "@level/script/v2/usd/UpgradeVaultManager.s.sol";
-import {DeploySwapManager} from "@level/script/v2/usd/DeploySwapManager.s.sol";
+import {SwapManager} from "@level/src/v2/usd/SwapManager.sol";
 import {IERC4626StataToken} from "@level/src/v2/interfaces/aave/IERC4626StataToken.sol";
 import {IERC4626StakeToken} from "@level/src/v2/interfaces/aave/IERC4626StakeToken.sol";
 import {CappedOneDollarOracle} from "@level/src/v2/oracles/CappedOneDollarOracle.sol";
 import {AaveUmbrellaOracle} from "@level/src/v2/oracles/AaveUmbrellaOracle.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {SwapConfig} from "@level/src/v2/usd/SwapManager.sol";
 
 contract VaultManagerMainnetTests is Utils, Configurable {
     using SafeTransferLib for ERC20;
@@ -53,15 +55,14 @@ contract VaultManagerMainnetTests is Utils, Configurable {
 
     function setUp() public {
         forkMainnet(22664895);
+        initConfig(1);
 
         deployer = vm.createWallet("deployer");
         strategist = vm.createWallet("strategist");
 
-        DeploySwapManager deploySwapManager = new DeploySwapManager();
-
-        vm.prank(deployer.addr);
-        deploySwapManager.setUp_(1, deployer.privateKey);
-        config = deploySwapManager.run();
+        vm.startPrank(deployer.addr);
+        _deploySwapManager();
+        vm.stopPrank();
 
         _upgradeVaultManager();
 
@@ -148,6 +149,59 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         }
     }
 
+    function _deploySwapManager() internal {
+        // Replicate SwapManager deploy script
+        CappedOneDollarOracle mNavOracle = new CappedOneDollarOracle(address(config.oracles.mNav));
+        config.oracles.cappedMNav = AggregatorV3Interface(address(mNavOracle));
+
+        bytes memory constructorArgs = abi.encodeWithSignature(
+            "initialize(address,address,address)",
+            deployer.addr,
+            address(config.periphery.uniswapV3Router),
+            address(config.levelContracts.pauserGuard)
+        );
+
+        SwapManager _swapManager = new SwapManager();
+        ERC1967Proxy _swapManagerProxy = new ERC1967Proxy(address(_swapManager), constructorArgs);
+
+        config.levelContracts.swapManager = SwapManager(address(_swapManagerProxy));
+        config.levelContracts.swapManager.setAuthority(config.levelContracts.rolesAuthority);
+
+        config.levelContracts.swapManager.setSwapConfig(
+            address(config.tokens.usdc),
+            address(config.tokens.wrappedM),
+            SwapConfig({
+                pool: 0x970A7749EcAA4394C8B2Bf5F2471F41FD6b79288, // wM/USDC pool
+                fee: 100, //0.01%
+                tickLower: -10,
+                tickUpper: 10,
+                slippageBps: 5, //0.05%
+                active: true
+            })
+        );
+
+        config.levelContracts.swapManager.setSwapConfig(
+            address(config.tokens.wrappedM),
+            address(config.tokens.usdc),
+            SwapConfig({
+                pool: 0x970A7749EcAA4394C8B2Bf5F2471F41FD6b79288, // wM/USDC pool
+                fee: 100, //0.01%
+                tickLower: -10,
+                tickUpper: 10,
+                slippageBps: 5, //0.05%
+                active: true
+            })
+        );
+
+        config.levelContracts.swapManager.addOracle(address(config.tokens.usdc), address(config.oracles.usdc));
+        config.levelContracts.swapManager.addOracle(address(config.tokens.wrappedM), address(config.oracles.cappedMNav));
+        config.levelContracts.swapManager.setHeartBeat(address(config.tokens.usdc), 1 days);
+        config.levelContracts.swapManager.setHeartBeat(address(config.tokens.wrappedM), 26 hours);
+
+        // Transfer ownership to admin timelock
+        config.levelContracts.swapManager.transferOwnership(address(config.levelContracts.adminTimelock));
+    }
+
     function _upgradeVaultManager() internal {
         VaultManager impl = new VaultManager();
         vm.prank(address(config.levelContracts.adminTimelock));
@@ -155,7 +209,7 @@ contract VaultManagerMainnetTests is Utils, Configurable {
     }
 
     function _setupTreasuriesForTests() internal {
-        CappedOneDollarOracle mNavOracle = new CappedOneDollarOracle(address(config.oracles.mNav));
+        CappedOneDollarOracle mNavOracle = CappedOneDollarOracle(address(config.oracles.cappedMNav));
 
         StrategyConfig memory ustbConfig = StrategyConfig({
             category: StrategyCategory.SUPERSTATE,
@@ -852,6 +906,9 @@ contract VaultManagerMainnetTests is Utils, Configurable {
             )
         );
 
+        _mockChainlinkCall(address(config.oracles.mNav), 105e6); // 1.05 USD per M
+        _mockChainlinkCall(address(config.oracles.usdc), 1e8); // 1 USD per USDC
+
         vm.startPrank(strategist.addr);
         vaultManager.deposit(address(config.tokens.usdc), address(config.tokens.wrappedM), deposit);
 
@@ -862,8 +919,6 @@ contract VaultManagerMainnetTests is Utils, Configurable {
             0.0005e18, // Slippage 0.05%
             "Wrong amount of wrapped M"
         );
-
-        _mockChainlinkCall(address(config.oracles.mNav), 105e6); // 1.05 USD per M
 
         // Check assets in strategy
         assertApproxEqRel(
@@ -899,6 +954,7 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         );
 
         _mockChainlinkCall(address(config.oracles.mNav), 105e6); // 1.05 USD per M
+        _mockChainlinkCall(address(config.oracles.usdc), 1e8); // 1 USD per USDC
 
         vm.startPrank(strategist.addr);
         vaultManager.deposit(address(config.tokens.usdc), address(config.tokens.wrappedM), deposit);

@@ -121,6 +121,11 @@ contract DeploySwapManager is Configurable, DeploymentUtils, Script {
             })
         );
 
+        config.levelContracts.swapManager.addOracle(address(config.tokens.usdc), address(config.oracles.usdc));
+        config.levelContracts.swapManager.addOracle(address(config.tokens.wrappedM), address(config.oracles.cappedMNav));
+        config.levelContracts.swapManager.setHeartBeat(address(config.tokens.usdc), 1 days);
+        config.levelContracts.swapManager.setHeartBeat(address(config.tokens.wrappedM), 26 hours);
+
         // Transfer ownership to admin timelock
         config.levelContracts.swapManager.transferOwnership(address(config.levelContracts.adminTimelock));
 

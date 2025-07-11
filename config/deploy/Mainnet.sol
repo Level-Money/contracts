@@ -52,7 +52,8 @@ contract Mainnet is BaseConfig {
                 ustb: AggregatorV3Interface(0x289B5036cd942e619E1Ee48670F98d214E745AAC),
                 aUsdt: AggregatorV3Interface(0x380adC857Cd3d0531C0821B5D52F34737C4eCDC4),
                 aUsdc: AggregatorV3Interface(0x95CCDE4C1bb3d56639d22185aa2f95EcfebD7F22),
-                mNav: AggregatorV3Interface(0xC28198Df9aee1c4990994B35ff51eFA4C769e534)
+                mNav: AggregatorV3Interface(0xC28198Df9aee1c4990994B35ff51eFA4C769e534),
+                cappedMNav: AggregatorV3Interface(0x0000000000000000000000000000000000000000)
             }),
             users: Users({
                 admin: 0x343ACce723339D5A417411D8Ff57fde8886E91dc,
