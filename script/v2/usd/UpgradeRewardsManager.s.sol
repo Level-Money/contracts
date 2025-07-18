@@ -54,12 +54,6 @@ contract UpgradeRewardsManager is Configurable, DeploymentUtils, Script {
 
         console2.log("Deploying RewardsManager from address %s", deployerWallet.addr);
 
-        RewardsManager proxy = RewardsManager(config.levelContracts.rewardsManager);
-
-        if (address(proxy) == address(0)) {
-            revert InvalidProxyAddress();
-        }
-
         RewardsManager impl = new RewardsManager();
 
         vm.stopBroadcast();

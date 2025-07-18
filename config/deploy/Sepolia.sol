@@ -87,7 +87,8 @@ contract Sepolia is BaseConfig {
                 sUsdc: ERC4626Vault({vault: IERC4626(address(0)), oracle: IERC4626Oracle(address(0))})
             }),
             umbrellaVaults: UmbrellaVaults({
-                waUsdcStakeToken: ERC4626Vault({vault: IERC4626(address(0)), oracle: IERC4626Oracle(address(0))})
+                waUsdcStakeToken: ERC4626Vault({vault: IERC4626(address(0)), oracle: IERC4626Oracle(address(0))}),
+                waUsdtStakeToken: ERC4626Vault({vault: IERC4626(address(0)), oracle: IERC4626Oracle(address(0))})
             }),
             periphery: PeripheryContracts({
                 aaveV3: IPool(0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951),

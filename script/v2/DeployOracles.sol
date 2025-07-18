@@ -71,6 +71,10 @@ contract DeployOracles is Configurable, DeploymentUtils, Script {
         config.umbrellaVaults.waUsdcStakeToken.oracle = IERC4626Oracle(address(oracle));
         console2.log("waUsdcStakeTokenOracle deployed to: %s", address(config.umbrellaVaults.waUsdcStakeToken.oracle));
 
+        AaveUmbrellaOracle oracleUsdt = new AaveUmbrellaOracle(config.umbrellaVaults.waUsdtStakeToken.vault);
+        config.umbrellaVaults.waUsdtStakeToken.oracle = IERC4626Oracle(address(oracleUsdt));
+        console2.log("waUsdtStakeTokenOracle deployed to: %s", address(config.umbrellaVaults.waUsdtStakeToken.oracle));
+
         vm.stopBroadcast();
     }
 
