@@ -27,6 +27,9 @@ import {CappedOneDollarOracle} from "@level/src/v2/oracles/CappedOneDollarOracle
 import {AaveUmbrellaOracle} from "@level/src/v2/oracles/AaveUmbrellaOracle.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {SwapConfig} from "@level/src/v2/usd/SwapManager.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Upgradev2_1} from "@level/script/v2/Upgradev2_1.s.sol";
+import {RewardsManager} from "@level/src/v2/usd/RewardsManager.sol";
 
 contract VaultManagerMainnetTests is Utils, Configurable {
     using SafeTransferLib for ERC20;
@@ -49,27 +52,34 @@ contract VaultManagerMainnetTests is Utils, Configurable {
     StrategyConfig public re7UsdcConfig;
     StrategyConfig public steakhouseUsdtLiteConfig;
     StrategyConfig public sparkUsdcConfig;
-    StrategyConfig public umbrellaConfig;
+    StrategyConfig public umbrellaUsdcConfig;
+    StrategyConfig public umbrellaUsdtConfig;
 
     event Referral(uint16 indexed referral, address indexed owner, uint256 assets, uint256 shares);
 
     function setUp() public {
         forkMainnet(22664895);
-        initConfig(1);
 
         deployer = vm.createWallet("deployer");
         strategist = vm.createWallet("strategist");
+
+        initConfig(1);
+        _deployNewOracles();
 
         vm.startPrank(deployer.addr);
         _deploySwapManager();
         vm.stopPrank();
 
-        _upgradeVaultManager();
+        Upgradev2_1 upgrade = new Upgradev2_1();
+        upgrade.setUp_(config);
 
-        // Setup strategist
-        vm.prank(config.users.admin);
-        _setupVaultsForTests();
-        _setupTreasuriesForTests();
+        RewardsManager newRewardsManager = new RewardsManager();
+        VaultManager newVaultManager = new VaultManager();
+        (address[] memory targetsSetup, bytes[] memory payloadsSetup) =
+            upgrade.run(address(newVaultManager), address(newRewardsManager));
+        _scheduleAndExecuteAdminActionBatch(
+            address(config.users.admin), address(config.levelContracts.adminTimelock), targetsSetup, payloadsSetup
+        );
 
         address[] memory targets = new address[](2);
         targets[0] = address(config.levelContracts.rolesAuthority);
@@ -98,6 +108,10 @@ contract VaultManagerMainnetTests is Utils, Configurable {
 
         vaultManager = config.levelContracts.vaultManager;
 
+        _setTotalStrategies();
+    }
+
+    function _setTotalStrategies() internal {
         address[] memory usdcStrategyAddresses = vaultManager.getDefaultStrategies(address(config.tokens.usdc));
         address[] memory usdtStrategyAddresses = vaultManager.getDefaultStrategies(address(config.tokens.usdt));
 
@@ -147,6 +161,22 @@ contract VaultManagerMainnetTests is Utils, Configurable {
                 heartbeat: heartbeat
             });
         }
+    }
+
+    function _deployNewOracles() internal {
+        // Deploy CappedMNavOracle
+        CappedOneDollarOracle mNavOracle = new CappedOneDollarOracle(address(config.oracles.mNav));
+
+        // Deploy sUsdcOracle
+        config.sparkVaults.sUsdc.oracle = deployERC4626Oracle(config.sparkVaults.sUsdc.vault);
+
+        // Deploy waUsdcStakeTokenOracle
+        AaveUmbrellaOracle oracle = new AaveUmbrellaOracle(config.umbrellaVaults.waUsdcStakeToken.vault);
+        config.umbrellaVaults.waUsdcStakeToken.oracle = IERC4626Oracle(address(oracle));
+
+        // Deploy waUsdtStakeTokenOracle
+        AaveUmbrellaOracle oracleUsdt = new AaveUmbrellaOracle(config.umbrellaVaults.waUsdtStakeToken.vault);
+        config.umbrellaVaults.waUsdtStakeToken.oracle = IERC4626Oracle(address(oracleUsdt));
     }
 
     function _deploySwapManager() internal {
@@ -202,66 +232,8 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         config.levelContracts.swapManager.transferOwnership(address(config.levelContracts.adminTimelock));
     }
 
-    function _upgradeVaultManager() internal {
-        VaultManager impl = new VaultManager();
-        vm.prank(address(config.levelContracts.adminTimelock));
-        config.levelContracts.vaultManager.upgradeToAndCall(address(impl), "");
-    }
-
-    function _setupTreasuriesForTests() internal {
-        CappedOneDollarOracle mNavOracle = CappedOneDollarOracle(address(config.oracles.cappedMNav));
-
-        StrategyConfig memory ustbConfig = StrategyConfig({
-            category: StrategyCategory.SUPERSTATE,
-            baseCollateral: config.tokens.usdc,
-            receiptToken: config.tokens.ustb,
-            oracle: config.oracles.ustb,
-            depositContract: address(config.tokens.ustb),
-            withdrawContract: address(config.periphery.ustbRedemptionIdle),
-            heartbeat: 1 days
-        });
-
-        StrategyConfig memory mConfig = StrategyConfig({
-            category: StrategyCategory.M0,
-            baseCollateral: config.tokens.usdc,
-            receiptToken: config.tokens.wrappedM,
-            oracle: AggregatorV3Interface(address(mNavOracle)),
-            depositContract: address(config.levelContracts.swapManager),
-            withdrawContract: address(config.levelContracts.swapManager),
-            heartbeat: 26 hours
-        });
-
-        address[] memory targets = new address[](2);
-        targets[0] = address(config.levelContracts.vaultManager);
-        targets[1] = address(config.levelContracts.vaultManager);
-
-        bytes[] memory payloads = new bytes[](2);
-        // Add ustb as a strategy
-        payloads[0] = abi.encodeWithSelector(
-            config.levelContracts.vaultManager.addAssetStrategy.selector,
-            address(config.tokens.usdc),
-            address(config.tokens.ustb),
-            ustbConfig
-        );
-        // Add m as a strategy
-        payloads[1] = abi.encodeWithSelector(
-            config.levelContracts.vaultManager.addAssetStrategy.selector,
-            address(config.tokens.usdc),
-            address(config.tokens.wrappedM),
-            mConfig
-        );
-
-        _scheduleAndExecuteAdminActionBatch(
-            address(config.users.admin), address(config.levelContracts.adminTimelock), targets, payloads
-        );
-    }
-
     function _setupVaultsForTests() internal {
         //--------------- Add test Morpho vaults as strategies
-        if (address(config.morphoVaults.steakhouseUsdt.vault) == address(0)) {
-            revert("Steakhouse USDT vaults not deployed");
-        }
-
         if (address(config.morphoVaults.re7Usdc.vault) == address(0)) {
             revert("Re7 USDC vaults not deployed");
         }
@@ -270,35 +242,31 @@ contract VaultManagerMainnetTests is Utils, Configurable {
             revert("Steakhouse USDT Lite vaults not deployed");
         }
 
-        if (address(config.sparkVaults.sUsdc.vault) == address(0)) {
-            revert("Spark USDC vault not deployed");
-        }
-
-        if (address(config.umbrellaVaults.waUsdcStakeToken.vault) == address(0)) {
-            revert("Umbrella vault not deployed");
-        }
-
         if (address(config.morphoVaults.re7Usdc.oracle) == address(0)) {
-            config.morphoVaults.re7Usdc.oracle = deployERC4626Oracle(config.morphoVaults.re7Usdc.vault, 4 hours);
+            config.morphoVaults.re7Usdc.oracle = deployERC4626Oracle(config.morphoVaults.re7Usdc.vault);
         }
 
         if (address(config.morphoVaults.steakhouseUsdt.oracle) == address(0)) {
-            config.morphoVaults.steakhouseUsdt.oracle =
-                deployERC4626Oracle(config.morphoVaults.steakhouseUsdt.vault, 4 hours);
+            config.morphoVaults.steakhouseUsdt.oracle = deployERC4626Oracle(config.morphoVaults.steakhouseUsdt.vault);
         }
 
         if (address(config.morphoVaults.steakhouseUsdtLite.oracle) == address(0)) {
             config.morphoVaults.steakhouseUsdtLite.oracle =
-                deployERC4626Oracle(config.morphoVaults.steakhouseUsdtLite.vault, 4 hours);
+                deployERC4626Oracle(config.morphoVaults.steakhouseUsdtLite.vault);
         }
 
         if (address(config.sparkVaults.sUsdc.oracle) == address(0)) {
-            config.sparkVaults.sUsdc.oracle = deployERC4626Oracle(config.sparkVaults.sUsdc.vault, 4 hours);
+            config.sparkVaults.sUsdc.oracle = deployERC4626Oracle(config.sparkVaults.sUsdc.vault);
         }
 
         if (address(config.umbrellaVaults.waUsdcStakeToken.oracle) == address(0)) {
             AaveUmbrellaOracle oracle = new AaveUmbrellaOracle(config.umbrellaVaults.waUsdcStakeToken.vault);
             config.umbrellaVaults.waUsdcStakeToken.oracle = IERC4626Oracle(address(oracle));
+        }
+
+        if (address(config.umbrellaVaults.waUsdtStakeToken.oracle) == address(0)) {
+            AaveUmbrellaOracle oracle = new AaveUmbrellaOracle(config.umbrellaVaults.waUsdtStakeToken.vault);
+            config.umbrellaVaults.waUsdtStakeToken.oracle = IERC4626Oracle(address(oracle));
         }
 
         //--------------- Add test Morpho vaults as strategies
@@ -352,13 +320,23 @@ contract VaultManagerMainnetTests is Utils, Configurable {
             heartbeat: 1 days
         });
 
-        umbrellaConfig = StrategyConfig({
+        umbrellaUsdcConfig = StrategyConfig({
             category: StrategyCategory.AAVEV3_UMBRELLA,
             baseCollateral: config.tokens.usdc,
             receiptToken: ERC20(address(config.umbrellaVaults.waUsdcStakeToken.vault)),
             oracle: config.umbrellaVaults.waUsdcStakeToken.oracle,
             depositContract: address(config.umbrellaVaults.waUsdcStakeToken.vault),
             withdrawContract: address(config.umbrellaVaults.waUsdcStakeToken.vault),
+            heartbeat: 1 days
+        });
+
+        umbrellaUsdtConfig = StrategyConfig({
+            category: StrategyCategory.AAVEV3_UMBRELLA,
+            baseCollateral: config.tokens.usdt,
+            receiptToken: ERC20(address(config.umbrellaVaults.waUsdtStakeToken.vault)),
+            oracle: config.umbrellaVaults.waUsdtStakeToken.oracle,
+            depositContract: address(config.umbrellaVaults.waUsdtStakeToken.vault),
+            withdrawContract: address(config.umbrellaVaults.waUsdtStakeToken.vault),
             heartbeat: 1 days
         });
 
@@ -373,7 +351,7 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         usdtDefaultStrategies[1] = address(config.morphoVaults.steakhouseUsdt.vault);
         usdtDefaultStrategies[2] = address(config.morphoVaults.steakhouseUsdtLite.vault);
 
-        address[] memory targets = new address[](9);
+        address[] memory targets = new address[](10);
         targets[0] = address(config.levelContracts.vaultManager);
         targets[1] = address(config.levelContracts.vaultManager);
         targets[2] = address(config.levelContracts.vaultManager);
@@ -381,10 +359,11 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         targets[4] = address(config.levelContracts.vaultManager);
         targets[5] = address(config.levelContracts.vaultManager);
         targets[6] = address(config.levelContracts.vaultManager);
-        targets[7] = address(config.levelContracts.rolesAuthority);
+        targets[7] = address(config.levelContracts.vaultManager);
         targets[8] = address(config.levelContracts.rolesAuthority);
+        targets[9] = address(config.levelContracts.rolesAuthority);
 
-        bytes[] memory payloads = new bytes[](9);
+        bytes[] memory payloads = new bytes[](10);
         payloads[0] = abi.encodeWithSelector(
             VaultManager.addAssetStrategy.selector,
             address(config.tokens.usdc),
@@ -413,29 +392,19 @@ contract VaultManagerMainnetTests is Utils, Configurable {
             VaultManager.addAssetStrategy.selector,
             address(config.tokens.usdc),
             address(config.umbrellaVaults.waUsdcStakeToken.vault),
-            umbrellaConfig
+            umbrellaUsdcConfig
         );
         payloads[5] = abi.encodeWithSelector(
-            VaultManager.setDefaultStrategies.selector, address(config.tokens.usdc), usdcDefaultStrategies
+            VaultManager.addAssetStrategy.selector,
+            address(config.tokens.usdt),
+            address(config.umbrellaVaults.waUsdtStakeToken.vault),
+            umbrellaUsdtConfig
         );
         payloads[6] = abi.encodeWithSelector(
-            VaultManager.setDefaultStrategies.selector, address(config.tokens.usdt), usdtDefaultStrategies
+            VaultManager.setDefaultStrategies.selector, address(config.tokens.usdc), usdcDefaultStrategies
         );
-        // Add cooldown operator capability to strategist role
         payloads[7] = abi.encodeWithSelector(
-            config.levelContracts.rolesAuthority.setRoleCapability.selector,
-            STRATEGIST_ROLE,
-            address(config.levelContracts.vaultManager),
-            bytes4(abi.encodeWithSignature("modifyAaveUmbrellaCooldownOperator(address,address,bool)")),
-            true
-        );
-        // Add rewards claimer capability to strategist role
-        payloads[8] = abi.encodeWithSelector(
-            config.levelContracts.rolesAuthority.setRoleCapability.selector,
-            STRATEGIST_ROLE,
-            address(config.levelContracts.vaultManager),
-            bytes4(abi.encodeWithSignature("modifyAaveUmbrellaRewardsClaimer(address,address,bool)")),
-            true
+            VaultManager.setDefaultStrategies.selector, address(config.tokens.usdt), usdtDefaultStrategies
         );
 
         _scheduleAndExecuteAdminActionBatch(
@@ -443,7 +412,7 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         );
     }
 
-    function deployERC4626Oracle(IERC4626 vault, uint256 delay) public returns (IERC4626Oracle) {
+    function deployERC4626Oracle(IERC4626 vault) public returns (IERC4626Oracle) {
         if (address(config.levelContracts.erc4626OracleFactory) == address(0)) {
             revert("ERC4626OracleFactory must be deployed first");
         }
@@ -613,13 +582,7 @@ contract VaultManagerMainnetTests is Utils, Configurable {
     // ------------- Umbrella Tests -------------
 
     function test_modifyCooldownOperator_succeeds() public {
-        // Create a new operator
-        address operator = makeAddr("operator");
         address umbrellaVault = address(config.umbrellaVaults.waUsdcStakeToken.vault);
-
-        vm.startPrank(strategist.addr);
-        vaultManager.modifyAaveUmbrellaCooldownOperator(operator, umbrellaVault, true);
-        vm.stopPrank();
 
         // Check we're not in cooldown
         IERC4626StakeToken.CooldownSnapshot memory cooldownSnapshot =
@@ -631,7 +594,7 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         deal(umbrellaVault, address(config.levelContracts.boringVault), 1e18);
 
         // Call cooldown on behalf of the boring vault
-        vm.prank(operator);
+        vm.prank(config.users.operator);
         IERC4626StakeToken(umbrellaVault).cooldownOnBehalfOf(address(config.levelContracts.boringVault));
 
         // Check we're in cooldown
@@ -670,17 +633,11 @@ contract VaultManagerMainnetTests is Utils, Configurable {
     }
 
     function test_settingClaimer_succeeds() public {
-        // Create a new operator
-        address operator = makeAddr("operator");
         address umbrellaRewardsController = 0x4655Ce3D625a63d30bA704087E52B4C31E38188B;
         address umbrellaVault = address(config.umbrellaVaults.waUsdcStakeToken.vault);
 
-        vm.startPrank(strategist.addr);
-        vaultManager.modifyAaveUmbrellaRewardsClaimer(operator, umbrellaRewardsController, true);
-        vm.stopPrank();
-
         (bool isClaimerAuthorized,) = umbrellaRewardsController.staticcall(
-            abi.encodeWithSignature("isClaimerAuthorized(address,address)", umbrellaVault, operator)
+            abi.encodeWithSignature("isClaimerAuthorized(address,address)", address(0), config.users.protocolTreasury)
         );
         assertEq(isClaimerAuthorized, true);
     }
@@ -708,6 +665,72 @@ contract VaultManagerMainnetTests is Utils, Configurable {
 
         // Allow rounding error of 1
         assertApproxEqAbs(balance, expectedStakedBalance, 1, "Wrong amount of stk-waToken");
+    }
+
+    function test_depositingToUmbrellaUsdt_succeeds(uint256 deposit) public {
+        deposit = bound(deposit, 1e3, INITIAL_BALANCE);
+        vm.startPrank(strategist.addr);
+
+        // Deposit USDT into the vault
+        vaultManager.deposit(
+            address(config.tokens.usdt), address(config.umbrellaVaults.waUsdtStakeToken.vault), deposit
+        );
+
+        // Expected waUsdt balance after depositing aUsdt
+        uint256 expectedWrappedBalance =
+            IERC4626(config.umbrellaVaults.waUsdtStakeToken.vault.asset()).previewDeposit(deposit);
+
+        // Expected stk-waToken balance after depositing waUsdt
+        uint256 expectedStakedBalance =
+            config.umbrellaVaults.waUsdtStakeToken.vault.previewDeposit(expectedWrappedBalance);
+
+        // Balance of stk-waToken in the vault
+        uint256 balance =
+            config.umbrellaVaults.waUsdtStakeToken.vault.balanceOf(address(config.levelContracts.boringVault));
+
+        // Allow rounding error of 1
+        assertApproxEqAbs(balance, expectedStakedBalance, 1, "Wrong amount of stk-waToken");
+    }
+
+    function test_slashingOfUmbrellaStake(uint256 deposit) public {
+        // depositing 1M USDC into umbrella
+        uint256 deposit = 1_000_000e6;
+        IERC4626StakeToken stakeToken = IERC4626StakeToken(address(config.umbrellaVaults.waUsdcStakeToken.vault));
+
+        vm.startPrank(strategist.addr);
+        vaultManager.deposit(
+            address(config.tokens.usdc), address(config.umbrellaVaults.waUsdcStakeToken.vault), deposit
+        );
+        vm.stopPrank();
+
+        // Get assets in the strategy
+        uint256 assetsInStrategy =
+            _getAssetsInStrategy(address(config.tokens.usdc), address(config.umbrellaVaults.waUsdcStakeToken.vault));
+
+        // Check total assets
+        assertApproxEqRel(assetsInStrategy, deposit, 0.000001e18, "Wrong amount of total assets");
+
+        uint256 rate = stakeToken.convertToAssets(1e6);
+
+        // Simulate slashing
+        vm.prank(Ownable(address(stakeToken)).owner());
+        stakeToken.slash(address(1), 1_000_000e6);
+
+        uint256 newRate = stakeToken.convertToAssets(1e6);
+
+        // New rate should be less
+        assertLt(newRate, rate);
+
+        // New assets in the strategy should be less after slashing
+        assertLt(
+            _getAssetsInStrategy(address(config.tokens.usdc), address(config.umbrellaVaults.waUsdcStakeToken.vault)),
+            assetsInStrategy,
+            "New assets in the strategy should be less after slashing"
+        );
+
+        // We see that if we had around 1M USDC invested in Aave Umbrella,
+        // and if a slashing event occured which seized 1M USDC from the vault,
+        // Our total loss was around 48k USDC.
     }
 
     function test_wrappingOfUsdcToWaUsdc_succeeds(uint256 deposit) public {
@@ -1021,18 +1044,117 @@ contract VaultManagerMainnetTests is Utils, Configurable {
     }
 
     function test_depositDefault_usdc_morphoV1_1_succeeds(uint256 deposit) public {
+        if (address(config.morphoVaults.re7Usdc.oracle) == address(0)) {
+            config.morphoVaults.re7Usdc.oracle = deployERC4626Oracle(config.morphoVaults.re7Usdc.vault);
+        }
+        re7UsdcConfig = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdc,
+            receiptToken: ERC20(address(config.morphoVaults.re7Usdc.vault)),
+            oracle: config.morphoVaults.re7Usdc.oracle,
+            depositContract: address(config.morphoVaults.re7Usdc.vault),
+            withdrawContract: address(config.morphoVaults.re7Usdc.vault),
+            heartbeat: 1 days
+        });
+
+        _scheduleAndExecuteAdminAction(
+            address(config.users.admin),
+            address(config.levelContracts.adminTimelock),
+            address(config.levelContracts.vaultManager),
+            abi.encodeWithSelector(
+                VaultManager.addAssetStrategy.selector,
+                address(config.tokens.usdc),
+                address(config.morphoVaults.re7Usdc.vault),
+                re7UsdcConfig
+            )
+        );
         _depositDefault_vaultOnly(deposit, config.tokens.usdc, address(config.morphoVaults.re7Usdc.vault));
     }
 
     function test_depositDefault_usdt_morphoOnly_succeeds(uint256 deposit) public {
+        if (address(config.morphoVaults.steakhouseUsdt.oracle) == address(0)) {
+            config.morphoVaults.steakhouseUsdt.oracle = deployERC4626Oracle(config.morphoVaults.steakhouseUsdt.vault);
+        }
+        steakhouseUsdtConfig = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdt,
+            receiptToken: ERC20(address(config.morphoVaults.steakhouseUsdt.vault)),
+            oracle: config.morphoVaults.steakhouseUsdt.oracle,
+            depositContract: address(config.morphoVaults.steakhouseUsdt.vault),
+            withdrawContract: address(config.morphoVaults.steakhouseUsdt.vault),
+            heartbeat: 1 days
+        });
+
+        _scheduleAndExecuteAdminAction(
+            address(config.users.admin),
+            address(config.levelContracts.adminTimelock),
+            address(config.levelContracts.vaultManager),
+            abi.encodeWithSelector(
+                VaultManager.addAssetStrategy.selector,
+                address(config.tokens.usdt),
+                address(config.morphoVaults.steakhouseUsdt.vault),
+                steakhouseUsdtConfig
+            )
+        );
         _depositDefault_vaultOnly(deposit, config.tokens.usdt, address(config.morphoVaults.steakhouseUsdt.vault));
     }
 
     function test_depositDefault_usdt_morphoV1_1_succeeds(uint256 deposit) public {
+        if (address(config.morphoVaults.steakhouseUsdtLite.oracle) == address(0)) {
+            config.morphoVaults.steakhouseUsdtLite.oracle =
+                deployERC4626Oracle(config.morphoVaults.steakhouseUsdtLite.vault);
+        }
+        steakhouseUsdtLiteConfig = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdt,
+            receiptToken: ERC20(address(config.morphoVaults.steakhouseUsdtLite.vault)),
+            oracle: config.morphoVaults.steakhouseUsdtLite.oracle,
+            depositContract: address(config.morphoVaults.steakhouseUsdtLite.vault),
+            withdrawContract: address(config.morphoVaults.steakhouseUsdtLite.vault),
+            heartbeat: 1 days
+        });
+
+        _scheduleAndExecuteAdminAction(
+            address(config.users.admin),
+            address(config.levelContracts.adminTimelock),
+            address(config.levelContracts.vaultManager),
+            abi.encodeWithSelector(
+                VaultManager.addAssetStrategy.selector,
+                address(config.tokens.usdt),
+                address(config.morphoVaults.steakhouseUsdtLite.vault),
+                steakhouseUsdtLiteConfig
+            )
+        );
+
         _depositDefault_vaultOnly(deposit, config.tokens.usdt, address(config.morphoVaults.steakhouseUsdtLite.vault));
     }
 
     function test_depositDefault_usdc_multipleStrategiesWithdrawSome(uint256 deposit) public {
+        if (address(config.morphoVaults.re7Usdc.oracle) == address(0)) {
+            config.morphoVaults.re7Usdc.oracle = deployERC4626Oracle(config.morphoVaults.re7Usdc.vault);
+        }
+        re7UsdcConfig = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdc,
+            receiptToken: ERC20(address(config.morphoVaults.re7Usdc.vault)),
+            oracle: config.morphoVaults.re7Usdc.oracle,
+            depositContract: address(config.morphoVaults.re7Usdc.vault),
+            withdrawContract: address(config.morphoVaults.re7Usdc.vault),
+            heartbeat: 1 days
+        });
+
+        _scheduleAndExecuteAdminAction(
+            address(config.users.admin),
+            address(config.levelContracts.adminTimelock),
+            address(config.levelContracts.vaultManager),
+            abi.encodeWithSelector(
+                VaultManager.addAssetStrategy.selector,
+                address(config.tokens.usdc),
+                address(config.morphoVaults.re7Usdc.vault),
+                re7UsdcConfig
+            )
+        );
+
         address[] memory defaultStrategies = new address[](3);
         defaultStrategies[0] = address(config.periphery.aaveV3);
         defaultStrategies[1] = address(config.morphoVaults.steakhouseUsdc.vault);
@@ -1104,6 +1226,59 @@ contract VaultManagerMainnetTests is Utils, Configurable {
     }
 
     function test_depositDefault_usdt_multipleStrategiesWithdrawSome(uint256 deposit) public {
+        if (address(config.morphoVaults.steakhouseUsdt.oracle) == address(0)) {
+            config.morphoVaults.steakhouseUsdt.oracle = deployERC4626Oracle(config.morphoVaults.steakhouseUsdt.vault);
+        }
+
+        if (address(config.morphoVaults.steakhouseUsdtLite.oracle) == address(0)) {
+            config.morphoVaults.steakhouseUsdtLite.oracle =
+                deployERC4626Oracle(config.morphoVaults.steakhouseUsdtLite.vault);
+        }
+
+        steakhouseUsdtConfig = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdt,
+            receiptToken: ERC20(address(config.morphoVaults.steakhouseUsdt.vault)),
+            oracle: config.morphoVaults.steakhouseUsdt.oracle,
+            depositContract: address(config.morphoVaults.steakhouseUsdt.vault),
+            withdrawContract: address(config.morphoVaults.steakhouseUsdt.vault),
+            heartbeat: 1 days
+        });
+
+        steakhouseUsdtLiteConfig = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdt,
+            receiptToken: ERC20(address(config.morphoVaults.steakhouseUsdtLite.vault)),
+            oracle: config.morphoVaults.steakhouseUsdtLite.oracle,
+            depositContract: address(config.morphoVaults.steakhouseUsdtLite.vault),
+            withdrawContract: address(config.morphoVaults.steakhouseUsdtLite.vault),
+            heartbeat: 1 days
+        });
+
+        address[] memory targets = new address[](2);
+        bytes[] memory payloads = new bytes[](2);
+
+        targets[0] = address(config.levelContracts.vaultManager);
+        targets[1] = address(config.levelContracts.vaultManager);
+
+        payloads[0] = abi.encodeWithSelector(
+            VaultManager.addAssetStrategy.selector,
+            address(config.tokens.usdt),
+            address(config.morphoVaults.steakhouseUsdt.vault),
+            steakhouseUsdtConfig
+        );
+
+        payloads[1] = abi.encodeWithSelector(
+            VaultManager.addAssetStrategy.selector,
+            address(config.tokens.usdt),
+            address(config.morphoVaults.steakhouseUsdtLite.vault),
+            steakhouseUsdtLiteConfig
+        );
+
+        _scheduleAndExecuteAdminActionBatch(
+            address(config.users.admin), address(config.levelContracts.adminTimelock), targets, payloads
+        );
+
         address[] memory defaultStrategies = new address[](3);
         defaultStrategies[0] = address(config.periphery.aaveV3);
         defaultStrategies[1] = address(config.morphoVaults.steakhouseUsdt.vault);
@@ -1156,22 +1331,122 @@ contract VaultManagerMainnetTests is Utils, Configurable {
     }
 
     function test_withdrawDefault_usdc_morphoV1_1_succeeds(uint256 deposit, uint256 withdrawal) public {
+        if (address(config.morphoVaults.re7Usdc.oracle) == address(0)) {
+            config.morphoVaults.re7Usdc.oracle = deployERC4626Oracle(config.morphoVaults.re7Usdc.vault);
+        }
+        re7UsdcConfig = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdc,
+            receiptToken: ERC20(address(config.morphoVaults.re7Usdc.vault)),
+            oracle: config.morphoVaults.re7Usdc.oracle,
+            depositContract: address(config.morphoVaults.re7Usdc.vault),
+            withdrawContract: address(config.morphoVaults.re7Usdc.vault),
+            heartbeat: 1 days
+        });
+
+        _scheduleAndExecuteAdminAction(
+            address(config.users.admin),
+            address(config.levelContracts.adminTimelock),
+            address(config.levelContracts.vaultManager),
+            abi.encodeWithSelector(
+                VaultManager.addAssetStrategy.selector,
+                address(config.tokens.usdc),
+                address(config.morphoVaults.re7Usdc.vault),
+                re7UsdcConfig
+            )
+        );
         _withdrawDefault_vaultOnly(deposit, withdrawal, config.tokens.usdc, address(config.morphoVaults.re7Usdc.vault));
     }
 
     function test_withdrawDefault_usdt_morphoOnly_succeeds(uint256 deposit, uint256 withdrawal) public {
+        if (address(config.morphoVaults.steakhouseUsdt.oracle) == address(0)) {
+            config.morphoVaults.steakhouseUsdt.oracle = deployERC4626Oracle(config.morphoVaults.steakhouseUsdt.vault);
+        }
+        steakhouseUsdtConfig = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdt,
+            receiptToken: ERC20(address(config.morphoVaults.steakhouseUsdt.vault)),
+            oracle: config.morphoVaults.steakhouseUsdt.oracle,
+            depositContract: address(config.morphoVaults.steakhouseUsdt.vault),
+            withdrawContract: address(config.morphoVaults.steakhouseUsdt.vault),
+            heartbeat: 1 days
+        });
+
+        _scheduleAndExecuteAdminAction(
+            address(config.users.admin),
+            address(config.levelContracts.adminTimelock),
+            address(config.levelContracts.vaultManager),
+            abi.encodeWithSelector(
+                VaultManager.addAssetStrategy.selector,
+                address(config.tokens.usdt),
+                address(config.morphoVaults.steakhouseUsdt.vault),
+                steakhouseUsdtConfig
+            )
+        );
+
         _withdrawDefault_vaultOnly(
             deposit, withdrawal, config.tokens.usdt, address(config.morphoVaults.steakhouseUsdt.vault)
         );
     }
 
     function test_withdrawDefault_usdt_morphoV1_1_succeeds(uint256 deposit, uint256 withdrawal) public {
+        if (address(config.morphoVaults.steakhouseUsdtLite.oracle) == address(0)) {
+            config.morphoVaults.steakhouseUsdtLite.oracle =
+                deployERC4626Oracle(config.morphoVaults.steakhouseUsdtLite.vault);
+        }
+        steakhouseUsdtLiteConfig = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdt,
+            receiptToken: ERC20(address(config.morphoVaults.steakhouseUsdtLite.vault)),
+            oracle: config.morphoVaults.steakhouseUsdtLite.oracle,
+            depositContract: address(config.morphoVaults.steakhouseUsdtLite.vault),
+            withdrawContract: address(config.morphoVaults.steakhouseUsdtLite.vault),
+            heartbeat: 1 days
+        });
+
+        _scheduleAndExecuteAdminAction(
+            address(config.users.admin),
+            address(config.levelContracts.adminTimelock),
+            address(config.levelContracts.vaultManager),
+            abi.encodeWithSelector(
+                VaultManager.addAssetStrategy.selector,
+                address(config.tokens.usdt),
+                address(config.morphoVaults.steakhouseUsdtLite.vault),
+                steakhouseUsdtLiteConfig
+            )
+        );
+
         _withdrawDefault_vaultOnly(
             deposit, withdrawal, config.tokens.usdt, address(config.morphoVaults.steakhouseUsdtLite.vault)
         );
     }
 
     function test_withdrawDefault_usdc_multipleStrategiesWithdrawAll(uint256 deposit, uint256 withdrawal) public {
+        if (address(config.morphoVaults.re7Usdc.oracle) == address(0)) {
+            config.morphoVaults.re7Usdc.oracle = deployERC4626Oracle(config.morphoVaults.re7Usdc.vault);
+        }
+        re7UsdcConfig = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdc,
+            receiptToken: ERC20(address(config.morphoVaults.re7Usdc.vault)),
+            oracle: config.morphoVaults.re7Usdc.oracle,
+            depositContract: address(config.morphoVaults.re7Usdc.vault),
+            withdrawContract: address(config.morphoVaults.re7Usdc.vault),
+            heartbeat: 1 days
+        });
+
+        _scheduleAndExecuteAdminAction(
+            address(config.users.admin),
+            address(config.levelContracts.adminTimelock),
+            address(config.levelContracts.vaultManager),
+            abi.encodeWithSelector(
+                VaultManager.addAssetStrategy.selector,
+                address(config.tokens.usdc),
+                address(config.morphoVaults.re7Usdc.vault),
+                re7UsdcConfig
+            )
+        );
+
         address[] memory defaultStrategies = new address[](3);
         defaultStrategies[0] = address(config.periphery.aaveV3);
         defaultStrategies[1] = address(config.morphoVaults.steakhouseUsdc.vault);
@@ -1181,6 +1456,59 @@ contract VaultManagerMainnetTests is Utils, Configurable {
     }
 
     function test_withdrawDefault_usdt_multipleStrategiesWithdrawAll(uint256 deposit, uint256 withdrawal) public {
+        if (address(config.morphoVaults.steakhouseUsdt.oracle) == address(0)) {
+            config.morphoVaults.steakhouseUsdt.oracle = deployERC4626Oracle(config.morphoVaults.steakhouseUsdt.vault);
+        }
+
+        if (address(config.morphoVaults.steakhouseUsdtLite.oracle) == address(0)) {
+            config.morphoVaults.steakhouseUsdtLite.oracle =
+                deployERC4626Oracle(config.morphoVaults.steakhouseUsdtLite.vault);
+        }
+
+        steakhouseUsdtConfig = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdt,
+            receiptToken: ERC20(address(config.morphoVaults.steakhouseUsdt.vault)),
+            oracle: config.morphoVaults.steakhouseUsdt.oracle,
+            depositContract: address(config.morphoVaults.steakhouseUsdt.vault),
+            withdrawContract: address(config.morphoVaults.steakhouseUsdt.vault),
+            heartbeat: 1 days
+        });
+
+        steakhouseUsdtLiteConfig = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdt,
+            receiptToken: ERC20(address(config.morphoVaults.steakhouseUsdtLite.vault)),
+            oracle: config.morphoVaults.steakhouseUsdtLite.oracle,
+            depositContract: address(config.morphoVaults.steakhouseUsdtLite.vault),
+            withdrawContract: address(config.morphoVaults.steakhouseUsdtLite.vault),
+            heartbeat: 1 days
+        });
+
+        address[] memory targets = new address[](2);
+        bytes[] memory payloads = new bytes[](2);
+
+        targets[0] = address(config.levelContracts.vaultManager);
+        targets[1] = address(config.levelContracts.vaultManager);
+
+        payloads[0] = abi.encodeWithSelector(
+            VaultManager.addAssetStrategy.selector,
+            address(config.tokens.usdt),
+            address(config.morphoVaults.steakhouseUsdt.vault),
+            steakhouseUsdtConfig
+        );
+
+        payloads[1] = abi.encodeWithSelector(
+            VaultManager.addAssetStrategy.selector,
+            address(config.tokens.usdt),
+            address(config.morphoVaults.steakhouseUsdtLite.vault),
+            steakhouseUsdtLiteConfig
+        );
+
+        _scheduleAndExecuteAdminActionBatch(
+            address(config.users.admin), address(config.levelContracts.adminTimelock), targets, payloads
+        );
+
         address[] memory defaultStrategies = new address[](3);
         defaultStrategies[0] = address(config.periphery.aaveV3);
         defaultStrategies[1] = address(config.morphoVaults.steakhouseUsdt.vault);
@@ -1190,6 +1518,31 @@ contract VaultManagerMainnetTests is Utils, Configurable {
     }
 
     function test_rebalance_usdc_fromAave_toMorpho_succeeds(uint256 deposit) public {
+        if (address(config.morphoVaults.re7Usdc.oracle) == address(0)) {
+            config.morphoVaults.re7Usdc.oracle = deployERC4626Oracle(config.morphoVaults.re7Usdc.vault);
+        }
+        re7UsdcConfig = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdc,
+            receiptToken: ERC20(address(config.morphoVaults.re7Usdc.vault)),
+            oracle: config.morphoVaults.re7Usdc.oracle,
+            depositContract: address(config.morphoVaults.re7Usdc.vault),
+            withdrawContract: address(config.morphoVaults.re7Usdc.vault),
+            heartbeat: 1 days
+        });
+
+        _scheduleAndExecuteAdminAction(
+            address(config.users.admin),
+            address(config.levelContracts.adminTimelock),
+            address(config.levelContracts.vaultManager),
+            abi.encodeWithSelector(
+                VaultManager.addAssetStrategy.selector,
+                address(config.tokens.usdc),
+                address(config.morphoVaults.re7Usdc.vault),
+                re7UsdcConfig
+            )
+        );
+
         address[] memory defaultStrategies = new address[](3);
         defaultStrategies[0] = address(config.periphery.aaveV3);
         defaultStrategies[1] = address(config.morphoVaults.steakhouseUsdc.vault);
@@ -1205,6 +1558,31 @@ contract VaultManagerMainnetTests is Utils, Configurable {
     }
 
     function test_rebalance_usdc_fromMorpho_toAave_succeeds(uint256 deposit) public {
+        if (address(config.morphoVaults.re7Usdc.oracle) == address(0)) {
+            config.morphoVaults.re7Usdc.oracle = deployERC4626Oracle(config.morphoVaults.re7Usdc.vault);
+        }
+        re7UsdcConfig = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdc,
+            receiptToken: ERC20(address(config.morphoVaults.re7Usdc.vault)),
+            oracle: config.morphoVaults.re7Usdc.oracle,
+            depositContract: address(config.morphoVaults.re7Usdc.vault),
+            withdrawContract: address(config.morphoVaults.re7Usdc.vault),
+            heartbeat: 1 days
+        });
+
+        _scheduleAndExecuteAdminAction(
+            address(config.users.admin),
+            address(config.levelContracts.adminTimelock),
+            address(config.levelContracts.vaultManager),
+            abi.encodeWithSelector(
+                VaultManager.addAssetStrategy.selector,
+                address(config.tokens.usdc),
+                address(config.morphoVaults.re7Usdc.vault),
+                re7UsdcConfig
+            )
+        );
+
         address[] memory defaultStrategies = new address[](3);
         defaultStrategies[0] = address(config.periphery.aaveV3);
         defaultStrategies[1] = address(config.morphoVaults.steakhouseUsdc.vault);
@@ -1235,6 +1613,59 @@ contract VaultManagerMainnetTests is Utils, Configurable {
     }
 
     function test_rebalance_usdt_betweenMorpho_succeeds(uint256 deposit) public {
+        if (address(config.morphoVaults.steakhouseUsdt.oracle) == address(0)) {
+            config.morphoVaults.steakhouseUsdt.oracle = deployERC4626Oracle(config.morphoVaults.steakhouseUsdt.vault);
+        }
+
+        if (address(config.morphoVaults.steakhouseUsdtLite.oracle) == address(0)) {
+            config.morphoVaults.steakhouseUsdtLite.oracle =
+                deployERC4626Oracle(config.morphoVaults.steakhouseUsdtLite.vault);
+        }
+
+        steakhouseUsdtConfig = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdt,
+            receiptToken: ERC20(address(config.morphoVaults.steakhouseUsdt.vault)),
+            oracle: config.morphoVaults.steakhouseUsdt.oracle,
+            depositContract: address(config.morphoVaults.steakhouseUsdt.vault),
+            withdrawContract: address(config.morphoVaults.steakhouseUsdt.vault),
+            heartbeat: 1 days
+        });
+
+        steakhouseUsdtLiteConfig = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdt,
+            receiptToken: ERC20(address(config.morphoVaults.steakhouseUsdtLite.vault)),
+            oracle: config.morphoVaults.steakhouseUsdtLite.oracle,
+            depositContract: address(config.morphoVaults.steakhouseUsdtLite.vault),
+            withdrawContract: address(config.morphoVaults.steakhouseUsdtLite.vault),
+            heartbeat: 1 days
+        });
+
+        address[] memory targets = new address[](2);
+        bytes[] memory payloads = new bytes[](2);
+
+        targets[0] = address(config.levelContracts.vaultManager);
+        targets[1] = address(config.levelContracts.vaultManager);
+
+        payloads[0] = abi.encodeWithSelector(
+            VaultManager.addAssetStrategy.selector,
+            address(config.tokens.usdt),
+            address(config.morphoVaults.steakhouseUsdt.vault),
+            steakhouseUsdtConfig
+        );
+
+        payloads[1] = abi.encodeWithSelector(
+            VaultManager.addAssetStrategy.selector,
+            address(config.tokens.usdt),
+            address(config.morphoVaults.steakhouseUsdtLite.vault),
+            steakhouseUsdtLiteConfig
+        );
+
+        _scheduleAndExecuteAdminActionBatch(
+            address(config.users.admin), address(config.levelContracts.adminTimelock), targets, payloads
+        );
+
         address[] memory defaultStrategies = new address[](3);
         defaultStrategies[0] = address(config.periphery.aaveV3);
         defaultStrategies[1] = address(config.morphoVaults.steakhouseUsdt.vault);
@@ -1250,6 +1681,59 @@ contract VaultManagerMainnetTests is Utils, Configurable {
     }
 
     function test_rebalance_usdt_fromMorpho_toAave_succeeds(uint256 deposit) public {
+        if (address(config.morphoVaults.steakhouseUsdt.oracle) == address(0)) {
+            config.morphoVaults.steakhouseUsdt.oracle = deployERC4626Oracle(config.morphoVaults.steakhouseUsdt.vault);
+        }
+
+        if (address(config.morphoVaults.steakhouseUsdtLite.oracle) == address(0)) {
+            config.morphoVaults.steakhouseUsdtLite.oracle =
+                deployERC4626Oracle(config.morphoVaults.steakhouseUsdtLite.vault);
+        }
+
+        steakhouseUsdtConfig = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdt,
+            receiptToken: ERC20(address(config.morphoVaults.steakhouseUsdt.vault)),
+            oracle: config.morphoVaults.steakhouseUsdt.oracle,
+            depositContract: address(config.morphoVaults.steakhouseUsdt.vault),
+            withdrawContract: address(config.morphoVaults.steakhouseUsdt.vault),
+            heartbeat: 1 days
+        });
+
+        steakhouseUsdtLiteConfig = StrategyConfig({
+            category: StrategyCategory.MORPHO,
+            baseCollateral: config.tokens.usdt,
+            receiptToken: ERC20(address(config.morphoVaults.steakhouseUsdtLite.vault)),
+            oracle: config.morphoVaults.steakhouseUsdtLite.oracle,
+            depositContract: address(config.morphoVaults.steakhouseUsdtLite.vault),
+            withdrawContract: address(config.morphoVaults.steakhouseUsdtLite.vault),
+            heartbeat: 1 days
+        });
+
+        address[] memory targets = new address[](2);
+        bytes[] memory payloads = new bytes[](2);
+
+        targets[0] = address(config.levelContracts.vaultManager);
+        targets[1] = address(config.levelContracts.vaultManager);
+
+        payloads[0] = abi.encodeWithSelector(
+            VaultManager.addAssetStrategy.selector,
+            address(config.tokens.usdt),
+            address(config.morphoVaults.steakhouseUsdt.vault),
+            steakhouseUsdtConfig
+        );
+
+        payloads[1] = abi.encodeWithSelector(
+            VaultManager.addAssetStrategy.selector,
+            address(config.tokens.usdt),
+            address(config.morphoVaults.steakhouseUsdtLite.vault),
+            steakhouseUsdtLiteConfig
+        );
+
+        _scheduleAndExecuteAdminActionBatch(
+            address(config.users.admin), address(config.levelContracts.adminTimelock), targets, payloads
+        );
+
         address[] memory defaultStrategies = new address[](3);
         defaultStrategies[0] = address(config.periphery.aaveV3);
         defaultStrategies[1] = address(config.morphoVaults.steakhouseUsdt.vault);
@@ -1502,6 +1986,8 @@ contract VaultManagerMainnetTests is Utils, Configurable {
             "Wrong amount of vault shares"
         );
 
+        _setTotalStrategies();
+
         assertApproxEqRel(
             _getTotalAssets(address(asset)), INITIAL_BALANCE, 0.000001e18, "Wrong amount of total assets after deposit"
         );
@@ -1538,6 +2024,8 @@ contract VaultManagerMainnetTests is Utils, Configurable {
             "Wrong amount of underlying"
         );
 
+        _setTotalStrategies();
+
         assertApproxEqRel(
             _getTotalAssets(address(asset)), INITIAL_BALANCE, 0.000001e18, "Wrong amount of total assets after deposit"
         );
@@ -1565,6 +2053,8 @@ contract VaultManagerMainnetTests is Utils, Configurable {
             1e6,
             "Wrong amount of underlying after deposit"
         );
+
+        _setTotalStrategies();
 
         assertApproxEqRel(
             _getTotalAssets(address(asset)), INITIAL_BALANCE, 0.000001e18, "Wrong amount of total assets after deposit"
@@ -1603,6 +2093,8 @@ contract VaultManagerMainnetTests is Utils, Configurable {
             "Wrong amount after withdrawal"
         );
 
+        _setTotalStrategies();
+
         assertApproxEqRel(
             _getTotalAssets(address(asset)),
             INITIAL_BALANCE,
@@ -1625,6 +2117,8 @@ contract VaultManagerMainnetTests is Utils, Configurable {
             address(config.levelContracts.vaultManager),
             abi.encodeWithSignature("setDefaultStrategies(address,address[])", address(asset), defaultStrategies)
         );
+
+        _setTotalStrategies();
 
         vm.startPrank(strategist.addr);
 
@@ -1741,7 +2235,7 @@ contract VaultManagerMainnetTests is Utils, Configurable {
     function test_removeAssetStrategy_succeeds() public {
         // Get initial state
         address[] memory initialUsdcStrategies = vaultManager.getDefaultStrategies(address(config.tokens.usdc));
-        assertEq(initialUsdcStrategies.length, 4, "Initial USDC strategies count should be 4");
+        assertEq(initialUsdcStrategies.length, 3, "Initial USDC strategies count should be 3");
 
         // Remove Aave V3 strategy (which is in defaultStrategies)
         vm.startPrank(config.users.admin);
@@ -1750,13 +2244,13 @@ contract VaultManagerMainnetTests is Utils, Configurable {
 
         // Verify Aave V3 was removed from defaultStrategies
         address[] memory afterAaveRemoval = vaultManager.getDefaultStrategies(address(config.tokens.usdc));
-        assertEq(afterAaveRemoval.length, 3, "USDC strategies count should be 3 after removing Aave");
+        assertEq(afterAaveRemoval.length, 2, "USDC strategies count should be 2 after removing Aave");
         assertEq(
             afterAaveRemoval[0],
             address(config.morphoVaults.steakhouseUsdc.vault),
             "First strategy should be Steakhouse"
         );
-        assertEq(afterAaveRemoval[1], address(config.morphoVaults.re7Usdc.vault), "Second strategy should be Re7");
+        assertEq(afterAaveRemoval[1], address(config.sparkVaults.sUsdc.vault), "Second strategy should be Spark");
 
         // Verify Aave V3 was removed from assetToStrategy
         (
@@ -1772,23 +2266,24 @@ contract VaultManagerMainnetTests is Utils, Configurable {
             uint256(category), uint256(StrategyCategory.UNDEFINED), "Aave strategy should be undefined after removal"
         );
 
-        // Remove Re7 strategy
+        // Remove Spark strategy
         vm.startPrank(config.users.admin);
-        vaultManager.removeAssetStrategy(address(config.tokens.usdc), address(config.morphoVaults.re7Usdc.vault));
+        vaultManager.removeAssetStrategy(address(config.tokens.usdc), address(config.sparkVaults.sUsdc.vault));
         vm.stopPrank();
 
-        // Verify Re7 was removed from defaultStrategies
-        address[] memory afterRe7Removal = vaultManager.getDefaultStrategies(address(config.tokens.usdc));
-        assertEq(afterRe7Removal.length, 2, "USDC strategies count should be 2 after removing Re7");
+        // Verify Spark was removed from defaultStrategies
+        address[] memory afterSparkRemoval = vaultManager.getDefaultStrategies(address(config.tokens.usdc));
+        assertEq(afterSparkRemoval.length, 1, "USDC strategies count should be 1 after removing Spark");
         assertEq(
-            afterRe7Removal[0], address(config.morphoVaults.steakhouseUsdc.vault), "First strategy should be Steakhouse"
+            afterSparkRemoval[0],
+            address(config.morphoVaults.steakhouseUsdc.vault),
+            "First strategy should be Steakhouse"
         );
-        assertEq(afterRe7Removal[1], address(config.sparkVaults.sUsdc.vault), "Second strategy should be Spark");
-        // Verify Re7 was removed from assetToStrategy
+        // Verify Spark was removed from assetToStrategy
         (category, baseCollateral, receiptToken, oracle, depositContract, withdrawContract, heartbeat) =
-            vaultManager.assetToStrategy(address(config.tokens.usdc), address(config.morphoVaults.re7Usdc.vault));
+            vaultManager.assetToStrategy(address(config.tokens.usdc), address(config.sparkVaults.sUsdc.vault));
         assertEq(
-            uint256(category), uint256(StrategyCategory.UNDEFINED), "Re7 strategy should be undefined after removal"
+            uint256(category), uint256(StrategyCategory.UNDEFINED), "Spark strategy should be undefined after removal"
         );
     }
 }

@@ -57,6 +57,7 @@ contract BaseConfig {
 
     struct UmbrellaVaults {
         ERC4626Vault waUsdcStakeToken;
+        ERC4626Vault waUsdtStakeToken;
     }
 
     struct SparkVaults {

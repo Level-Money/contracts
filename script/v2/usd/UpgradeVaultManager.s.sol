@@ -58,12 +58,6 @@ contract UpgradeVaultManager is Configurable, DeploymentUtils, Script {
 
         console2.log("Deploying VaultManager from address %s", deployerWallet.addr);
 
-        VaultManager proxy = VaultManager(config.levelContracts.vaultManager);
-
-        if (address(proxy) == address(0)) {
-            revert InvalidProxyAddress();
-        }
-
         VaultManager impl = new VaultManager();
 
         vm.stopBroadcast();

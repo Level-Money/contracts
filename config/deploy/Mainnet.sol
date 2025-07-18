@@ -49,7 +49,7 @@ contract Mainnet is BaseConfig {
             oracles: Oracles({
                 usdc: AggregatorV3Interface(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6),
                 usdt: AggregatorV3Interface(0x3E7d1eAB13ad0104d2750B8863b489D65364e32D),
-                ustb: AggregatorV3Interface(0x289B5036cd942e619E1Ee48670F98d214E745AAC),
+                ustb: AggregatorV3Interface(0xE4fA682f94610cCd170680cc3B045d77D9E528a8),
                 aUsdt: AggregatorV3Interface(0x380adC857Cd3d0531C0821B5D52F34737C4eCDC4),
                 aUsdc: AggregatorV3Interface(0x95CCDE4C1bb3d56639d22185aa2f95EcfebD7F22),
                 mNav: AggregatorV3Interface(0xC28198Df9aee1c4990994B35ff51eFA4C769e534),
@@ -101,6 +101,10 @@ contract Mainnet is BaseConfig {
             umbrellaVaults: UmbrellaVaults({
                 waUsdcStakeToken: ERC4626Vault({
                     vault: IERC4626(0x6bf183243FdD1e306ad2C4450BC7dcf6f0bf8Aa6),
+                    oracle: IERC4626Oracle(address(0))
+                }),
+                waUsdtStakeToken: ERC4626Vault({
+                    vault: IERC4626(0xA484Ab92fe32B143AEE7019fC1502b1dAA522D31),
                     oracle: IERC4626Oracle(address(0))
                 })
             }),

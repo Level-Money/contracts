@@ -68,6 +68,10 @@ contract DeploySwapManager is Configurable, DeploymentUtils, Script {
             revert("RolesAuthority must be deployed first");
         }
 
+        if (address(config.oracles.cappedMNav) == address(0)) {
+            revert("CappedMNav must be deployed first");
+        }
+
         bytes memory constructorArgs = abi.encodeWithSignature(
             "initialize(address,address,address)",
             deployerWallet.addr,
