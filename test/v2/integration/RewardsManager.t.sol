@@ -34,6 +34,7 @@ import {Upgradev2_1} from "@level/script/v2/Upgradev2_1.s.sol";
 import {SwapManager} from "@level/src/v2/usd/SwapManager.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {SwapConfig} from "@level/src/v2/usd/SwapManager.sol";
+import {DeploySwapManager} from "@level/script/v2/usd/DeploySwapManager.s.sol";
 
 contract RewardsManagerMainnetTests is Utils, Configurable {
     using SafeTransferLib for ERC20;
@@ -63,9 +64,12 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         initConfig(1);
         _deployNewOracles();
 
-        vm.startPrank(deployer.addr);
-        _deploySwapManager();
-        vm.stopPrank();
+        DeploySwapManager deploySwapManager = new DeploySwapManager();
+
+        vm.prank(deployer.addr);
+        deploySwapManager.setUp_(config, deployer.privateKey);
+
+        config = deploySwapManager.run();
 
         Upgradev2_1 upgrade = new Upgradev2_1();
         upgrade.setUp_(config);
@@ -800,6 +804,7 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
     function _deployNewOracles() internal {
         // Deploy CappedMNavOracle
         CappedOneDollarOracle mNavOracle = new CappedOneDollarOracle(address(config.oracles.mNav));
+        config.oracles.cappedMNav = AggregatorV3Interface(address(mNavOracle));
 
         // Deploy sUsdcOracle
         config.sparkVaults.sUsdc.oracle = deployERC4626Oracle(config.sparkVaults.sUsdc.vault);
@@ -811,59 +816,6 @@ contract RewardsManagerMainnetTests is Utils, Configurable {
         // Deploy waUsdtStakeTokenOracle
         AaveUmbrellaOracle oracleUsdt = new AaveUmbrellaOracle(config.umbrellaVaults.waUsdtStakeToken.vault);
         config.umbrellaVaults.waUsdtStakeToken.oracle = IERC4626Oracle(address(oracleUsdt));
-    }
-
-    function _deploySwapManager() internal {
-        // Replicate SwapManager deploy script
-        CappedOneDollarOracle mNavOracle = new CappedOneDollarOracle(address(config.oracles.mNav));
-        config.oracles.cappedMNav = AggregatorV3Interface(address(mNavOracle));
-
-        bytes memory constructorArgs = abi.encodeWithSignature(
-            "initialize(address,address,address)",
-            deployer.addr,
-            address(config.periphery.uniswapV3Router),
-            address(config.levelContracts.pauserGuard)
-        );
-
-        SwapManager _swapManager = new SwapManager();
-        ERC1967Proxy _swapManagerProxy = new ERC1967Proxy(address(_swapManager), constructorArgs);
-
-        config.levelContracts.swapManager = SwapManager(address(_swapManagerProxy));
-        config.levelContracts.swapManager.setAuthority(config.levelContracts.rolesAuthority);
-
-        config.levelContracts.swapManager.setSwapConfig(
-            address(config.tokens.usdc),
-            address(config.tokens.wrappedM),
-            SwapConfig({
-                pool: 0x970A7749EcAA4394C8B2Bf5F2471F41FD6b79288, // wM/USDC pool
-                fee: 100, //0.01%
-                tickLower: -10,
-                tickUpper: 10,
-                slippageBps: 5, //0.05%
-                active: true
-            })
-        );
-
-        config.levelContracts.swapManager.setSwapConfig(
-            address(config.tokens.wrappedM),
-            address(config.tokens.usdc),
-            SwapConfig({
-                pool: 0x970A7749EcAA4394C8B2Bf5F2471F41FD6b79288, // wM/USDC pool
-                fee: 100, //0.01%
-                tickLower: -10,
-                tickUpper: 10,
-                slippageBps: 5, //0.05%
-                active: true
-            })
-        );
-
-        config.levelContracts.swapManager.addOracle(address(config.tokens.usdc), address(config.oracles.usdc));
-        config.levelContracts.swapManager.addOracle(address(config.tokens.wrappedM), address(config.oracles.cappedMNav));
-        config.levelContracts.swapManager.setHeartBeat(address(config.tokens.usdc), 1 days);
-        config.levelContracts.swapManager.setHeartBeat(address(config.tokens.wrappedM), 26 hours);
-
-        // Transfer ownership to admin timelock
-        config.levelContracts.swapManager.transferOwnership(address(config.levelContracts.adminTimelock));
     }
 
     function _upgradeRewardsManager() internal {
