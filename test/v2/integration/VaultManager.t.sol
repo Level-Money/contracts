@@ -30,6 +30,7 @@ import {SwapConfig} from "@level/src/v2/usd/SwapManager.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Upgradev2_1} from "@level/script/v2/Upgradev2_1.s.sol";
 import {RewardsManager} from "@level/src/v2/usd/RewardsManager.sol";
+import {DeploySwapManager} from "@level/script/v2/usd/DeploySwapManager.s.sol";
 
 contract VaultManagerMainnetTests is Utils, Configurable {
     using SafeTransferLib for ERC20;
@@ -66,9 +67,12 @@ contract VaultManagerMainnetTests is Utils, Configurable {
         initConfig(1);
         _deployNewOracles();
 
-        vm.startPrank(deployer.addr);
-        _deploySwapManager();
-        vm.stopPrank();
+        DeploySwapManager deploySwapManager = new DeploySwapManager();
+
+        vm.prank(deployer.addr);
+        deploySwapManager.setUp_(config, deployer.privateKey);
+
+        config = deploySwapManager.run();
 
         Upgradev2_1 upgrade = new Upgradev2_1();
         upgrade.setUp_(config);
@@ -166,6 +170,7 @@ contract VaultManagerMainnetTests is Utils, Configurable {
     function _deployNewOracles() internal {
         // Deploy CappedMNavOracle
         CappedOneDollarOracle mNavOracle = new CappedOneDollarOracle(address(config.oracles.mNav));
+        config.oracles.cappedMNav = AggregatorV3Interface(address(mNavOracle));
 
         // Deploy sUsdcOracle
         config.sparkVaults.sUsdc.oracle = deployERC4626Oracle(config.sparkVaults.sUsdc.vault);

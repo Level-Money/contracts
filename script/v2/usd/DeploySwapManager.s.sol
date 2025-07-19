@@ -51,13 +51,36 @@ contract DeploySwapManager is Configurable, DeploymentUtils, Script {
         vm.label(msg.sender, "Deployer EOA");
     }
 
+    function setUp_(BaseConfig.Config memory _config, uint256 _privateKey) public {
+        config = _config;
+
+        if (msg.sender != vm.addr(_privateKey)) {
+            revert("Private key does not match sender");
+        }
+
+        deployerWallet.privateKey = _privateKey;
+        deployerWallet.addr = vm.addr(_privateKey);
+
+        vm.label(msg.sender, "Deployer EOA");
+    }
+
+    modifier asDeployer() {
+        if (deployerWallet.privateKey != 0) {
+            vm.startBroadcast(deployerWallet.privateKey);
+        } else {
+            vm.startBroadcast();
+        }
+
+        _;
+
+        vm.stopBroadcast();
+    }
+
     function run() external returns (BaseConfig.Config memory) {
         return deploy();
     }
 
-    function deploy() public returns (BaseConfig.Config memory) {
-        vm.startBroadcast(deployerWallet.privateKey);
-
+    function deploy() public asDeployer returns (BaseConfig.Config memory) {
         console2.log("Deploying SwapManager from address %s", deployerWallet.addr);
 
         if (address(config.levelContracts.pauserGuard) == address(0)) {
@@ -132,8 +155,6 @@ contract DeploySwapManager is Configurable, DeploymentUtils, Script {
 
         // Transfer ownership to admin timelock
         config.levelContracts.swapManager.transferOwnership(address(config.levelContracts.adminTimelock));
-
-        vm.stopBroadcast();
 
         return config;
     }
